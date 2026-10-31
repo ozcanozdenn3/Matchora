@@ -1,0 +1,17 @@
+.gradle/
+.idea/
+.DS_Store
+**/.DS_Store
+build/
+**/build/
+.kotlin/
+local.properties
+*.iml
+.externalNativeBuild/
+.cxx/
+*.hprof
+*.ipa
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+DerivedData/
