@@ -549,6 +549,8 @@ fun MTopBar(
     tokenBalance: Int,
     unreadNotifications: Int,
     isMenuActive: Boolean = false,
+    isLoggedIn: Boolean = true,
+    onOpenAuth: () -> Unit = {},
     onOpenWallet: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenMenu: () -> Unit,
@@ -562,12 +564,24 @@ fun MTopBar(
             Row(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color.White, Color(0xFFFFF7F1), Color.White)))
                 .padding(start = 12.dp, end = 6.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(42.dp).shadow(3.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp))
-                    .background(MGradients.Brand).clickable(onClick = onOpenProfile), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Explore, "Spor pasaportun", tint = Color.White, modifier = Modifier.size(25.dp))
+                    .background(if (isLoggedIn) MGradients.Brand else Brush.linearGradient(listOf(Color(0xFF283548), MColors.Ink900)))
+                    .clickable(onClick = if (isLoggedIn) onOpenProfile else onOpenAuth), contentAlignment = Alignment.Center) {
+                    if (isLoggedIn) {
+                        Icon(Icons.Rounded.Explore, "Spor pasaportun", tint = Color.White, modifier = Modifier.size(25.dp))
+                    } else {
+                        Icon(Icons.Rounded.PersonOutline, "Giriş Yap", tint = Color(0xFFFFB37B), modifier = Modifier.size(24.dp))
+                    }
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("MATCHORA", Modifier.clickable(onClick = onOpenProfile), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.3.sp, color = MColors.Ink900)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("MATCHORA", Modifier.clickable(onClick = if (isLoggedIn) onOpenProfile else onOpenAuth), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.3.sp, color = MColors.Ink900)
+                        if (!isLoggedIn) {
+                            Surface(shape = RoundedCornerShape(6.dp), color = Color(0xFFFFB37B).copy(alpha = 0.25f)) {
+                                Text("Giriş Yap", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.BrandDeep, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                            }
+                        }
+                    }
                     Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onCityClick).padding(top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(currentDistrict, style = MaterialTheme.typography.bodySmall, color = MColors.Ink500, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Icon(Icons.Rounded.KeyboardArrowDown, null, tint = MColors.Ink500, modifier = Modifier.size(16.dp))

@@ -45,6 +45,9 @@ fun SportsPassportScreen(
     paddingValues: PaddingValues,
     user: UserProfile,
     activeProPlan: ProPlan? = null,
+    isLoggedIn: Boolean = true,
+    onOpenAuth: () -> Unit = {},
+    onLogout: () -> Unit = {},
     onOpenWallet: () -> Unit,
     onVerifyContact: () -> Unit,
     onVerifyPhoto: () -> Unit,
@@ -83,6 +86,64 @@ fun SportsPassportScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            if (!isLoggedIn) {
+                item {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onOpenAuth),
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color(0xFF1E293B),
+                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f)),
+                        shadowElevation = 4.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .background(Color(0xFF38BDF8).copy(alpha = 0.2f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Rounded.AccountCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF38BDF8),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Misafir Modundasın",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "Giriş yap veya Pasaport oluştur (+20 TKN)",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF94A3B8)
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF0284C7)
+                            ) {
+                                Text(
+                                    "Giriş Yap",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             item {
                 Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(21.dp), color = MColors.Ink900,
                     border = BorderStroke(1.dp, Color(0xFF40505B)), shadowElevation = 3.dp) {
@@ -100,6 +161,17 @@ fun SportsPassportScreen(
                                 Icon(Icons.Rounded.AccountBalanceWallet, null, Modifier.size(14.dp), tint = Color(0xFFE1C49D))
                                 Spacer(Modifier.width(4.dp))
                                 Text("Cüzdan", fontSize = 11.sp, color = Color(0xFFE1C49D))
+                            }
+                            if (isLoggedIn) {
+                                TextButton(
+                                    onClick = onLogout,
+                                    modifier = Modifier.height(26.dp),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Logout, null, Modifier.size(13.dp), tint = Color(0xFFB8C7CE))
+                                    Spacer(Modifier.width(3.dp))
+                                    Text("Çıkış", fontSize = 10.sp, color = Color(0xFFB8C7CE))
+                                }
                             }
                         }
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

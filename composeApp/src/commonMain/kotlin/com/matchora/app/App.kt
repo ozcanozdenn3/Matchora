@@ -82,6 +82,7 @@ private fun MainAppShell() {
     var lockedTokens by remember { mutableIntStateOf(20) }
     var selectedTopUpPack by remember { mutableStateOf(DemoData.tokenPacks.getOrNull(1) ?: DemoData.tokenPacks.first()) }
     var activeProPlan by remember { mutableStateOf<ProPlan?>(null) }
+    var isLoggedIn by remember { mutableStateOf(true) }
 
     var profile by remember { mutableStateOf(DemoData.me) }
     var events by remember { mutableStateOf(DemoData.events) }
@@ -136,6 +137,7 @@ private fun MainAppShell() {
     var showSubmitJoinSheetForEvent by remember { mutableStateOf<SportEvent?>(null) }
     var showManageJoinRequestsForEvent by remember { mutableStateOf<SportEvent?>(null) }
     var showMenuSheet by remember { mutableStateOf(false) }
+    var showAuthSheet by remember { mutableStateOf(false) }
     var currentToast by remember { mutableStateOf<Toast?>(null) }
 
     val unreadNotificationsCount = remember(notifications) {
@@ -430,6 +432,8 @@ private fun MainAppShell() {
                     tokenBalance = tokenBalance,
                     unreadNotifications = unreadNotificationsCount,
                     isMenuActive = currentTab in setOf(2, 3),
+                    isLoggedIn = isLoggedIn,
+                    onOpenAuth = { showAuthSheet = true },
                     onOpenWallet = { showWalletSheet = true },
                     onOpenNotifications = { showNotificationsSheet = true },
                     onOpenMenu = { showMenuSheet = true },
@@ -756,6 +760,12 @@ private fun MainAppShell() {
                     paddingValues = paddingValues,
                     user = profile,
                     activeProPlan = activeProPlan,
+                    isLoggedIn = isLoggedIn,
+                    onOpenAuth = { showAuthSheet = true },
+                    onLogout = {
+                        isLoggedIn = false
+                        showToast("Çıkış yapıldı · Misafir modundasın", "ℹ️")
+                    },
                     onOpenWallet = { showWalletSheet = true },
                     onVerifyContact = {
                         if (profile.phone.count { it.isDigit() } < 7 || !profile.email.contains('@')) {
@@ -986,16 +996,44 @@ private fun MainAppShell() {
         )
     }
 
-    // 3. Cüzdan ve Ödeme Sayfası (Ayrık Ledger)
+    // 3. Cüzdan ve Ödeme Sayfası (Ayrık Ledger & In-App Purchase)
     if (showWalletSheet) {
         WalletAndPaymentSheet(
-            tokenBalance = tokenBalance, lockedTokens = lockedTokens, ledger = ledger, paymentHolderName = profile.name,
+            tokenBalance = tokenBalance,
+            lockedTokens = lockedTokens,
+            ledger = ledger,
+            paymentHolderName = profile.name,
+            activeProPlan = activeProPlan,
             onDismiss = { showWalletSheet = false },
             onSelectTokenPack = { pack ->
                 val added = pack.tokens + pack.bonus
                 tokenBalance += added
-                ledger = listOf(LedgerEntry(nextUniqueId("l_topup"), LedgerType.PURCHASE, added, "Token yükleme", "Şimdi", idempotencyKey = nextUniqueId("topup"))) + ledger
-                showToast("$added TKN yüklendi", "✓")
+                ledger = listOf(
+                    LedgerEntry(
+                        id = nextUniqueId("l_topup"),
+                        type = LedgerType.PURCHASE,
+                        amount = added,
+                        description = "Apple / Google Pay · ${pack.tokens} TKN",
+                        time = "Şimdi",
+                        idempotencyKey = nextUniqueId("topup")
+                    )
+                ) + ledger
+                showToast("$added TKN Apple Pay ile hesabına yüklendi!", "💎")
+            },
+            onSubscribePlan = { plan ->
+                activeProPlan = plan
+                tokenBalance += 100
+                ledger = listOf(
+                    LedgerEntry(
+                        id = nextUniqueId("l_sub"),
+                        type = LedgerType.PURCHASE,
+                        amount = 100,
+                        description = "Matchora Plus (${plan.title}) Hoş Geldin Bonusu",
+                        time = "Şimdi",
+                        idempotencyKey = nextUniqueId("sub")
+                    )
+                ) + ledger
+                showToast("Matchora Plus üyeliğin aktif! +100 TKN eklendi 👑", "⭐")
             }
         )
     }
@@ -1121,6 +1159,40 @@ private fun MainAppShell() {
             onDismiss = { showMenuSheet = false },
             onSelectTab = { tab ->
                 currentTab = tab
+            }
+        )
+    }
+
+    // 11. Giriş, Kayıt ve Sporcu Pasaportu Onboarding Çekmecesi
+    if (showAuthSheet) {
+        AuthAndOnboardingSheet(
+            onDismiss = { showAuthSheet = false },
+            onLoginSuccess = { method ->
+                isLoggedIn = true
+                showAuthSheet = false
+                showToast("$method ile giriş yapıldı!", "✅")
+            },
+            onCompleteOnboarding = { newProfile ->
+                profile = newProfile
+                isLoggedIn = true
+                showAuthSheet = false
+                tokenBalance += 20
+                ledger = listOf(
+                    LedgerEntry(
+                        id = nextUniqueId("l_onboard"),
+                        type = LedgerType.PURCHASE,
+                        amount = 20,
+                        description = "Sporcu Pasaportu Hoş Geldin Bonusu",
+                        time = "Şimdi",
+                        idempotencyKey = nextUniqueId("onboard")
+                    )
+                ) + ledger
+                showToast("Sporcu Pasaportun oluşturuldu! +20 TKN hediye 🎁", "🏆")
+            },
+            onContinueAsGuest = {
+                isLoggedIn = false
+                showAuthSheet = false
+                showToast("Misafir modunda keşfediyorsun 👁️", "ℹ️")
             }
         )
     }
