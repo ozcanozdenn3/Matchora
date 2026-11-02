@@ -609,16 +609,16 @@ fun MTopBar(
                     }
                 }
 
-                // Sağ Taraf: Giriş Yapıldıysa Token Pill; Misafir ise Şık "Giriş Yap" Butonu
+                // Sağ Taraf: Giriş Yapıldıysa Token Pill; Misafir ise Dengeli & Sade Giriş Butonu
                 if (isLoggedIn) {
                     Surface(
                         onClick = onOpenWallet,
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(12.dp),
                         color = MColors.Ink900,
-                        shadowElevation = 3.dp
+                        shadowElevation = 2.dp
                     ) {
                         Row(
-                            Modifier.heightIn(min = 40.dp).padding(horizontal = 11.dp),
+                            Modifier.height(36.dp).padding(horizontal = 11.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(Icons.Rounded.Toll, null, tint = Color(0xFFFFB68F), modifier = Modifier.size(16.dp))
@@ -629,20 +629,17 @@ fun MTopBar(
                 } else {
                     Surface(
                         onClick = onOpenAuth,
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color.Transparent,
-                        border = BorderStroke(1.dp, Color(0xFFFFB37B).copy(alpha = 0.6f)),
-                        modifier = Modifier
-                            .shadow(4.dp, RoundedCornerShape(14.dp), ambientColor = Color(0x35E26117), spotColor = Color(0x45E26117))
-                            .background(MGradients.Brand, RoundedCornerShape(14.dp))
+                        shape = RoundedCornerShape(12.dp),
+                        color = MColors.Ink900,
+                        shadowElevation = 2.dp
                     ) {
                         Row(
-                            Modifier.heightIn(min = 38.dp).padding(horizontal = 12.dp),
+                            Modifier.height(36.dp).padding(horizontal = 11.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
-                            Icon(Icons.Rounded.Login, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
-                            Text("Giriş Yap", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Icon(Icons.Rounded.PersonOutline, contentDescription = null, tint = Color(0xFFFFB68F), modifier = Modifier.size(16.dp))
+                            Text("Giriş", style = MaterialTheme.typography.titleSmall, fontSize = 12.5.sp, color = Color.White)
                         }
                     }
                 }

@@ -15,6 +15,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Login
+import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -1252,14 +1254,14 @@ private fun GuestPassportView(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Kendi Pasaportunu Oluştur",
+                            text = "Matchora'ya Giriş Yap",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            text = "Maçlara katıl, puanını yükselt, semtinin en iyileri arasına gir.",
+                            text = "Giriş yaptığında sporcu pasaportun otomatik hazırlanır ve +20 TKN başlangıç hediyen tanımlanır.",
                             fontSize = 11.5.sp,
                             color = Color(0xFFB8C7CE),
                             lineHeight = 16.sp
@@ -1282,13 +1284,13 @@ private fun GuestPassportView(
                         Text("🎁", fontSize = 16.sp)
                         Column {
                             Text(
-                                "Yeni Sporcuya +20 TKN Başlangıç Bakiyesi",
+                                "Girişte +20 TKN Hoş Geldin Bonusu Hediye",
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFFFC078)
                             )
                             Text(
-                                "Kayıt olduğun an cüzdanına ücretsiz aktarılır",
+                                "Giriş yaptığın an sporcu cüzdanına ücretsiz aktarılır",
                                 fontSize = 10.sp,
                                 color = Color(0xFFE0D0BE)
                             )
@@ -1298,57 +1300,29 @@ private fun GuestPassportView(
 
                 Spacer(Modifier.height(2.dp))
 
-                // Ana Aksiyon Butonları
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Surface(
-                        onClick = onOpenAuth,
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color.Transparent,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp)
-                            .shadow(6.dp, RoundedCornerShape(14.dp), ambientColor = Color(0x40E26117), spotColor = Color(0x60E26117))
-                            .background(MGradients.Brand, RoundedCornerShape(14.dp))
+                // Tek ve Net Giriş Butonu
+                Surface(
+                    onClick = onOpenAuth,
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.White,
+                    shadowElevation = 2.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(Icons.Rounded.AssignmentInd, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "Sporcu Pasaportumu Oluştur",
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-                    }
-
-                    Surface(
-                        onClick = onOpenAuth,
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFF283845),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(Icons.Rounded.Login, contentDescription = null, tint = Color(0xFFE1C49D), modifier = Modifier.size(17.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "Zaten Hesabım Var · Giriş Yap",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White
-                            )
-                        }
+                        Icon(Icons.AutoMirrored.Rounded.Login, contentDescription = null, tint = MColors.Ink900, modifier = Modifier.size(19.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Giriş Yap ve Pasaportunu Başlat",
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MColors.Ink900
+                        )
                     }
                 }
             }

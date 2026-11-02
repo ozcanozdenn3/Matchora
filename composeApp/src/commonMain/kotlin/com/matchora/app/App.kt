@@ -1163,31 +1163,30 @@ private fun MainAppShell() {
         )
     }
 
-    // 11. Giriş, Kayıt ve Sporcu Pasaportu Onboarding Çekmecesi
+    // 11. Giriş ve Otomatik Pasaport Aktivasyon Çekmecesi
     if (showAuthSheet) {
         AuthAndOnboardingSheet(
             onDismiss = { showAuthSheet = false },
-            onLoginSuccess = { method ->
+            onLoginSuccess = { method, name ->
                 isLoggedIn = true
                 showAuthSheet = false
-                showToast("$method ile giriş yapıldı!", "✅")
-            },
-            onCompleteOnboarding = { newProfile ->
-                profile = newProfile
-                isLoggedIn = true
-                showAuthSheet = false
+                profile = profile.copy(
+                    name = name,
+                    city = currentCity,
+                    area = currentDistrict
+                )
                 tokenBalance += 20
                 ledger = listOf(
                     LedgerEntry(
-                        id = nextUniqueId("l_onboard"),
+                        id = nextUniqueId("l_login"),
                         type = LedgerType.PURCHASE,
                         amount = 20,
-                        description = "Sporcu Pasaportu Hoş Geldin Bonusu",
+                        description = "$method Girişi · Pasaport & Hoş Geldin Bonusu",
                         time = "Şimdi",
-                        idempotencyKey = nextUniqueId("onboard")
+                        idempotencyKey = nextUniqueId("login_bonus")
                     )
                 ) + ledger
-                showToast("Sporcu Pasaportun oluşturuldu! +20 TKN hediye 🎁", "🏆")
+                showToast("$method ile giriş yapıldı · Pasaportun aktif! (+20 TKN) 🪪", "✅")
             },
             onContinueAsGuest = {
                 isLoggedIn = false
