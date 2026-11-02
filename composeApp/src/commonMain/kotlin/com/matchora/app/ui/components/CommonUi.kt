@@ -559,41 +559,94 @@ fun MTopBar(
     modifier: Modifier = Modifier
 ) {
     Box(modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 6.dp)) {
-        Surface(shape = RoundedCornerShape(24.dp), color = MColors.Surface, shadowElevation = 7.dp,
-            border = BorderStroke(1.dp, Brush.linearGradient(listOf(Color.White, Color(0xFFF1DCD0), Color.White)))) {
-            Row(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color.White, Color(0xFFFFF7F1), Color.White)))
-                .padding(start = 12.dp, end = 6.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(42.dp).shadow(3.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp))
-                    .background(if (isLoggedIn) MGradients.Brand else Brush.linearGradient(listOf(Color(0xFF283548), MColors.Ink900)))
-                    .clickable(onClick = if (isLoggedIn) onOpenProfile else onOpenAuth), contentAlignment = Alignment.Center) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MColors.Surface,
+            shadowElevation = 7.dp,
+            border = BorderStroke(1.dp, Brush.linearGradient(listOf(Color.White, Color(0xFFF1DCD0), Color.White)))
+        ) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .background(Brush.linearGradient(listOf(Color.White, Color(0xFFFFF7F1), Color.White)))
+                    .padding(start = 12.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Sol Logo / Profil Avatar
+                Box(
+                    Modifier.size(42.dp)
+                        .shadow(3.dp, RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (isLoggedIn) MGradients.Brand else Brush.linearGradient(listOf(Color(0xFF283548), MColors.Ink900)))
+                        .clickable(onClick = if (isLoggedIn) onOpenProfile else onOpenAuth),
+                    contentAlignment = Alignment.Center
+                ) {
                     if (isLoggedIn) {
                         Icon(Icons.Rounded.Explore, "Spor pasaportun", tint = Color.White, modifier = Modifier.size(25.dp))
                     } else {
-                        Icon(Icons.Rounded.PersonOutline, "Giriş Yap", tint = Color(0xFFFFB37B), modifier = Modifier.size(24.dp))
+                        Icon(Icons.Rounded.SportsSoccer, "Matchora", tint = Color(0xFFFFB37B), modifier = Modifier.size(24.dp))
                     }
                 }
                 Spacer(Modifier.width(10.dp))
+
+                // Marka & İlçe
                 Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text("MATCHORA", Modifier.clickable(onClick = if (isLoggedIn) onOpenProfile else onOpenAuth), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.3.sp, color = MColors.Ink900)
-                        if (!isLoggedIn) {
-                            Surface(shape = RoundedCornerShape(6.dp), color = Color(0xFFFFB37B).copy(alpha = 0.25f)) {
-                                Text("Giriş Yap", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.BrandDeep, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
-                            }
-                        }
-                    }
-                    Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onCityClick).padding(top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "MATCHORA",
+                        modifier = Modifier.clickable(onClick = if (isLoggedIn) onOpenProfile else onOpenAuth),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.5.sp,
+                        color = MColors.Ink900
+                    )
+                    Row(
+                        Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onCityClick).padding(top = 2.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(currentDistrict, style = MaterialTheme.typography.bodySmall, color = MColors.Ink500, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Icon(Icons.Rounded.KeyboardArrowDown, null, tint = MColors.Ink500, modifier = Modifier.size(16.dp))
                     }
                 }
-                Surface(onClick = onOpenWallet, shape = RoundedCornerShape(14.dp), color = MColors.Ink900) {
-                    Row(Modifier.heightIn(min = 40.dp).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Toll, null, tint = Color(0xFFFFB68F), modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(5.dp))
-                        Text("$tokenBalance", style = MaterialTheme.typography.titleSmall, color = Color.White)
+
+                // Sağ Taraf: Giriş Yapıldıysa Token Pill; Misafir ise Şık "Giriş Yap" Butonu
+                if (isLoggedIn) {
+                    Surface(
+                        onClick = onOpenWallet,
+                        shape = RoundedCornerShape(14.dp),
+                        color = MColors.Ink900,
+                        shadowElevation = 3.dp
+                    ) {
+                        Row(
+                            Modifier.heightIn(min = 40.dp).padding(horizontal = 11.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Rounded.Toll, null, tint = Color(0xFFFFB68F), modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(5.dp))
+                            Text("$tokenBalance", style = MaterialTheme.typography.titleSmall, color = Color.White)
+                        }
+                    }
+                } else {
+                    Surface(
+                        onClick = onOpenAuth,
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color.Transparent,
+                        border = BorderStroke(1.dp, Color(0xFFFFB37B).copy(alpha = 0.6f)),
+                        modifier = Modifier
+                            .shadow(4.dp, RoundedCornerShape(14.dp), ambientColor = Color(0x35E26117), spotColor = Color(0x45E26117))
+                            .background(MGradients.Brand, RoundedCornerShape(14.dp))
+                    ) {
+                        Row(
+                            Modifier.heightIn(min = 38.dp).padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Rounded.Login, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                            Text("Giriş Yap", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
                     }
                 }
+
                 IconButton(onClick = onOpenMenu, modifier = Modifier.size(40.dp)) {
                     Icon(
                         imageVector = Icons.Rounded.GridView,

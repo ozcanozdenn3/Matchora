@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,6 +35,7 @@ import com.matchora.app.domain.Sport
 import com.matchora.app.state.*
 import com.matchora.app.ui.components.*
 import com.matchora.app.ui.theme.MColors
+import com.matchora.app.ui.theme.MGradients
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // EXECUTIVE DIGITAL ATHLETE PASSPORT (Minimalist, Net ve Derli Toplu)
@@ -73,80 +75,29 @@ fun SportsPassportScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = paddingValues.calculateTopPadding())
-                .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(
-                top = 10.dp,
-                bottom = paddingValues.calculateBottomPadding() + 28.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            if (!isLoggedIn) {
+    if (!isLoggedIn) {
+        GuestPassportView(
+            paddingValues = paddingValues,
+            onOpenAuth = onOpenAuth,
+            sampleUser = user
+        )
+    } else {
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = paddingValues.calculateTopPadding())
+                    .padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(
+                    top = 10.dp,
+                    bottom = paddingValues.calculateBottomPadding() + 28.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 item {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onOpenAuth),
-                        shape = RoundedCornerShape(18.dp),
-                        color = Color(0xFF1E293B),
-                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f)),
-                        shadowElevation = 4.dp
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .background(Color(0xFF38BDF8).copy(alpha = 0.2f), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Rounded.AccountCircle,
-                                    contentDescription = null,
-                                    tint = Color(0xFF38BDF8),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Misafir Modundasın",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Text(
-                                    "Giriş yap veya Pasaport oluştur (+20 TKN)",
-                                    fontSize = 11.5.sp,
-                                    color = Color(0xFF94A3B8)
-                                )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFF0284C7)
-                            ) {
-                                Text(
-                                    "Giriş Yap",
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            item {
-                Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(21.dp), color = MColors.Ink900,
-                    border = BorderStroke(1.dp, Color(0xFF40505B)), shadowElevation = 3.dp) {
+                    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(21.dp), color = MColors.Ink900,
+                        border = BorderStroke(1.dp, Color(0xFF40505B)), shadowElevation = 3.dp) {
                     Column(Modifier.background(Brush.linearGradient(listOf(Color(0xFF293D46), MColors.Ink900))).padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -751,6 +702,7 @@ fun SportsPassportScreen(
         }
     }
 }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1193,6 +1145,389 @@ private fun PassportSectionCard(
             }
             Spacer(Modifier.height(10.dp))
             content()
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MİSAFİR SPORCU PASAPORTU MERKEZİ (PRESTİJLİ & AYRICALIKLI GUEST HUB)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun GuestPassportView(
+    paddingValues: PaddingValues,
+    onOpenAuth: () -> Unit,
+    sampleUser: UserProfile
+) {
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = paddingValues.calculateTopPadding())
+            .padding(horizontal = 16.dp)
+            .verticalScroll(scrollState),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Spacer(Modifier.height(4.dp))
+
+        // 1. Hero Holographic Teaser Passport Card
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(22.dp),
+            color = MColors.Ink900,
+            border = BorderStroke(1.2.dp, Brush.linearGradient(listOf(Color(0xFFE1C49D), Color(0xFF40505B), Color(0xFFE1C49D)))),
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                Color(0xFF16222F),
+                                Color(0xFF0F172A),
+                                Color(0xFF1E293B)
+                            )
+                        )
+                    )
+                    .padding(horizontal = 18.dp, vertical = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .background(Color(0xFFFFA500), CircleShape)
+                        )
+                        Text(
+                            "SPORCU PASAPORTU",
+                            fontSize = 10.5.sp,
+                            letterSpacing = 1.4.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFE1C49D)
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFE1C49D).copy(alpha = 0.15f),
+                        border = BorderStroke(0.8.dp, Color(0xFFE1C49D).copy(alpha = 0.4f))
+                    ) {
+                        Text(
+                            "MİSAFİR MODU",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFE1C49D)
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .shadow(6.dp, RoundedCornerShape(18.dp))
+                            .background(
+                                Brush.linearGradient(listOf(Color(0xFFE1BE87), Color(0xFF88633F))),
+                                RoundedCornerShape(18.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Badge,
+                            contentDescription = null,
+                            tint = MColors.Ink900,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Kendi Pasaportunu Oluştur",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "Maçlara katıl, puanını yükselt, semtinin en iyileri arasına gir.",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFB8C7CE),
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+
+                // Bonus Banner
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFFFA500).copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, Color(0xFFFFA500).copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("🎁", fontSize = 16.sp)
+                        Column {
+                            Text(
+                                "Yeni Sporcuya +20 TKN Başlangıç Bakiyesi",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFFC078)
+                            )
+                            Text(
+                                "Kayıt olduğun an cüzdanına ücretsiz aktarılır",
+                                fontSize = 10.sp,
+                                color = Color(0xFFE0D0BE)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(2.dp))
+
+                // Ana Aksiyon Butonları
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(
+                        onClick = onOpenAuth,
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color.Transparent,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .shadow(6.dp, RoundedCornerShape(14.dp), ambientColor = Color(0x40E26117), spotColor = Color(0x60E26117))
+                            .background(MGradients.Brand, RoundedCornerShape(14.dp))
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Rounded.AssignmentInd, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Sporcu Pasaportumu Oluştur",
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    Surface(
+                        onClick = onOpenAuth,
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF283845),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Rounded.Login, contentDescription = null, tint = Color(0xFFE1C49D), modifier = Modifier.size(17.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Zaten Hesabım Var · Giriş Yap",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Ayrıcalıklar Kartları (Neden Pasaport?)
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            border = BorderStroke(1.dp, MColors.Line),
+            shadowElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "PASAPORTUN SANA KAZANDIRACAKLARI",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp,
+                    color = MColors.Ink500
+                )
+
+                GuestPerkRow(
+                    icon = Icons.Rounded.Speed,
+                    iconBg = Color(0xFFFFF4EC),
+                    iconTint = MColors.BrandDeep,
+                    title = "Akıllı Eşleşme & MMR Puanı",
+                    description = "Kendi mevkine ve tecrübene denk sporcularla maç yap, dengeyi yakala."
+                )
+
+                HorizontalDivider(color = Color(0xFFF1F5F9))
+
+                GuestPerkRow(
+                    icon = Icons.Rounded.VerifiedUser,
+                    iconBg = Color(0xFFECFDF5),
+                    iconTint = Color(0xFF059669),
+                    title = "Güvenilirlik & Fair Play Puanı",
+                    description = "Maçlara katılım oranını kanıtla, güvenilir oyuncu rozetiyle davetler al."
+                )
+
+                HorizontalDivider(color = Color(0xFFF1F5F9))
+
+                GuestPerkRow(
+                    icon = Icons.Rounded.Leaderboard,
+                    iconBg = Color(0xFFEFF6FF),
+                    iconTint = Color(0xFF2563EB),
+                    title = "Semt ve İlçe Sıralaması",
+                    description = "Kadıköy ve çevresinde maç kazandıkça puan topla, ligde yüksel."
+                )
+
+                HorizontalDivider(color = Color(0xFFF1F5F9))
+
+                GuestPerkRow(
+                    icon = Icons.Rounded.GroupAdd,
+                    iconBg = Color(0xFFFAF5FF),
+                    iconTint = Color(0xFF9333EA),
+                    title = "Eksik Oyuncu İlanlarına Katılım",
+                    description = "Son dakika oyuncu arayan halı saha ve basketbol kadrolarına tek tıkla gir."
+                )
+            }
+        }
+
+        // 3. Örnek Pasaport Vitrini (Önizleme)
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            border = BorderStroke(1.dp, MColors.Line),
+            shadowElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "ÖRNEK SPORCU PASAPORTU",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp,
+                        color = MColors.Ink500
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFFF1F5F9)
+                    ) {
+                        Text(
+                            text = "Önizleme",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MColors.Ink600,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                // Sample card mockup
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MColors.Ink900,
+                    border = BorderStroke(1.dp, Color(0xFF40505B)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .background(Brush.linearGradient(listOf(Color(0xFF293D46), MColors.Ink900)))
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .background(Brush.linearGradient(listOf(Color(0xFFE1BE87), Color(0xFF96704D))), RoundedCornerShape(12.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("MK", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(sampleUser.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("${sampleUser.city} · ${sampleUser.area} · Futbol (Orta Saha)", fontSize = 11.sp, color = Color(0xFFB8C7CE))
+                            }
+                            Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFFFA500).copy(alpha = 0.2f)) {
+                                Text("1.640 MMR", Modifier.padding(horizontal = 7.dp, vertical = 3.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFFC078))
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            PassportMetric("GÜVEN", "%96", Modifier.weight(1f))
+                            PassportMetric("MAÇ", "48", Modifier.weight(1f))
+                            PassportMetric("FAIR PLAY", "4.9/5", Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(paddingValues.calculateBottomPadding() + 20.dp))
+    }
+}
+
+@Composable
+private fun GuestPerkRow(
+    icon: ImageVector,
+    iconBg: Color,
+    iconTint: Color,
+    title: String,
+    description: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .background(iconBg, RoundedCornerShape(11.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(20.dp))
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
+            Text(description, fontSize = 11.5.sp, color = MColors.Ink600, lineHeight = 16.sp)
         }
     }
 }

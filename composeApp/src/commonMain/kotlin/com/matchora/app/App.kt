@@ -82,7 +82,7 @@ private fun MainAppShell() {
     var lockedTokens by remember { mutableIntStateOf(20) }
     var selectedTopUpPack by remember { mutableStateOf(DemoData.tokenPacks.getOrNull(1) ?: DemoData.tokenPacks.first()) }
     var activeProPlan by remember { mutableStateOf<ProPlan?>(null) }
-    var isLoggedIn by remember { mutableStateOf(true) }
+    var isLoggedIn by remember { mutableStateOf(false) }
 
     var profile by remember { mutableStateOf(DemoData.me) }
     var events by remember { mutableStateOf(DemoData.events) }
