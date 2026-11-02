@@ -52,15 +52,29 @@ fun EventDetailSheet(
     onCheckIn: () -> Unit,
     onOpenChat: () -> Unit,
     onReportEvent: () -> Unit,
+    onStartEvent: () -> Unit = {},
+    onCompleteEvent: () -> Unit = {},
+    onCancelEvent: () -> Unit = {},
+    hasResult: Boolean = false,
+    onOpenResult: () -> Unit = {},
     onShare: () -> Unit
 ) {
     var showMatchScoreDetail by remember { mutableStateOf(false) }
+    var hostAction by remember { mutableStateOf<String?>(null) }
     val displayedParticipantIds = if (isJoined) {
         (event.participantIds + DemoData.ME).distinct()
     } else {
         event.participantIds.distinct()
     }
     val displayedFreeSpots = (event.capacity - displayedParticipantIds.size).coerceAtLeast(0)
+
+    hostAction?.let { action ->
+        AlertDialog(onDismissRequest = { hostAction = null },
+            title = { Text(when (action) { "start" -> "Maç başlatılsın mı?"; "complete" -> "Maç tamamlansın mı?"; else -> "Maç iptal edilsin mi?" }) },
+            text = { Text(when (action) { "start" -> "Katılımcı kadrosunu kontrol ederek maçı başlat."; "complete" -> "Tamamladıktan sonra sonucu ve fair play değerlendirmesini bildirebilirsin."; else -> "Karşılaşma iptal edilir ve kendi taahhüt kilidin varsa iade edilir." }) },
+            confirmButton = { TextButton(onClick = { hostAction = null; when (action) { "start" -> onStartEvent(); "complete" -> onCompleteEvent(); else -> onCancelEvent() } }) { Text("Onayla") } },
+            dismissButton = { TextButton(onClick = { hostAction = null }) { Text("Vazgeç") } })
+    }
 
     ModalBottomSheet(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -86,6 +100,24 @@ fun EventDetailSheet(
                     icon = Icons.Rounded.Sports,
                     onDismiss = onDismiss
                 )
+            }
+
+            if ((isJoined || isHost) && (hasResult || event.status in setOf(EventStatus.IN_PROGRESS, EventStatus.COMPLETED, EventStatus.VERIFIED, EventStatus.DISPUTED))) {
+                item { MButton(if (hasResult) "Maç sonucu ve değerlendirme" else "Sonuç bildir ve değerlendir", onOpenResult, icon = Icons.Rounded.Scoreboard, isPrimary = false) }
+            }
+
+            if (isHost && event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING, EventStatus.FULL, EventStatus.IN_PROGRESS)) {
+                item {
+                    MCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Organizatör işlemleri", style = MaterialTheme.typography.titleSmall)
+                            MButton(if (event.status == EventStatus.IN_PROGRESS) "Maçı tamamla" else "Maçı başlat", {
+                                hostAction = if (event.status == EventStatus.IN_PROGRESS) "complete" else "start"
+                            }, isPrimary = false)
+                            TextButton(onClick = { hostAction = "cancel" }) { Text("Maçı iptal et", color = MColors.Rose) }
+                        }
+                    }
+                }
             }
 
             // Kaptan / Organizatör Bilgilendirme Rozeti

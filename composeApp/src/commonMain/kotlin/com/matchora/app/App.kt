@@ -80,9 +80,24 @@ private fun MainAppShell() {
     var isGpsLocationActive by remember { mutableStateOf(false) }
     var tokenBalance by remember { mutableIntStateOf(120) }
     var lockedTokens by remember { mutableIntStateOf(20) }
+    var eventTokenHolds by remember { mutableStateOf(mapOf("e5" to 10, "e7" to 10)) }
     var selectedTopUpPack by remember { mutableStateOf(DemoData.tokenPacks.getOrNull(1) ?: DemoData.tokenPacks.first()) }
     var activeProPlan by remember { mutableStateOf<ProPlan?>(null) }
     var isLoggedIn by remember { mutableStateOf(false) }
+    var hasCompletedPassport by remember { mutableStateOf(false) }
+    var welcomeBonusGranted by remember { mutableStateOf(false) }
+    var pendingAccountAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var showContactVerification by remember { mutableStateOf(false) }
+    var showPhotoVerification by remember { mutableStateOf(false) }
+    var showAccountSettings by remember { mutableStateOf(false) }
+    var showMyActivity by remember { mutableStateOf(false) }
+    var resultEvent by remember { mutableStateOf<SportEvent?>(null) }
+    var matchResults by remember { mutableStateOf(emptyMap<String, MatchResultDraft>()) }
+    var privacyPrefs by remember { mutableStateOf(PrivacyPrefs()) }
+    var notificationPrefs by remember { mutableStateOf(NotificationPrefs()) }
+    var blockedChatIds by remember { mutableStateOf(emptySet<String>()) }
+    var supportRequests by remember { mutableStateOf(emptyList<SupportRequest>()) }
+    var moderationReports by remember { mutableStateOf(emptyList<ModerationReport>()) }
 
     var profile by remember { mutableStateOf(DemoData.me) }
     var events by remember { mutableStateOf(DemoData.events) }
@@ -127,6 +142,7 @@ private fun MainAppShell() {
     // Dialog & Modal State
     var selectedDetailEvent by remember { mutableStateOf<SportEvent?>(null) }
     var showPlayNowSheet by remember { mutableStateOf(false) }
+    var walletStartsOnPlus by remember { mutableStateOf(false) }
     var showWalletSheet by remember { mutableStateOf(false) }
     var showCreateEventSheet by remember { mutableStateOf(false) }
     var showNotificationsSheet by remember { mutableStateOf(false) }
@@ -140,6 +156,13 @@ private fun MainAppShell() {
     var showAuthSheet by remember { mutableStateOf(false) }
     var currentToast by remember { mutableStateOf<Toast?>(null) }
 
+    fun requireAccount(action: () -> Unit) {
+        if (isLoggedIn) action() else {
+            pendingAccountAction = action
+            showAuthSheet = true
+        }
+    }
+
     val unreadNotificationsCount = remember(notifications) {
         notifications.count { !it.read }
     }
@@ -150,6 +173,15 @@ private fun MainAppShell() {
     // Toast Gösterici Fonksiyon
     fun showToast(message: String, emoji: String = "✓") {
         currentToast = Toast(message, emoji, ++nextIdCounter)
+    }
+
+    fun activateDemoPlan(plan: ProPlan) {
+        if (activeProPlan != null) return
+        activeProPlan = plan
+        tokenBalance += 100
+        ledger = listOf(LedgerEntry(nextUniqueId("l_sub"), LedgerType.BONUS, 100,
+            "Matchora Plus (${plan.title}) · Aylık token", "Şimdi", idempotencyKey = "subscription-${plan.sku}")) + ledger
+        showToast("Matchora Plus demo üyeliğin aktif · 100 TKN eklendi", "⭐")
     }
 
     fun lockTokens(amount: Int, reason: String): Boolean {
@@ -171,6 +203,12 @@ private fun MainAppShell() {
         return released
     }
 
+    fun releaseEventTokens(eventId: String): Int {
+        val amount = eventTokenHolds[eventId] ?: return 0
+        eventTokenHolds = eventTokenHolds - eventId
+        return releaseTokens(amount)
+    }
+
     fun joinEventImmediately(event: SportEvent, reason: String) {
         if (joinedEventIds.contains(event.id)) {
             showToast("Zaten bu karşılaşmanın kadrosundasın", "ℹ️")
@@ -181,6 +219,7 @@ private fun MainAppShell() {
             return
         }
         if (!lockTokens(10, "Katılım")) return
+        eventTokenHolds = eventTokenHolds + (event.id to 10)
 
         joinedEventIds = joinedEventIds + event.id
         events = events.map { current ->
@@ -285,6 +324,7 @@ private fun MainAppShell() {
             return
         }
         if (!lockTokens(10, "Başvuru")) return
+        eventTokenHolds = eventTokenHolds + (ev.id to 10)
         val requestId = nextUniqueId("jr")
         val newReq = JoinRequest(
             id = requestId,
@@ -314,7 +354,7 @@ private fun MainAppShell() {
     fun cancelJoinRequest(req: JoinRequest) {
         if (joinRequests.none { it.id == req.id && it.status == JoinRequestStatus.PENDING }) return
         joinRequests = joinRequests.filter { it.id != req.id }
-        val released = releaseTokens(10)
+        val released = releaseEventTokens(req.eventId)
         ledger = listOf(
             LedgerEntry(nextUniqueId("l_rel"), LedgerType.RELEASE, released, "Kadro başvuru iadesi", "Şimdi", idempotencyKey = "rel-${req.id}")
         ) + ledger
@@ -430,11 +470,11 @@ private fun MainAppShell() {
                     currentDistrict = currentDistrict,
                     isGpsActive = isGpsLocationActive,
                     tokenBalance = tokenBalance,
-                    unreadNotifications = unreadNotificationsCount,
+                    unreadNotifications = if (isLoggedIn) unreadNotificationsCount else 0,
                     isMenuActive = currentTab in setOf(2, 3),
                     isLoggedIn = isLoggedIn,
                     onOpenAuth = { showAuthSheet = true },
-                    onOpenWallet = { showWalletSheet = true },
+                    onOpenWallet = { requireAccount { showWalletSheet = true  }},
                     onOpenNotifications = { showNotificationsSheet = true },
                     onOpenMenu = { showMenuSheet = true },
                     onOpenProfile = {
@@ -448,7 +488,7 @@ private fun MainAppShell() {
             if (!(currentTab == 4 && activeChatThreadId != null)) {
                 FloatingAppDock(
                     selectedTab = currentTab,
-                    unreadChats = unreadChatThreadsCount,
+                    unreadChats = if (isLoggedIn) unreadChatThreadsCount else 0,
                     onSelectTab = { clickedTab ->
                         if (currentTab == clickedTab) {
                             scrollToTopTrigger++
@@ -456,7 +496,7 @@ private fun MainAppShell() {
                             currentTab = clickedTab
                         }
                     },
-                    onPlayNowClick = { showPlayNowSheet = true }
+                    onPlayNowClick = { requireAccount { showPlayNowSheet = true  }}
                 )
             }
         }
@@ -482,12 +522,12 @@ private fun MainAppShell() {
                     currentPlayer = currentPlayer,
                     onSelectEvent = { selectedDetailEvent = it },
                     onOpenMap = { currentTab = 1 },
-                    onOpenPlayNow = { showPlayNowSheet = true },
+                    onOpenPlayNow = { requireAccount { showPlayNowSheet = true  }},
                     onOpenEmergencyFill = {
                         val em = events.firstOrNull { it.emergency }
                         if (em != null) selectedDetailEvent = em
                     },
-                    onOpenAutoSquad = {
+                    onOpenAutoSquad = { requireAccount {
                         val squad = threads.firstOrNull { it.type == ThreadType.SQUAD }
                         if (squad != null) {
                             activeChatThreadId = squad.id
@@ -497,10 +537,10 @@ private fun MainAppShell() {
                             currentTab = 4
                             showToast("Sana uygun bir Auto-Squad sohbeti bulunamadı", "ℹ️")
                         }
-                    },
+                     }},
                     onOpenTeamChallenge = { competitionEntryTab = 2; currentTab = 2 },
                     onOpenLeaderboard = { competitionEntryTab = 0; currentTab = 2 },
-                    onOpenWallet = { showWalletSheet = true },
+                    onOpenWallet = { requireAccount { showWalletSheet = true  }},
                     onOpenProfile = { currentTab = 5 }
                 )
                 1 -> DiscoverMapScreen(
@@ -514,10 +554,10 @@ private fun MainAppShell() {
                     waitlistedEventIds = waitlistedEventIds,
                     onLocationClick = { showCityLocationSheet = true },
                     onSelectEvent = { selectedDetailEvent = it },
-                    onQuickJoin = { ev ->
+                    onQuickJoin = { ev -> requireAccount {
                         joinEventImmediately(ev, "Taahhüt")
-                    },
-                    onToggleWaitlist = { ev ->
+                     }},
+                    onToggleWaitlist = { ev -> requireAccount {
                         if (waitlistedEventIds.contains(ev.id)) {
                             waitlistedEventIds = waitlistedEventIds - ev.id
                             events = events.map { current ->
@@ -529,7 +569,7 @@ private fun MainAppShell() {
                             events = events.map { current -> if (current.id == ev.id) current.copy(waitlistCount = current.waitlistCount + 1) else current }
                             showToast("Bekleme listesine eklendin · yer açılınca haber vereceğiz", "⏳")
                         }
-                    }
+                     }}
                 )
                 2 -> CompetitionScreen(
                     paddingValues = paddingValues,
@@ -547,20 +587,20 @@ private fun MainAppShell() {
                     },
                     challenges = challenges,
                     teamJoinRequests = teamJoinRequests,
-                    onCreateTeam = { createTeam(it) },
-                    onOpenChallengeSheet = { _, target -> challengeTargetTeam = target },
-                    onAcceptChallenge = { acceptTeamChallenge(it) },
-                    onDeclineChallenge = { declineTeamChallenge(it) },
-                    onApplyToTeam = { team, pos, note -> applyToTeam(team, pos, note) },
-                    onApproveTeamJoinRequest = { approveTeamJoinRequest(it) },
-                    onRejectTeamJoinRequest = { rejectTeamJoinRequest(it) },
-                    onOpenDirectChat = { openDirectChatWithPlayer(it) },
-                    onInvitePlayerToTeam = { player ->
+                    onCreateTeam = { requireAccount { createTeam(it)  }},
+                    onOpenChallengeSheet = { _, target -> requireAccount { challengeTargetTeam = target  }},
+                    onAcceptChallenge = { requireAccount { acceptTeamChallenge(it)  }},
+                    onDeclineChallenge = { requireAccount { declineTeamChallenge(it)  }},
+                    onApplyToTeam = { team, pos, note -> requireAccount { applyToTeam(team, pos, note)  }},
+                    onApproveTeamJoinRequest = { requireAccount { approveTeamJoinRequest(it)  }},
+                    onRejectTeamJoinRequest = { requireAccount { rejectTeamJoinRequest(it)  }},
+                    onOpenDirectChat = { requireAccount { openDirectChatWithPlayer(it)  }},
+                    onInvitePlayerToTeam = { player -> requireAccount {
                         invitedPlayerIds = invitedPlayerIds + player.id
                         val teamName = teams.firstOrNull { it.isMine }?.name ?: "takımın"
                         showToast("${player.name}, $teamName kadrosuna davet edildi", "🛡️")
-                    },
-                    onCreateTournament = { tournament ->
+                     }},
+                    onCreateTournament = { tournament -> requireAccount {
                         tournaments = listOf(tournament) + tournaments
                         val lockAmount = tournament.organizerLockTokens
                         tokenBalance -= lockAmount
@@ -577,16 +617,16 @@ private fun MainAppShell() {
                             )
                         ) + ledger
                         showToast("${tournament.name} oluşturuldu · $lockAmount TKN kilitlendi", "🏆")
-                    },
-                    onTournamentRegistered = { tournament ->
+                     }},
+                    onTournamentRegistered = { tournament -> requireAccount {
                         registeredTournamentIds = registeredTournamentIds + tournament.id
                         showToast("${tournament.name} için demo kaydın alındı", "🏆")
-                    },
-                    onWithdrawTournamentRegistration = { tournament ->
+                     }},
+                    onWithdrawTournamentRegistration = { tournament -> requireAccount {
                         registeredTournamentIds = registeredTournamentIds - tournament.id
                         showToast("${tournament.name} başvurun geri çekildi", "↩️")
-                    },
-                    onCancelTournament = { tournament ->
+                     }},
+                    onCancelTournament = { tournament -> requireAccount {
                         val lockAmount = tournament.organizerLockTokens
                         tournaments = tournaments.map { current ->
                             if (current.id == tournament.id) current.copy(status = "İptal edildi", organizerLockTokens = 0) else current
@@ -608,7 +648,7 @@ private fun MainAppShell() {
                             ) + ledger
                         }
                         showToast("Turnuva iptal edildi · $lockAmount TKN iade edildi", "↩️")
-                    }
+                     }}
                 )
                 3 -> CommunityAndVenueScreen(
                     paddingValues = paddingValues,
@@ -616,31 +656,17 @@ private fun MainAppShell() {
                     joinedCommunityIds = joinedCommunityIds,
                     requestedCommunityIds = requestedCommunityIds,
                     bookedSlotIds = bookedSlotIds,
-                    onBookSlot = { venue, slot, splitCount, amount, method ->
+                    onBookSlot = { venue, slot, splitCount, amount, method -> requireAccount {
                         val bookingKey = "${venue.id}:${slot.id}"
                         if (bookingKey !in bookedSlotIds && slot.available) {
-                        if (amount > tokenBalance) {
-                            showToast("Yetersiz token · bakiyeni yükle", "ℹ️")
-                            showTokenTopUpSheet = true
-                        } else {
-                        tokenBalance -= amount
-                        ledger = listOf(LedgerEntry(nextUniqueId("l_venue"), LedgerType.SPEND, -amount, "Saha rezervasyonu · ${venue.name}", "Şimdi", idempotencyKey = nextUniqueId("venue"))) + ledger
-                        bookedSlotIds = bookedSlotIds + bookingKey
-                        val newPayment = VenuePayment(
-                            id = nextUniqueId("vp"),
-                            venue = venue.name,
-                            description = "${slot.court} · ${slot.day} ${slot.time} · $splitCount kişilik paylaşım",
-                            amountTry = amount,
-                            method = method,
-                            time = "Şimdi",
-                            status = PaymentStatus.PAID
-                        )
-                        venuePayments = listOf(newPayment) + venuePayments
-                        showToast("Rezervasyon tamamlandı · $amount TKN", "🏟️")
-                        }
+                            bookedSlotIds = bookedSlotIds + bookingKey
+                            venuePayments = listOf(VenuePayment(nextUniqueId("vp"), venue.name,
+                                "${slot.court} · ${slot.day} ${slot.time} · $splitCount kişilik paylaşım",
+                                amount, method, "Şimdi", PaymentStatus.PENDING, bookingKey)) + venuePayments
+                            showToast("Rezervasyon kaydedildi · ₺$amount tesiste ödenecek", "🏟️")
                         } else showToast("Bu saat zaten rezerve edildi", "ℹ️")
-                    },
-                    onJoinCommunity = { com ->
+                    } },
+                    onJoinCommunity = { com -> requireAccount {
                         when (com.access) {
                             CommunityAccess.OPEN -> {
                                 if (com.id in joinedCommunityIds) {
@@ -662,11 +688,14 @@ private fun MainAppShell() {
                             }
                             CommunityAccess.INVITE -> showToast("Bu topluluk davetle katılıma açık", "🔒")
                         }
-                    }
+                     }}
                 )
                 4 -> ChatHubScreen(
                     paddingValues = paddingValues,
                     threads = threads,
+                    blockedThreadIds = blockedChatIds,
+                    onToggleBlock = { threadId -> blockedChatIds = if (threadId in blockedChatIds) blockedChatIds - threadId else blockedChatIds + threadId },
+                    onReportThread = { thread -> reportTargetName = thread.title },
                     memories = memoryPosts,
                     currentCity = currentCity,
                     currentDistrict = currentDistrict,
@@ -680,10 +709,10 @@ private fun MainAppShell() {
                             }
                         }
                     },
-                    onSendMessage = { threadId, text ->
+                    onSendMessage = { threadId, text -> requireAccount {
                         val message = text.trim()
                         val target = threads.firstOrNull { it.id == threadId }
-                        if (message.isNotEmpty() && target != null && !target.locked) {
+                        if (message.isNotEmpty() && target != null && !target.locked && threadId !in blockedChatIds) {
                             threads = threads.map { th ->
                                 if (th.id == threadId) th.copy(messages = th.messages + ChatMsg(
                                     id = nextUniqueId("m"), senderId = DemoData.ME,
@@ -693,7 +722,7 @@ private fun MainAppShell() {
                             demoScope.launch {
                                 delay(1200)
                                 threads = threads.map { th ->
-                                    if (th.id == threadId) th.copy(
+                                    if (th.id == threadId && threadId !in blockedChatIds) th.copy(
                                         messages = th.messages + ChatMsg(
                                             id = nextUniqueId("m_demo"), senderId = "demo_partner", senderName = "Demo sporcu",
                                             text = "Mesajını aldım! Buluşma detaylarını buradan konuşabiliriz. Görüşürüz 👋", time = "Şimdi"
@@ -703,10 +732,10 @@ private fun MainAppShell() {
                                 }
                             }
                         }
-                    },
-                    onSendMemoryToChat = { threadId, caption, memory ->
+                     }},
+                    onSendMemoryToChat = { threadId, caption, memory -> requireAccount {
                         threads = threads.map { th ->
-                            if (th.id == threadId) th.copy(
+                            if (th.id == threadId && !th.locked && threadId !in blockedChatIds) th.copy(
                                 messages = th.messages + ChatMsg(
                                     id = nextUniqueId("m_mem"),
                                     senderId = DemoData.ME,
@@ -722,8 +751,8 @@ private fun MainAppShell() {
                             if (memory.venue.isBlank()) "Fotoğraf sohbete gönderildi" else "Saha anısı sohbete gönderildi",
                             "📸"
                         )
-                    },
-                    onCreateMemoryPost = { newPost, targetThreadId ->
+                     }},
+                    onCreateMemoryPost = { newPost, targetThreadId -> requireAccount {
                         memoryPosts = listOf(newPost) + memoryPosts
                         if (targetThreadId != null) {
                             threads = threads.map { th ->
@@ -743,8 +772,8 @@ private fun MainAppShell() {
                         } else {
                             showToast("Saha anısı vitrine eklendi!", "📸")
                         }
-                    },
-                    onToggleLikeMemory = { memoryId ->
+                     }},
+                    onToggleLikeMemory = { memoryId -> requireAccount {
                         memoryPosts = memoryPosts.map { post ->
                             if (post.id == memoryId) {
                                 val nowLiked = !post.likedByMe
@@ -754,7 +783,7 @@ private fun MainAppShell() {
                                 )
                             } else post
                         }
-                    }
+                     }}
                 )
                 5 -> SportsPassportScreen(
                     paddingValues = paddingValues,
@@ -762,27 +791,15 @@ private fun MainAppShell() {
                     activeProPlan = activeProPlan,
                     isLoggedIn = isLoggedIn,
                     onOpenAuth = { showAuthSheet = true },
+                    onOpenSettings = { showAccountSettings = true },
+                    onOpenActivity = { showMyActivity = true },
                     onLogout = {
                         isLoggedIn = false
                         showToast("Çıkış yapıldı · Misafir modundasın", "ℹ️")
                     },
-                    onOpenWallet = { showWalletSheet = true },
-                    onVerifyContact = {
-                        if (profile.phone.count { it.isDigit() } < 7 || !profile.email.contains('@')) {
-                            showToast("Önce geçerli telefon ve e-posta bilgisi ekle", "ℹ️")
-                        } else {
-                            profile = profile.copy(verifications = profile.verifications + VerificationLevel.BASIC)
-                            showToast("İletişim bilgilerin demo olarak doğrulandı", "✓")
-                        }
-                    },
-                    onVerifyPhoto = {
-                        if (VerificationLevel.PHOTO in profile.verifications) {
-                            showToast("Fotoğrafın zaten doğrulanmış", "✓")
-                        } else {
-                            profile = profile.copy(verifications = profile.verifications + VerificationLevel.PHOTO)
-                            showToast("Demo fotoğraf doğrulaması tamamlandı", "🤳")
-                        }
-                    },
+                    onOpenWallet = { requireAccount { showWalletSheet = true  }},
+                    onVerifyContact = { showContactVerification = true },
+                    onVerifyPhoto = { showPhotoVerification = true },
                     onUpdateProfile = { updatedProfile ->
                         profile = updatedProfile
                         currentCity = updatedProfile.city
@@ -808,10 +825,10 @@ private fun MainAppShell() {
     // 1. Etkinlik Detay Sayfası
     if (selectedDetailEvent != null) {
         val ev = events.firstOrNull { it.id == selectedDetailEvent!!.id } ?: selectedDetailEvent!!
-        val isJoined = joinedEventIds.contains(ev.id)
+        val isJoined = isLoggedIn && joinedEventIds.contains(ev.id)
         val isCheckedIn = checkedInEventIds.contains(ev.id)
-        val isHost = ev.hostId == DemoData.ME || ev.hostId == "me"
-        val pendingRequest = joinRequests.firstOrNull { it.eventId == ev.id && it.player.id == DemoData.ME && it.status == JoinRequestStatus.PENDING }
+        val isHost = isLoggedIn && (ev.hostId == DemoData.ME || ev.hostId == "me")
+        val pendingRequest = if (!isLoggedIn) null else joinRequests.firstOrNull { it.eventId == ev.id && it.player.id == DemoData.ME && it.status == JoinRequestStatus.PENDING }
         val pendingRequestsCount = joinRequests.count { it.eventId == ev.id && it.status == JoinRequestStatus.PENDING }
         val isOnWaitlist = waitlistedEventIds.contains(ev.id)
 
@@ -825,13 +842,13 @@ private fun MainAppShell() {
             pendingRequest = pendingRequest,
             pendingRequestsCount = pendingRequestsCount,
             onDismiss = { selectedDetailEvent = null },
-            onToggleJoin = {
+            onToggleJoin = { requireAccount {
                 if (isJoined) {
                     if (isCheckedIn) {
                         showToast("Check-in tamamlanan karşılaşmadan ayrılamazsın", "ℹ️")
                     } else {
                         joinedEventIds = joinedEventIds - ev.id
-                        val released = releaseTokens(10)
+                        val released = releaseEventTokens(ev.id)
                         events = events.map { current ->
                             if (current.id != ev.id) current
                             else current.copy(
@@ -848,8 +865,8 @@ private fun MainAppShell() {
                 } else {
                     joinEventImmediately(ev, "Taahhüt")
                 }
-            },
-            onToggleWaitlist = {
+             }},
+            onToggleWaitlist = { requireAccount {
                 if (isOnWaitlist) {
                     waitlistedEventIds = waitlistedEventIds - ev.id
                     events = events.map { current ->
@@ -863,22 +880,22 @@ private fun MainAppShell() {
                     selectedDetailEvent = events.firstOrNull { it.id == ev.id } ?: ev
                     showToast("Bekleme listesine eklendin · yer açılınca haber vereceğiz", "⏳")
                 }
-            },
-            onRequestJoin = {
+             }},
+            onRequestJoin = { requireAccount {
                 showSubmitJoinSheetForEvent = ev
-            },
-            onCancelRequest = {
+             }},
+            onCancelRequest = { requireAccount {
                 val r = pendingRequest
                 if (r != null) cancelJoinRequest(r)
-            },
-            onOpenManageRequests = {
+             }},
+            onOpenManageRequests = { requireAccount {
                 showManageJoinRequestsForEvent = ev
-            },
-            onDirectMessageHost = {
+             }},
+            onDirectMessageHost = { requireAccount {
                 val hostPlayer = DemoData.players.firstOrNull { it.id == ev.hostId } ?: DemoData.player("p1")!!
                 openDirectChatWithPlayer(hostPlayer)
-            },
-            onCheckIn = {
+             }},
+            onCheckIn = { requireAccount {
                 if (!isJoined) {
                     showToast("Check-in için önce kadroya katıl", "ℹ️")
                 } else if (checkedInEventIds.contains(ev.id)) {
@@ -886,14 +903,14 @@ private fun MainAppShell() {
                 } else {
                     checkedInEventIds = checkedInEventIds + ev.id
                     profile = profile.copy(reliability = (profile.reliability + 2).coerceAtMost(100))
-                    val released = releaseTokens(10)
+                    val released = releaseEventTokens(ev.id)
                     ledger = listOf(
                         LedgerEntry(nextUniqueId("l_rel"), LedgerType.RELEASE, released, "Check-in katılım iadesi · ${ev.title}", "Şimdi", idempotencyKey = nextUniqueId("op_checkin"))
                     ) + ledger
                     showToast("Check-in tamamlandı · $released TKN iade edildi", "📍")
                 }
-            },
-            onOpenChat = {
+             }},
+            onOpenChat = { requireAccount {
                 if (isJoined || isHost) {
                     val existing = threads.firstOrNull { it.relatedEventId == ev.id }
                     val threadId = existing?.id ?: "chat_${ev.id}"
@@ -910,10 +927,31 @@ private fun MainAppShell() {
                     selectedDetailEvent = null
                     currentTab = 4
                 } else showToast("Sohbet için önce etkinliğe katıl", "ℹ️")
-            },
-            onReportEvent = {
+             }},
+            onReportEvent = { requireAccount {
                 reportTargetName = ev.title
+             }},
+            onStartEvent = {
+                events = events.map { if (it.id == ev.id) it.copy(status = EventStatus.IN_PROGRESS) else it }
+                selectedDetailEvent = events.firstOrNull { it.id == ev.id }
             },
+            onCompleteEvent = {
+                events = events.map { if (it.id == ev.id) it.copy(status = EventStatus.COMPLETED) else it }
+                selectedDetailEvent = null
+                resultEvent = events.firstOrNull { it.id == ev.id }
+            },
+            onCancelEvent = {
+                events = events.map { if (it.id == ev.id) it.copy(status = EventStatus.CANCELLED) else it }
+                val released = releaseEventTokens(ev.id)
+                if (released > 0) ledger = listOf(LedgerEntry(nextUniqueId("cancel_release"), LedgerType.RELEASE, released, "İptal iadesi · ${ev.title}", "Şimdi", idempotencyKey = "cancel-${ev.id}")) + ledger
+                joinedEventIds = joinedEventIds - ev.id
+                waitlistedEventIds = waitlistedEventIds - ev.id
+                joinRequests = joinRequests.map { if (it.eventId == ev.id && it.status == JoinRequestStatus.PENDING) it.copy(status = JoinRequestStatus.REJECTED) else it }
+                selectedDetailEvent = events.firstOrNull { it.id == ev.id }
+                showToast("Maç iptal edildi", "↩️")
+            },
+            hasResult = ev.id in matchResults,
+            onOpenResult = { requireAccount { resultEvent = ev } },
             onShare = {
                 clipboardManager.setText(AnnotatedString("https://matchora.app/m/${ev.id}"))
                 showToast("Demo davet bağlantısı kopyalandı", "🔗")
@@ -974,16 +1012,17 @@ private fun MainAppShell() {
                 showPlayNowSheet = false
                 selectedDetailEvent = ev
             },
-            onQuickJoin = { ev ->
+            onQuickJoin = { ev -> requireAccount {
                 showPlayNowSheet = false
                 joinEventImmediately(ev, "Hızlı katılım")
-            },
+             }},
             onCreateEvent = { newEvent ->
                 if (events.any { it.id == newEvent.id }) {
                     showToast("Bu ilan kimliği zaten kullanılmış; yeniden dene", "⚠️")
                 } else if (lockTokens(10, "İlan oluşturma")) {
                     events = listOf(newEvent) + events
                     joinedEventIds = joinedEventIds + newEvent.id
+                    eventTokenHolds = eventTokenHolds + (newEvent.id to 10)
                     ledger = listOf(
                         LedgerEntry(nextUniqueId("l_ad"), LedgerType.HOLD, -10, "İlan Kilidi · ${newEvent.title}", "Şimdi", idempotencyKey = nextUniqueId("op_ad"))
                     ) + ledger
@@ -1004,7 +1043,8 @@ private fun MainAppShell() {
             ledger = ledger,
             paymentHolderName = profile.name,
             activeProPlan = activeProPlan,
-            onDismiss = { showWalletSheet = false },
+            initialPlusTab = walletStartsOnPlus,
+            onDismiss = { showWalletSheet = false; walletStartsOnPlus = false },
             onSelectTokenPack = { pack ->
                 val added = pack.tokens + pack.bonus
                 tokenBalance += added
@@ -1013,28 +1053,14 @@ private fun MainAppShell() {
                         id = nextUniqueId("l_topup"),
                         type = LedgerType.PURCHASE,
                         amount = added,
-                        description = "Apple / Google Pay · ${pack.tokens} TKN",
+                        description = "Token paketi · ${pack.tokens} TKN",
                         time = "Şimdi",
                         idempotencyKey = nextUniqueId("topup")
                     )
                 ) + ledger
-                showToast("$added TKN Apple Pay ile hesabına yüklendi!", "💎")
+                showToast("$added TKN demo cüzdanına yüklendi!", "💎")
             },
-            onSubscribePlan = { plan ->
-                activeProPlan = plan
-                tokenBalance += 100
-                ledger = listOf(
-                    LedgerEntry(
-                        id = nextUniqueId("l_sub"),
-                        type = LedgerType.PURCHASE,
-                        amount = 100,
-                        description = "Matchora Plus (${plan.title}) Hoş Geldin Bonusu",
-                        time = "Şimdi",
-                        idempotencyKey = nextUniqueId("sub")
-                    )
-                ) + ledger
-                showToast("Matchora Plus üyeliğin aktif! +100 TKN eklendi 👑", "⭐")
-            }
+            onSubscribePlan = { activateDemoPlan(it) }
         )
     }
 
@@ -1049,6 +1075,7 @@ private fun MainAppShell() {
                 } else if (lockTokens(10, "İlan oluşturma")) {
                     events = listOf(newEvent) + events
                     joinedEventIds = joinedEventIds + newEvent.id
+                    eventTokenHolds = eventTokenHolds + (newEvent.id to 10)
                     ledger = listOf(
                         LedgerEntry(nextUniqueId("l_ad"), LedgerType.HOLD, -10, "İlan Kilidi · ${newEvent.title}", "Şimdi", idempotencyKey = nextUniqueId("op_ad"))
                     ) + ledger
@@ -1062,15 +1089,25 @@ private fun MainAppShell() {
     if (showNotificationsSheet) {
         NotificationsSheet(
             notifications = notifications,
+            preferences = notificationPrefs,
+            onPreferencesChange = { notificationPrefs = it },
             onDismiss = { showNotificationsSheet = false },
             onNotificationClick = { notif ->
                 notifications = notifications.map { if (it.id == notif.id) it.copy(read = true) else it }
-                if (notif.eventId != null) {
-                    val ev = events.firstOrNull { it.id == notif.eventId }
-                    if (ev != null) {
-                        showNotificationsSheet = false
-                        selectedDetailEvent = ev
+                showNotificationsSheet = false
+                when (notif.destination) {
+                    NotificationDestination.EVENT -> {
+                        val event = events.firstOrNull { it.id == (notif.eventId ?: notif.targetId) }
+                        if (event != null) selectedDetailEvent = event else showToast("Bu maç artık listede bulunmuyor", "ℹ️")
                     }
+                    NotificationDestination.CHALLENGES -> { competitionEntryTab = 2; currentTab = 2 }
+                    NotificationDestination.RANKING -> { competitionEntryTab = 0; currentTab = 2 }
+                    NotificationDestination.PASSPORT -> { currentTab = 5 }
+                    NotificationDestination.ACCOUNT -> requireAccount { showAccountSettings = true }
+                    NotificationDestination.PLAY -> requireAccount { showPlayNowSheet = true }
+                    NotificationDestination.PLUS -> requireAccount { walletStartsOnPlus = true; showWalletSheet = true }
+                    NotificationDestination.WALLET -> requireAccount { walletStartsOnPlus = false; showWalletSheet = true }
+                    NotificationDestination.CHAT -> requireAccount { activeChatThreadId = notif.targetId; currentTab = 4 }
                 }
             },
             onMarkAllRead = {
@@ -1099,8 +1136,9 @@ private fun MainAppShell() {
         ReportAndDisputeDialog(
             targetName = reportTargetName!!,
             onDismiss = { reportTargetName = null },
-            onSubmitReport = { reason, _ ->
-                showToast("Bildirimin alındı ($reason). Moderasyon kuyruğuna iletildi.", "🛡️")
+            onSubmitReport = { reason, details ->
+                moderationReports = listOf(ModerationReport(nextUniqueId("report"), reportTargetName.orEmpty(), reason, details)) + moderationReports
+                showToast("Bildirim kaydın Hesap → Destek bölümünde", "🛡️")
             }
         )
     }
@@ -1111,6 +1149,9 @@ private fun MainAppShell() {
             onDismiss = { showTokenTopUpSheet = false },
             initialPack = selectedTopUpPack,
             currentBalance = tokenBalance,
+            lockedTokens = lockedTokens,
+            activeProPlan = activeProPlan,
+            onSubscribePlan = { activateDemoPlan(it) },
             userName = profile.name,
             ledger = ledger,
             onConfirmTopUp = { pack, method ->
@@ -1166,8 +1207,9 @@ private fun MainAppShell() {
     // 11. Giriş ve Pasaport Doldurma Çekmecesi
     if (showAuthSheet) {
         AuthAndOnboardingSheet(
-            onDismiss = { showAuthSheet = false },
+            onDismiss = { showAuthSheet = false; pendingAccountAction = null },
             initialStage = AuthStage.LOGIN_OPTIONS,
+            existingProfile = if (hasCompletedPassport) profile else null,
             currentCity = currentCity,
             currentDistrict = currentDistrict,
             onCompletePassport = { newProfile, method ->
@@ -1176,26 +1218,61 @@ private fun MainAppShell() {
                 profile = newProfile
                 currentCity = newProfile.city
                 currentDistrict = newProfile.area
-                tokenBalance += 20
-                ledger = listOf(
-                    LedgerEntry(
-                        id = nextUniqueId("l_passport"),
-                        type = LedgerType.PURCHASE,
-                        amount = 20,
-                        description = "$method · Sporcu Pasaportu & Hoş Geldin Bonusu",
-                        time = "Şimdi",
-                        idempotencyKey = nextUniqueId("passport_bonus")
-                    )
-                ) + ledger
-                showToast("Sporcu Pasaportun oluşturuldu! +20 TKN hediye 🎁", "🏆")
+                hasCompletedPassport = true
+                if (!welcomeBonusGranted) {
+                    welcomeBonusGranted = true
+                    tokenBalance += 20
+                    ledger = listOf(LedgerEntry("passport_welcome", LedgerType.BONUS, 20,
+                        "$method · Pasaport hoş geldin hediyesi", "Şimdi", idempotencyKey = "passport_welcome")) + ledger
+                }
+                val pending = pendingAccountAction
+                pendingAccountAction = null
+                pending?.invoke()
+                showToast("Sporcu pasaportun hazır", "✓")
             },
             onContinueAsGuest = {
                 isLoggedIn = false
+                pendingAccountAction = null
                 showAuthSheet = false
                 showToast("Misafir modunda keşfediyorsun 👁️", "ℹ️")
             }
         )
     }
+    if (showContactVerification) ContactVerificationSheet(profile.phone,
+        onRecordRequest = { phone ->
+            profile = profile.copy(phone = phone)
+            supportRequests = listOf(SupportRequest(nextUniqueId("contact_verify"), "İletişim doğrulaması", "Telefon doğrulama talebi", "Hesap")) + supportRequests
+        }, onDismiss = { showContactVerification = false })
+    if (showPhotoVerification) PhotoVerificationSheet(profile,
+        onPhotoRequest = { photo ->
+            profile = profile.copy(avatar = photo)
+            supportRequests = listOf(SupportRequest(nextUniqueId("photo_verify"), "Fotoğraf doğrulaması", "Fotoğraf inceleme talebi", "Hesap")) + supportRequests
+        }, onDismiss = { showPhotoVerification = false })
+    if (showAccountSettings) AccountSettingsSheet(
+        privacyPrefs, { privacyPrefs = it }, notificationPrefs, { notificationPrefs = it },
+        threads.filter { it.id in blockedChatIds }, { blockedChatIds = blockedChatIds - it },
+        supportRequests, moderationReports,
+        onSupport = { subject, message, category -> supportRequests = listOf(SupportRequest(nextUniqueId("support"), subject, message, category)) + supportRequests },
+        onLogout = { isLoggedIn = false; showAccountSettings = false; currentTab = 5; activeChatThreadId = null },
+        onRequestDeletion = { if (supportRequests.none { it.subject == "Hesap silme talebi" }) supportRequests = listOf(SupportRequest(nextUniqueId("deletion"), "Hesap silme talebi", "Hesap ve kişisel verilerin silinmesi talebi", "Hesap")) + supportRequests },
+        onDismiss = { showAccountSettings = false }
+    )
+    if (showMyActivity) MyActivitySheet(events, joinedEventIds, waitlistedEventIds,
+        joinRequests.filter { it.player.id == DemoData.ME && it.status == JoinRequestStatus.PENDING },
+        venuePayments, { showMyActivity = false; selectedDetailEvent = it },
+        onCancelReservation = { payment ->
+            venuePayments = venuePayments.map { if (it.id == payment.id) it.copy(status = PaymentStatus.CANCELLED) else it }
+            payment.bookingKey?.let { bookedSlotIds = bookedSlotIds - it }
+            showToast("Rezervasyon iptal edildi", "↩️")
+        }, onDismiss = { showMyActivity = false })
+    resultEvent?.let { event -> MatchResultSheet(event, matchResults[event.id],
+        canSubmit = (event.id in joinedEventIds || event.hostId == DemoData.ME) && event.status in setOf(EventStatus.IN_PROGRESS, EventStatus.COMPLETED, EventStatus.VERIFIED, EventStatus.DISPUTED),
+        onSubmit = { result -> matchResults = matchResults + (event.id to result); showToast("Sonuç kaydedildi · doğrulama bekleniyor", "✓") },
+        onDispute = { reason ->
+            matchResults[event.id]?.let { matchResults = matchResults + (event.id to it.copy(disputed = true, disputeReason = reason)) }
+            moderationReports = listOf(ModerationReport(nextUniqueId("result_dispute"), event.title, "Skor itirazı", reason)) + moderationReports
+        }, onDismiss = { resultEvent = null }) }
+
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

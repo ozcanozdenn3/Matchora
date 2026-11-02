@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.matchora.app.state.AppNotification
+import com.matchora.app.state.NotificationPrefs
 import com.matchora.app.state.NotifPriority
 import com.matchora.app.ui.theme.MColors
 
@@ -44,12 +45,14 @@ fun NotificationsSheet(
     notifications: List<AppNotification>,
     onDismiss: () -> Unit,
     onNotificationClick: (AppNotification) -> Unit,
+    preferences: NotificationPrefs = NotificationPrefs(),
+    onPreferencesChange: (NotificationPrefs) -> Unit = {},
     onMarkAllRead: () -> Unit
 ) {
     var selectedCategory by remember { mutableStateOf(NotifFilterCategory.ALL) }
     var showPreferences by remember { mutableStateOf(false) }
-    var quietHoursActive by remember { mutableStateOf(true) }
-    var emergencyCallsActive by remember { mutableStateOf(true) }
+    val quietHoursActive = preferences.quietHours
+    val emergencyCallsActive = preferences.emergencyFill
     val unreadCount = notifications.count { !it.read }
     val filteredList = remember(notifications, selectedCategory) {
         when (selectedCategory) {
@@ -143,9 +146,9 @@ fun NotificationsSheet(
                         Surface(shape = RoundedCornerShape(18.dp), color = Color.White, border = BorderStroke(1.dp, MColors.Line)) {
                             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("SANA NASIL ULAŞALIM?", fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold, color = MColors.Ink500)
-                                NotificationPreference(Icons.Rounded.NightsStay, "Sessiz saatler", "23:00 – 08:00 · Acil olmayan çağrılar bekler", quietHoursActive, { quietHoursActive = it })
+                                NotificationPreference(Icons.Rounded.NightsStay, "Sessiz saatler", "23:00 – 08:00 · Acil olmayan çağrılar bekler", quietHoursActive, { onPreferencesChange(preferences.copy(quietHours = it)) })
                                 HorizontalDivider(color = MColors.LineSoft)
-                                NotificationPreference(Icons.Rounded.Bolt, "Acil maç çağrıları", "Yakınındaki eksik kadrolardan haberdar ol", emergencyCallsActive, { emergencyCallsActive = it })
+                                NotificationPreference(Icons.Rounded.Bolt, "Acil maç çağrıları", "Yakınındaki eksik kadrolardan haberdar ol", emergencyCallsActive, { onPreferencesChange(preferences.copy(emergencyFill = it)) })
                             }
                         }
                     }

@@ -69,7 +69,10 @@ fun ChatHubScreen(
     onSendMessage: (String, String) -> Unit,
     onSendMemoryToChat: (threadId: String, caption: String, memory: MatchMemoryPost) -> Unit = { _, _, _ -> },
     onCreateMemoryPost: (MatchMemoryPost, String?) -> Unit = { _, _ -> },
-    onToggleLikeMemory: (String) -> Unit = {}
+    onToggleLikeMemory: (String) -> Unit = {},
+    blockedThreadIds: Set<String> = emptySet(),
+    onToggleBlock: (String) -> Unit = {},
+    onReportThread: (ChatThread) -> Unit = {}
 ) {
     var activeId by remember(initialActiveThreadId) { mutableStateOf(initialActiveThreadId) }
     var activeSection by remember { mutableStateOf(ChatHubSection.MESSAGES) }
@@ -248,6 +251,12 @@ fun ChatHubScreen(
                     }
                 }
 
+                if (filteredThreads.isEmpty()) item {
+                    MCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(if (query.isBlank()) "Henüz sohbet yok" else "Sohbet bulunamadı", style = MaterialTheme.typography.titleMedium)
+                        Text(if (query.isBlank()) "Bir maça katıldığında takım sohbetin burada açılır." else "Başka bir isim veya mesajla tekrar ara.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+                    } }
+                }
                 // 3C. SOHBET LİSTESİ
                 items(filteredThreads, key = { it.id }) { thread ->
                     val hasPhotoInLast = thread.lastMessage?.attachedMemory != null
@@ -668,9 +677,9 @@ fun ChatHubScreen(
 
             Surface(color = Color.White, shadowElevation = 8.dp) {
                 Column(Modifier.navigationBarsPadding().padding(horizontal = 14.dp, vertical = 10.dp)) {
-                    if (active.locked) {
+                    if (active.locked || active.id in blockedThreadIds) {
                         Text(
-                            text = "Mesaj göndermek için kadroya katıl.",
+                            text = if (active.id in blockedThreadIds) "Bu sohbet engellendi. Bilgi menüsünden engeli kaldırabilirsin." else "Mesaj göndermek için kadroya katıl.",
                             modifier = Modifier.padding(12.dp),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MColors.Ink500
@@ -741,7 +750,15 @@ fun ChatHubScreen(
                 onDismissRequest = { showInfo = false },
                 icon = { ChatAvatar(active) },
                 title = { Text(active.title) },
-                text = { Text(if (active.locked) "Bu sohbet yalnızca katılımcılara açık." else "${active.type.label} · ${active.memberCount} kişi") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(if (active.locked) "Bu sohbet yalnızca katılımcılara açık." else "${active.type.label} · ${active.memberCount} kişi")
+                        TextButton(onClick = { showInfo = false; onReportThread(active) }) { Icon(Icons.Rounded.Flag, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("Sohbeti bildir") }
+                        if (active.type == ThreadType.DIRECT) TextButton(onClick = { onToggleBlock(active.id); showInfo = false }) {
+                            Text(if (active.id in blockedThreadIds) "Engeli kaldır" else "Sohbeti engelle", color = MColors.Rose)
+                        }
+                    }
+                },
                 confirmButton = { TextButton(onClick = { showInfo = false }) { Text("Tamam") } }
             )
         }

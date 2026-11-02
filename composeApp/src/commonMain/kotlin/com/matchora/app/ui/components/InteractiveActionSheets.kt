@@ -594,7 +594,7 @@ fun VenueBookingSheet(
     onConfirmBooking: (splitCount: Int, finalAmount: Int, method: String) -> Unit
 ) {
     var splitPlayers by remember { mutableIntStateOf(1) } // 1, 2, 4, 10 kişi
-    var selectedMethod by remember { mutableStateOf("Token bakiyesi") }
+    var selectedMethod by remember { mutableStateOf("Tesiste ödeme") }
     val pricePerPlayer = bookingShare(slot.priceTry, splitPlayers)
 
     ModalBottomSheet(
@@ -626,7 +626,7 @@ fun VenueBookingSheet(
                     }
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("Toplam", style = MaterialTheme.typography.labelMedium, color = MColors.Ink500)
-                        Text("${slot.priceTry} TKN", style = MaterialTheme.typography.headlineSmall, color = MColors.BrandDeep)
+                        Text("₺${slot.priceTry}", style = MaterialTheme.typography.headlineSmall, color = MColors.BrandDeep)
                     }
                 }
             }
@@ -640,7 +640,7 @@ fun VenueBookingSheet(
                         options = listOf(1, 2, 4, 10),
                         optionLabel = { count ->
                             val perPlayerPrice = bookingShare(slot.priceTry, count)
-                            if (count == 1) "Tek Kişi · $perPlayerPrice TKN" else "$count Kişi · Kişi Başı $perPlayerPrice TKN"
+                            if (count == 1) "Tek Kişi · ₺$perPlayerPrice" else "$count Kişi · Kişi Başı ₺$perPlayerPrice"
                         },
                         onSelect = { splitPlayers = it },
                         icon = Icons.Rounded.Groups
@@ -648,7 +648,7 @@ fun VenueBookingSheet(
                 }
             }
 
-            Text("Token bakiyenden düşülür", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+            Text("Tesiste ödeme · dijital token bakiyen kullanılmaz", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
 
             // Onay Butonu
             Button(
@@ -660,7 +660,7 @@ fun VenueBookingSheet(
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth().height(48.dp)
             ) {
-                Text("TKN $pricePerPlayer · Rezervasyonu tamamla", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("₺$pricePerPlayer · Yerimi ayır", color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
     }

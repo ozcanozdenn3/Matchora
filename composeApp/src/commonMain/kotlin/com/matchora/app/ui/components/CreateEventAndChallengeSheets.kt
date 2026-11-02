@@ -521,7 +521,7 @@ fun ReportAndDisputeDialog(
     onDismiss: () -> Unit,
     onSubmitReport: (reason: String, note: String) -> Unit
 ) {
-    var selectedReason by remember { mutableStateOf("No-show (Maça gelmedi)") }
+    var selectedReason by remember { mutableStateOf("No-show (Haber vermeden maça gelmedi)") }
     var note by remember { mutableStateOf("") }
 
     AlertDialog(

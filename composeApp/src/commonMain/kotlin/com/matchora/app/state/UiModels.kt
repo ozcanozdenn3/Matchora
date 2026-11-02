@@ -565,6 +565,8 @@ enum class NotifPriority(val label: String, val color: Color, val tint: Color) {
     P4("Kampanya", MColors.Ink500, MColors.SurfaceMuted)
 }
 
+enum class NotificationDestination { EVENT, CHALLENGES, RANKING, PASSPORT, ACCOUNT, PLAY, PLUS, WALLET, CHAT }
+
 data class AppNotification(
     val id: String,
     val priority: NotifPriority,
@@ -574,7 +576,9 @@ data class AppNotification(
     val timeAgo: String,
     val read: Boolean = false,
     val eventId: String? = null,
-    val expiresIn: String? = null
+    val expiresIn: String? = null,
+    val destination: NotificationDestination = NotificationDestination.EVENT,
+    val targetId: String? = null
 )
 
 enum class LedgerType(val label: String, val color: Color, val tint: Color) {
@@ -598,7 +602,7 @@ data class LedgerEntry(
     val channel: String = "Matchora"
 )
 
-enum class PaymentStatus(val label: String) { PAID("Ödendi"), REFUNDED("İade edildi"), PENDING("Bekliyor") }
+enum class PaymentStatus(val label: String) { PAID("Ödendi"), REFUNDED("İade edildi"), PENDING("Bekliyor"), CANCELLED("İptal edildi") }
 
 data class VenuePayment(
     val id: String,
@@ -607,7 +611,8 @@ data class VenuePayment(
     val amountTry: Int,
     val method: String,
     val time: String,
-    val status: PaymentStatus
+    val status: PaymentStatus,
+    val bookingKey: String? = null
 )
 
 data class PaymentMethod(
@@ -713,7 +718,9 @@ data class UserProfile(
     val campus: String?,
     val company: String?,
     val dominantSide: String,
-    val availability: List<String>
+    val availability: List<String>,
+    val avatar: ImageBitmap? = null,
+    val jerseyNumber: Int? = null
 ) {
     val initials: String get() = name.split(" ").mapNotNull { it.firstOrNull()?.uppercase() }.take(2).joinToString("")
     val firstName: String get() = name.substringBefore(" ")

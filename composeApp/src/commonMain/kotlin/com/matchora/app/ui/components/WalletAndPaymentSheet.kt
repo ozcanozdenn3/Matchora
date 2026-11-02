@@ -45,6 +45,7 @@ fun WalletAndPaymentSheet(
     ledger: List<LedgerEntry>,
     paymentHolderName: String,
     activeProPlan: ProPlan? = null,
+    initialPlusTab: Boolean = false,
     onSelectTokenPack: (TokenPack) -> Unit,
     onSubscribePlan: (ProPlan) -> Unit = {}
 ) {
@@ -55,6 +56,7 @@ fun WalletAndPaymentSheet(
         holder = paymentHolderName,
         ledger = ledger,
         activeProPlan = activeProPlan,
+        initialPlusTab = initialPlusTab,
         onLoad = onSelectTokenPack,
         onSubscribePlan = onSubscribePlan
     )
@@ -69,14 +71,17 @@ fun TokenWalletSheet(
     holder: String,
     ledger: List<LedgerEntry>,
     activeProPlan: ProPlan? = null,
+    initialPlusTab: Boolean = false,
     onLoad: (TokenPack) -> Unit,
     onSubscribePlan: (ProPlan) -> Unit = {},
     initialPack: TokenPack = DemoData.tokenPacks.getOrNull(1) ?: DemoData.tokenPacks.first()
 ) {
-    var activeTab by remember { mutableStateOf(WalletSheetTab.TOKEN_PACKS) }
+    var activeTab by remember { mutableStateOf(if (initialPlusTab) WalletSheetTab.PLUS_SUBSCRIPTION else WalletSheetTab.TOKEN_PACKS) }
     var selectedPack by remember { mutableStateOf(initialPack) }
     var selectedPlanSku by remember { mutableStateOf(DemoData.proPlans.firstOrNull()?.sku ?: "pro_monthly") }
     var loading by remember { mutableStateOf(false) }
+    var storeNotice by remember { mutableStateOf<String?>(null) }
+    var historyFilter by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(balance, activeProPlan) { loading = false }
 
@@ -283,10 +288,10 @@ fun TokenWalletSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
-                            Text("", fontSize = 20.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Rounded.ShoppingBag, null, Modifier.size(20.dp), tint = Color.White)
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = if (loading) "İşleniyor…" else "Apple Pay ile Yükle (${selectedPack.priceLabel})",
+                                text = if (loading) "İşleniyor…" else "${selectedPack.tokens + selectedPack.bonus} TKN al · ${selectedPack.priceLabel}",
                                 fontSize = 14.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -295,29 +300,30 @@ fun TokenWalletSheet(
                     }
                 }
 
-                item { MSectionHeader("Yükleme Geçmişi") }
-                val purchases = ledger.filter { it.type == LedgerType.PURCHASE }
+                item { MSectionHeader("Cüzdan hareketleri") }
+                item { MSegmentedControl(listOf("Tümü", "Yükleme", "Kilitler"), historyFilter, { historyFilter = it }) }
+                val purchases = ledger.filter { when (historyFilter) { 1 -> it.type in setOf(LedgerType.PURCHASE, LedgerType.BONUS); 2 -> it.type in setOf(LedgerType.HOLD, LedgerType.RELEASE); else -> true } }
                 if (purchases.isEmpty()) {
                     item {
                         MCard(Modifier.fillMaxWidth()) {
-                            Text("Henüz bir token yüklemesi yapmadın.", Modifier.padding(18.dp), color = MColors.Ink500)
+                            Text("Bu kategoride henüz bir hareket yok.", Modifier.padding(18.dp), color = MColors.Ink500)
                         }
                     }
                 }
                 items(purchases, key = { it.id }) { entry ->
                     MCard(Modifier.fillMaxWidth()) {
                         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Surface(shape = CircleShape, color = Color(0xFFF0FDF4), modifier = Modifier.size(36.dp)) {
+                            Surface(shape = CircleShape, color = entry.type.tint, modifier = Modifier.size(36.dp)) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Rounded.Add, null, tint = Color(0xFF16A34A), modifier = Modifier.size(18.dp))
+                                    Icon(if (entry.amount < 0) Icons.Rounded.Remove else Icons.Rounded.Add, null, tint = entry.type.color, modifier = Modifier.size(18.dp))
                                 }
                             }
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(entry.description, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MColors.Ink900)
-                                Text(entry.time, style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+                                Text("${entry.type.label} · ${entry.time}", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
                             }
-                            Text("+${entry.amount} TKN", color = Color(0xFF16A34A), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleSmall)
+                            Text("${if (entry.amount > 0) "+" else ""}${entry.amount} TKN", color = entry.type.color, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleSmall)
                         }
                     }
                 }
@@ -471,10 +477,10 @@ fun TokenWalletSheet(
                                 Spacer(Modifier.width(8.dp))
                                 Text("Matchora Plus Aktif", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             } else {
-                                Text("", fontSize = 20.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                Icon(Icons.Rounded.ShoppingBag, null, Modifier.size(20.dp), tint = Color.White)
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    text = if (loading) "İşleniyor…" else "Apple Pay ile Abone Ol (${planToSubscribe.priceLabel})",
+                                    text = if (loading) "İşleniyor…" else "Abone ol · ${planToSubscribe.priceLabel}",
                                     fontSize = 14.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -496,6 +502,13 @@ fun TokenWalletSheet(
                     )
                 }
             }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    TextButton(onClick = { storeNotice = "Geri yükleme arayüzü hazır. Mağaza bağlantısı açıldığında satın almaların hesabınla eşleştirilecek." }) { Text("Satın alımları geri yükle", fontSize = 11.sp) }
+                    TextButton(onClick = { storeNotice = if (activeProPlan == null) "Aktif bir Plus planı bulunmuyor." else "${activeProPlan.title} · ${activeProPlan.priceLabel} ${activeProPlan.period}. Gerçek abonelik değişiklikleri mağaza hesabından yönetilir." }) { Text("Üyeliği yönet", fontSize = 11.sp) }
+                }
+            }
         }
     }
+    storeNotice?.let { notice -> AlertDialog(onDismissRequest = { storeNotice = null }, title = { Text("Mağaza hesabı") }, text = { Text(notice) }, confirmButton = { TextButton(onClick = { storeNotice = null }) { Text("Tamam") } }) }
 }

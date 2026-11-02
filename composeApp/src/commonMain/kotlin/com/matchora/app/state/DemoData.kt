@@ -612,13 +612,13 @@ object DemoData {
     val notifications = listOf(
         AppNotification("n1", NotifPriority.P1, "🧤", "900 m uzağında 1 kaleci aranıyor", "Moda Akşam Halı Saha · 46 dk sonra başlıyor", "2 dk", eventId = "e1", expiresIn = "40 dk"),
         AppNotification("n2", NotifPriority.P2, "⏳", "Waitlist'te sıra sana geldi", "Suadiye Padel · Cumartesi 10:00 — 10 dk içinde kabul et", "8 dk", eventId = "e5", expiresIn = "10 dk"),
-        AppNotification("n3", NotifPriority.P2, "🛡️", "Takımına challenge geldi", "Bostancı Rovers · Çarşamba 21:00 · %93 uyum", "25 dk"),
+        AppNotification("n3", NotifPriority.P2, "🛡️", "Takımına challenge geldi", "Bostancı Rovers · Çarşamba 21:00 · %93 uyum", "25 dk", destination = NotificationDestination.CHALLENGES),
         AppNotification("n4", NotifPriority.P1, "🎾", "%94 uyumlu tenis rakibi bulundu", "Elif Yıldız · Kalamış · Bugün 18:00", "1 sa", eventId = "e2"),
-        AppNotification("n5", NotifPriority.P0, "🔐", "Yeni cihazdan giriş", "iPhone 16 · İstanbul — sen değilsen hemen şifreni sıfırla", "3 sa", read = true),
-        AppNotification("n6", NotifPriority.P3, "🏅", "Yeni rozet: Perfect Attendance", "Son 10 maçının tamamına zamanında check-in yaptın", "Dün", read = true),
-        AppNotification("n7", NotifPriority.P3, "📈", "Kadıköy futbol sıralamasında 12. sıraya yükseldin", "+18 rating · Gold lig", "Dün", read = true),
-        AppNotification("n8", NotifPriority.P2, "🔁", "Rematch zamanı", "Mert, Can ve 3 kişi Perşembe 20:00'de müsait", "2 g", read = true),
-        AppNotification("n9", NotifPriority.P4, "🚀", "Pro'yu 7 gün ücretsiz dene", "Gelişmiş filtreler ve derin istatistikler", "3 g", read = true)
+        AppNotification("n5", NotifPriority.P0, "🔐", "Yeni cihazdan giriş", "iPhone 16 · İstanbul — sen değilsen hemen şifreni sıfırla", "3 sa", read = true, destination = NotificationDestination.ACCOUNT),
+        AppNotification("n6", NotifPriority.P3, "🏅", "Yeni rozet: Perfect Attendance", "Son 10 maçının tamamına zamanında check-in yaptın", "Dün", read = true, destination = NotificationDestination.PASSPORT),
+        AppNotification("n7", NotifPriority.P3, "📈", "Kadıköy futbol sıralamasında 12. sıraya yükseldin", "+18 rating · Gold lig", "Dün", read = true, destination = NotificationDestination.RANKING),
+        AppNotification("n8", NotifPriority.P2, "🔁", "Rematch zamanı", "Mert, Can ve 3 kişi Perşembe 20:00'de müsait", "2 g", read = true, destination = NotificationDestination.PLAY),
+        AppNotification("n9", NotifPriority.P4, "🚀", "Pro'yu 7 gün ücretsiz dene", "Gelişmiş filtreler ve derin istatistikler", "3 g", read = true, destination = NotificationDestination.PLUS)
     )
 
     val initialLedger = listOf(

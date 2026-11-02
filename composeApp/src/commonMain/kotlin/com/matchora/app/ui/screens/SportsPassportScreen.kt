@@ -52,6 +52,8 @@ fun SportsPassportScreen(
     isLoggedIn: Boolean = true,
     onOpenAuth: () -> Unit = {},
     onLogout: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onOpenActivity: () -> Unit = {},
     onOpenWallet: () -> Unit,
     onVerifyContact: () -> Unit,
     onVerifyPhoto: () -> Unit,
@@ -67,8 +69,10 @@ fun SportsPassportScreen(
     var showAllSkills by remember { mutableStateOf(false) }
     var showAllMatches by remember { mutableStateOf(false) }
 
-    val weeklyMission = DemoData.missions.firstOrNull()
-    val earnedBadges = DemoData.badges.count { it.earned }
+    val history = if (user.verifiedMatches > 0) DemoData.history else emptyList()
+    val badges = DemoData.badges.map { if (user.verifiedMatches > 0) it else it.copy(earned = false, progress = 0f) }
+    val weeklyMission = DemoData.missions.firstOrNull()?.let { if (user.verifiedMatches > 0) it else it.copy(progress = 0) }
+    val earnedBadges = badges.count { it.earned }
     val listState = rememberLazyListState()
     val scrollToTopTrigger = LocalScrollToTopTrigger.current
     LaunchedEffect(scrollToTopTrigger) {
@@ -129,7 +133,8 @@ fun SportsPassportScreen(
                         }
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Box(Modifier.size(40.dp).background(Brush.linearGradient(listOf(Color(0xFFE1BE87), Color(0xFF96704D))), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
-                                Text(user.initials, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
+                                if (user.avatar != null) androidx.compose.foundation.Image(user.avatar, "Profil fotoğrafı", Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                                else Text(user.initials, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                                 Text(user.name, fontSize = 16.5.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold, color = Color.White,
@@ -191,6 +196,13 @@ fun SportsPassportScreen(
                             PassportMetric("SERİ", "${user.streakWeeks} hf", Modifier.weight(1f).fillMaxHeight())
                         }
                     }
+                }
+            }
+
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(onClick = onOpenActivity, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Rounded.CalendarMonth, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("Oyun takvimim", fontSize = 12.sp) }
+                    OutlinedButton(onClick = onOpenSettings, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Rounded.Tune, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("Hesap ayarları", fontSize = 12.sp, maxLines = 1) }
                 }
             }
 
@@ -305,14 +317,14 @@ fun SportsPassportScreen(
             item {
                 PassportSectionCard(
                     title = "Rozetler",
-                    detail = "$earnedBadges / ${DemoData.badges.size} kazanıldı"
+                    detail = "$earnedBadges / ${badges.size} kazanıldı"
                 ) {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         contentPadding = PaddingValues(horizontal = 3.dp, vertical = 4.dp)
                     ) {
-                        items(DemoData.badges.size) { index ->
-                            val badge = DemoData.badges[index]
+                        items(badges.size) { index ->
+                            val badge = badges[index]
                             Surface(
                                 onClick = { selectedBadgeForDetail = badge },
                                 shape = RoundedCornerShape(15.dp),
@@ -509,7 +521,7 @@ fun SportsPassportScreen(
                     }
                     AnimatedVisibility(visible = showReliabilityDetail) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 9.dp)) {
-                            DemoData.reliabilityRecords.forEach { record ->
+                            (if (user.verifiedMatches > 0) DemoData.reliabilityRecords else emptyList()).forEach { record ->
                                 Surface(
                                     shape = RoundedCornerShape(13.dp),
                                     color = Color.White,
@@ -569,9 +581,10 @@ fun SportsPassportScreen(
             }
 
             item {
-                PassportSectionCard(title = "Son maçlar", detail = "${DemoData.history.size} kayıt") {
+                PassportSectionCard(title = "Son maçlar", detail = "${history.size} kayıt") {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DemoData.history.take(if (showAllMatches) Int.MAX_VALUE else 3).forEach { match ->
+                        if (history.isEmpty()) Text("İlk doğrulanmış maçından sonra sportif geçmişin burada oluşur.", color = MColors.Ink500, style = MaterialTheme.typography.bodySmall)
+                        history.take(if (showAllMatches) Int.MAX_VALUE else 3).forEach { match ->
                             Surface(
                                 shape = RoundedCornerShape(15.dp),
                                 color = Color.White,
@@ -637,11 +650,11 @@ fun SportsPassportScreen(
                             }
                         }
                     }
-                    if (DemoData.history.size > 3) {
+                    if (history.size > 3) {
                         Spacer(Modifier.height(10.dp))
                         ExpandPassportRows(
                             expanded = showAllMatches,
-                            label = if (showAllMatches) "Daha az göster" else "Diğer ${DemoData.history.size - 3} maçı göster",
+                            label = if (showAllMatches) "Daha az göster" else "Diğer ${history.size - 3} maçı göster",
                             onClick = { showAllMatches = !showAllMatches }
                         )
                     }
@@ -810,6 +823,9 @@ private fun ProfileEditorSheet(
     onDismiss: () -> Unit,
     onSave: (UserProfile) -> Unit
 ) {
+    var avatar by remember(user) { mutableStateOf(user.avatar) }
+    val pickAvatar = rememberGalleryPhotoPicker { avatar = it }
+    var jerseyNumber by remember(user) { mutableStateOf(user.jerseyNumber?.toString().orEmpty()) }
     var name by remember(user) { mutableStateOf(user.name) }
     var bio by remember(user) { mutableStateOf(user.bio) }
     var city by remember(user) { mutableStateOf(user.city) }
@@ -825,7 +841,7 @@ private fun ProfileEditorSheet(
     val parsedBirthYear = birthYear.toIntOrNull()
     val emailIsValid = email.contains('@') && email.substringAfter('@').contains('.')
     val phoneIsValid = phone.count { it.isDigit() } >= 7
-    val isValid = name.isNotBlank() && city.isNotBlank() && area.isNotBlank() && parsedBirthYear?.let { it in 1900..2026 } == true && emailIsValid && phoneIsValid
+    val isValid = name.isNotBlank() && city.isNotBlank() && area.isNotBlank() && parsedBirthYear?.let { it in (currentYear() - 100)..(currentYear() - 13) } == true && (email.isBlank() || emailIsValid) && (phone.isBlank() || phoneIsValid)
 
     var section by remember { mutableIntStateOf(0) }
     var showLocationPicker by remember { mutableStateOf(false) }
@@ -875,7 +891,9 @@ private fun ProfileEditorSheet(
                 when (section) {
                     0 -> {
                         ProfileEditorSectionTitle("Sahada seni tanısınlar")
+                        OutlinedButton(onClick = pickAvatar, modifier = Modifier.fillMaxWidth()) { Text(if (avatar == null) "Profil fotoğrafı ekle" else "Profil fotoğrafını değiştir") }
                         ProfileEditField("Ad soyad", name, { name = it }, isError = name.isBlank())
+                        ProfileEditField("Forma numarası · isteğe bağlı", jerseyNumber, { jerseyNumber = it.filter(Char::isDigit).take(2) })
                         Surface(onClick = { showLocationPicker = true }, shape = RoundedCornerShape(16.dp), color = Color.White, border = BorderStroke(1.dp, MColors.Line)) {
                             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Icon(Icons.Rounded.LocationOn, null, tint = MColors.BrandDeep)
@@ -886,7 +904,7 @@ private fun ProfileEditorSheet(
                                 Icon(Icons.Rounded.ExpandMore, "Konumu değiştir", tint = MColors.Ink500)
                             }
                         }
-                        ProfileEditField("Doğum yılı", birthYear, { value -> birthYear = value.filter { it.isDigit() }.take(4) }, isError = parsedBirthYear?.let { it !in 1900..2026 } ?: true)
+                        ProfileEditField("Doğum yılı", birthYear, { value -> birthYear = value.filter { it.isDigit() }.take(4) }, isError = parsedBirthYear?.let { it !in (currentYear() - 100)..(currentYear() - 13) } ?: true)
                         MFloatingInputBox(
                             label = "Kendinden Bahset & Kısa Açıklama",
                             value = bio,
@@ -927,8 +945,8 @@ private fun ProfileEditorSheet(
                     }
                     else -> {
                         ProfileEditorSectionTitle("İletişim bilgilerin")
-                        ProfileEditField("Telefon", phone, { phone = it }, isError = !phoneIsValid)
-                        ProfileEditField("E-posta", email, { email = it }, isError = !emailIsValid)
+                        ProfileEditField("Telefon", phone, { phone = it }, isError = phone.isNotBlank() && !phoneIsValid)
+                        ProfileEditField("E-posta", email, { email = it }, isError = email.isNotBlank() && !emailIsValid)
                         HorizontalDivider(color = MColors.Line)
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Bağlantıların", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, color = MColors.Ink900)
@@ -946,6 +964,8 @@ private fun ProfileEditorSheet(
                     MButton("Değişiklikleri kaydet", onClick = {
                     onSave(
                         user.copy(
+                            avatar = avatar,
+                            jerseyNumber = jerseyNumber.toIntOrNull(),
                             name = name.trim(),
                             city = city.trim(),
                             area = area.trim(),

@@ -636,3 +636,12 @@ fun premiumTextFieldColors() = OutlinedTextFieldDefaults.colors(
 
 /** Triggered when the user taps the already-selected bottom navigation tab to scroll to top. */
 val LocalScrollToTopTrigger = compositionLocalOf { 0 }
+
+/** Selection colors for the account flows, matching the existing ink and gold cards. */
+@Composable
+fun premiumChoiceChipColors() = FilterChipDefaults.filterChipColors(
+    containerColor = Color.White,
+    labelColor = MColors.Ink600,
+    selectedContainerColor = MColors.Ink900,
+    selectedLabelColor = Color(0xFFE1C49D)
+)

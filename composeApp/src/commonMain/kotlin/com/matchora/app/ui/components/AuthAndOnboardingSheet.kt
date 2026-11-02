@@ -4,12 +4,10 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,20 +15,19 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -43,12 +40,7 @@ import com.matchora.app.ui.theme.MColors
 import com.matchora.app.ui.theme.MGradients
 import kotlinx.coroutines.delay
 
-enum class AuthStage {
-    LOGIN_OPTIONS,
-    PHONE_INPUT,
-    PHONE_OTP,
-    PASSPORT_SETUP
-}
+enum class AuthStage { LOGIN_OPTIONS, PHONE_INPUT, PHONE_OTP, PASSPORT_SETUP }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,366 +49,249 @@ fun AuthAndOnboardingSheet(
     initialStage: AuthStage = AuthStage.LOGIN_OPTIONS,
     currentCity: String = "İstanbul",
     currentDistrict: String = "Kadıköy",
+    existingProfile: UserProfile? = null,
     onCompletePassport: (UserProfile, String) -> Unit,
     onContinueAsGuest: () -> Unit
 ) {
     var stage by remember { mutableStateOf(initialStage) }
-    var loginProvider by remember { mutableStateOf("Apple ID") }
-    var phoneNumber by remember { mutableStateOf("") }
-    var otpCode by remember { mutableStateOf("") }
-    var athleteName by remember { mutableStateOf("Özcan Özden") }
-
+    var provider by remember { mutableStateOf("Apple") }
+    var phone by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf("") }
+    var otpError by remember { mutableStateOf<String?>(null) }
+    var draft by remember { mutableStateOf(PassportDraft(city = currentCity, district = currentDistrict)) }
+    var photo by remember { mutableStateOf<ImageBitmap?>(null) }
+    var section by remember { mutableIntStateOf(0) }
+    fun enter(selected: String) {
+        provider = selected
+        if (existingProfile != null) onCompletePassport(existingProfile, provider)
+        else stage = AuthStage.PASSPORT_SETUP
+    }
     ModalBottomSheet(
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        tonalElevation = 0.dp,
-        scrimColor = Color(0xFF0B1220).copy(alpha = .48f),
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFFFAF9F6),
-        dragHandle = {
-            MPremiumSheetHandle()
-        },
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = MColors.Canvas, tonalElevation = 0.dp,
+        scrimColor = MColors.Ink900.copy(alpha = .48f),
+        dragHandle = { MPremiumSheetHandle() },
         modifier = Modifier.statusBarsPadding().padding(top = 12.dp)
     ) {
-        AnimatedContent(
-            targetState = stage,
-            transitionSpec = {
-                fadeIn(tween(180)) togetherWith fadeOut(tween(140))
-            },
-            label = "auth_stage_transition"
-        ) { currentStage ->
-            when (currentStage) {
-                AuthStage.LOGIN_OPTIONS -> {
-                    LoginOptionsView(
-                        onSelectApple = {
-                            loginProvider = "Apple ID"
-                            athleteName = "Özcan Özden"
-                            stage = AuthStage.PASSPORT_SETUP
-                        },
-                        onSelectGoogle = {
-                            loginProvider = "Google"
-                            athleteName = "Özcan Özden"
-                            stage = AuthStage.PASSPORT_SETUP
-                        },
-                        onSelectPhone = { stage = AuthStage.PHONE_INPUT },
-                        onContinueAsGuest = {
-                            onContinueAsGuest()
-                            onDismiss()
-                        },
-                        onDismiss = onDismiss
-                    )
-                }
+        AnimatedContent(targetState = stage,
+            transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "auth_stage") { current ->
+            when (current) {
+                AuthStage.LOGIN_OPTIONS -> LoginOptionsView(
+                    { enter("Apple") }, { enter("Google") }, { stage = AuthStage.PHONE_INPUT },
+                    { onContinueAsGuest(); onDismiss() }, onDismiss)
+                AuthStage.PHONE_INPUT -> PhoneInputView(phone, { phone = it }, { stage = AuthStage.LOGIN_OPTIONS }, {
+                    code = ""; otpError = null; stage = AuthStage.PHONE_OTP
+                })
+                AuthStage.PHONE_OTP -> PhoneOtpView(phone, code, otpError, { code = it; otpError = null },
+                    { stage = AuthStage.PHONE_INPUT }, {
+                        if (code != "2026") otpError = "Kod eşleşmedi. Önizleme kodu: 2026."
+                        else { draft = draft.copy(phone = normalizeTurkishPhone(phone).orEmpty()); enter("Telefon") }
+                    })
+                AuthStage.PASSPORT_SETUP -> PassportSetupView(draft, { draft = it }, photo, { photo = it },
+                    section, { section = it }, provider, { stage = AuthStage.LOGIN_OPTIONS }, {
+                        onCompletePassport(draft.toProfile().copy(avatar = photo), provider)
+                    })
+            }
+        }
+    }
+}
 
-                AuthStage.PHONE_INPUT -> {
-                    PhoneInputView(
-                        phoneNumber = phoneNumber,
-                        onPhoneChange = { phoneNumber = it },
-                        onBack = { stage = AuthStage.LOGIN_OPTIONS },
-                        onSendCode = {
-                            if (phoneNumber.length >= 10) {
-                                stage = AuthStage.PHONE_OTP
+@Composable
+private fun LoginOptionsView(onSelectApple: () -> Unit, onSelectGoogle: () -> Unit,
+    onSelectPhone: () -> Unit, onContinueAsGuest: () -> Unit, onDismiss: () -> Unit) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()
+        .padding(horizontal = 22.dp).padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        AuthHeader("Oyun burada başlar", "Takımını bul. Aynı tutkuda buluş.", onDismiss)
+        Surface(shape = RoundedCornerShape(20.dp), color = MColors.Ink900, border = BorderStroke(1.dp, Color(0xFF40505B))) {
+            Row(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF293D46), MColors.Ink900)))
+                .padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Surface(shape = RoundedCornerShape(15.dp), color = Color(0xFF3E423E)) {
+                    Icon(Icons.Rounded.Badge, null, Modifier.padding(12.dp).size(27.dp), tint = Color(0xFFE1C49D))
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Bir hesap, tüm spor hayatın", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                    Text("Sporcu pasaportun, maçların ve ekibin yanında.", color = Color(0xFFB8C7CE), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        Text("GİRİŞ YAP / KAYIT OL", Modifier.padding(top = 4.dp), style = MaterialTheme.typography.labelSmall, color = MColors.Ink500, letterSpacing = 1.sp)
+        ProviderButton("Apple ile devam et", onSelectApple, Color.Black, Color.White) { AppleLogoIcon(Modifier.size(22.dp)) }
+        ProviderButton("Google ile devam et", onSelectGoogle, Color.White, MColors.Ink900) { GoogleLogoIcon(Modifier.size(20.dp)) }
+        ProviderButton("Telefon numarasıyla devam et", onSelectPhone, MColors.SurfaceMuted, MColors.Ink900) {
+            Icon(Icons.Rounded.PhoneIphone, null, Modifier.size(21.dp), tint = MColors.BrandDeep)
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(Icons.Rounded.Redeem, null, Modifier.size(18.dp), tint = MColors.BrandDeep)
+            Text("İlk pasaportuna 20 TKN hoş geldin hediyesi", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
+        }
+        TextButton(onClick = onContinueAsGuest, modifier = Modifier.fillMaxWidth()) { Text("Misafir olarak keşfet", color = MColors.Ink600) }
+    }
+}
+
+@Composable
+private fun ProviderButton(title: String, action: () -> Unit, color: Color, ink: Color, logo: @Composable () -> Unit) {
+    Surface(onClick = action, shape = RoundedCornerShape(14.dp), color = color,
+        border = BorderStroke(1.dp, if (color == Color.Black) Color.Black else MColors.Line), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.width(24.dp), contentAlignment = Alignment.Center) { logo() }
+            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = ink)
+            Icon(Icons.Rounded.ChevronRight, null, Modifier.size(18.dp), tint = ink.copy(alpha = .6f))
+        }
+    }
+}
+
+@Composable
+private fun AuthHeader(title: String, subtitle: String, onDismiss: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(shape = RoundedCornerShape(12.dp), color = MColors.BrandTint) {
+            Icon(Icons.Rounded.SportsSoccer, null, Modifier.padding(10.dp).size(23.dp), tint = MColors.BrandDeep)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, style = MaterialTheme.typography.headlineSmall, color = MColors.Ink900)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+        }
+        IconButton(onClick = onDismiss, modifier = Modifier.size(44.dp)) { Icon(Icons.Rounded.Close, "Kapat", tint = MColors.Ink500) }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PassportSetupView(draft: PassportDraft, onDraft: (PassportDraft) -> Unit,
+    photo: ImageBitmap?, onPhoto: (ImageBitmap) -> Unit, section: Int, onSection: (Int) -> Unit,
+    provider: String, onBack: () -> Unit, onSave: () -> Unit) {
+    val scroll = rememberScrollState()
+    var showLocation by remember { mutableStateOf(false) }
+    var showExtras by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val pickPhoto = rememberGalleryPhotoPicker(onPhoto)
+    LaunchedEffect(section) { scroll.scrollTo(0); error = null }
+    val titles = listOf("Kimlik", "Spor & rol", "Tercihler")
+    Column(Modifier.fillMaxWidth().fillMaxHeight(.92f).imePadding()) {
+        Column(Modifier.padding(horizontal = 22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            AuthHeader("Sporcu pasaportun", "${section + 1} / 3 · ${titles[section]}", onBack)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                titles.forEachIndexed { index, _ -> Box(Modifier.weight(1f).height(3.dp).background(if (index <= section) MColors.Brand else MColors.Line, CircleShape)) }
+            }
+        }
+        Column(Modifier.weight(1f).verticalScroll(scroll).padding(horizontal = 22.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Surface(shape = RoundedCornerShape(20.dp), color = MColors.Ink900, border = BorderStroke(1.dp, Color(0xFF40505B))) {
+                Row(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF293D46), MColors.Ink900)))
+                    .padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(50.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFF46504F)), contentAlignment = Alignment.Center) {
+                        if (photo != null) Image(photo, "Profil fotoğrafı", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                        else Text(draft.name.split(' ').mapNotNull { it.firstOrNull()?.uppercase() }.take(2).joinToString("").ifBlank { "M" }, color = Color(0xFFE1C49D), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(draft.name.ifBlank { "Sahadaki yerin hazır" }, color = Color.White, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${draft.sport.emoji} ${draft.sport.label} · ${draft.district}", color = Color(0xFFB8C7CE), style = MaterialTheme.typography.bodySmall)
+                        Text("SPORCU PASAPORTU · $provider", color = Color(0xFFE1C49D), fontSize = 9.sp, letterSpacing = 1.sp)
+                    }
+                }
+            }
+            when (section) {
+                0 -> {
+                    Text("Sahada seni tanısınlar", style = MaterialTheme.typography.titleLarge)
+                    ProfileEditField("Adın / takma adın", draft.name, { onDraft(draft.copy(name = it.take(40))) })
+                    ProfileEditField("Doğum yılı", draft.birthYear, { onDraft(draft.copy(birthYear = it.filter(Char::isDigit).take(4))) }, keyboardType = KeyboardType.Number)
+                    Surface(onClick = { showLocation = true }, shape = RoundedCornerShape(16.dp), color = Color.White, border = BorderStroke(1.dp, MColors.Line)) {
+                        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(Icons.Rounded.LocationOn, null, tint = MColors.BrandDeep)
+                            Column(Modifier.weight(1f)) { Text("İl / ilçe", style = MaterialTheme.typography.labelSmall, color = MColors.Ink500); Text("${draft.city} · ${draft.district}", style = MaterialTheme.typography.bodyMedium) }
+                            Icon(Icons.Rounded.ChevronRight, "Konumu seç", tint = MColors.Ink500)
+                        }
+                    }
+                    OutlinedButton(onClick = pickPhoto, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                        Icon(Icons.Rounded.AddAPhoto, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(if (photo == null) "Profil fotoğrafı ekle · isteğe bağlı" else "Fotoğrafı değiştir")
+                    }
+                    Text("Konumun ilçe düzeyinde görünür. Fotoğrafını daha sonra da ekleyebilirsin.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+                }
+                1 -> {
+                    Text("Oyunun ve rolün", style = MaterialTheme.typography.titleLarge)
+                    SportPickerField(draft.sport, { sport -> if (sport != null) onDraft(draft.copy(sport = sport, position = positionsForSport(sport).first())) }, allowAll = false)
+                    Text("Tercih ettiğin rol", style = MaterialTheme.typography.labelMedium, color = MColors.Ink500)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        positionsForSport(draft.sport).forEach { value -> FilterChip(draft.position == value, { onDraft(draft.copy(position = value)) }, label = { Text(value) }, colors = premiumChoiceChipColors()) }
+                    }
+                    Text("Kendini nasıl değerlendirirsin?", style = MaterialTheme.typography.labelMedium, color = MColors.Ink500)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SkillLevel.entries.forEach { level -> FilterChip(draft.level == level, { onDraft(draft.copy(level = level)) }, label = { Text(level.label) }, colors = premiumChoiceChipColors()) }
+                    }
+                    Text("Seviyen başlangıç tercihini belirler. Doğrulanmış maçlarınla sportif geçmişin oluşur.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+                }
+                2 -> {
+                    Text("Ne zaman oynarsın?", style = MaterialTheme.typography.titleLarge)
+                    Text("İsteğe bağlı · uygun davetler için günlerini seç.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        passportDays.forEach { day -> FilterChip(day in draft.days, { onDraft(draft.copy(days = if (day in draft.days) draft.days - day else draft.days + day)) }, label = { Text(day) }, colors = premiumChoiceChipColors()) }
+                    }
+                    if (draft.days.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TimePickerMenu("Başlangıç", draft.startTime, { onDraft(draft.copy(startTime = it)) }, Modifier.weight(1f))
+                        TimePickerMenu("Bitiş", draft.endTime, { onDraft(draft.copy(endTime = it)) }, Modifier.weight(1f))
+                    }
+                    MCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("${draft.sport.emoji} ${draft.sport.label} · ${draft.position}", style = MaterialTheme.typography.titleMedium)
+                            Text("${draft.level.label} · ${draft.city} / ${draft.district}", color = MColors.Ink500, style = MaterialTheme.typography.bodySmall)
+                            Text("🎁 İlk pasaportuna 20 TKN hediye", color = MColors.BrandDeep, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    TextButton(onClick = { showExtras = !showExtras }) { Text(if (showExtras) "Ek bilgileri kapat" else "Ek bilgiler · isteğe bağlı", color = MColors.Ink600); Icon(if (showExtras) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null) }
+                    AnimatedVisibility(showExtras) {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            ProfileEditField("Kısa biyografi", draft.bio, { onDraft(draft.copy(bio = it.take(280))) }, singleLine = false, minLines = 2, maxLines = 4)
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                MFloatingDropdownBox("Baskın el", draft.dominantHand, listOf("Sağ el", "Sol el", "Her ikisi"), { it }, { onDraft(draft.copy(dominantHand = it)) }, modifier = Modifier.weight(1f))
+                                MFloatingDropdownBox("Baskın ayak", draft.dominantFoot, listOf("Sağ ayak", "Sol ayak", "Her ikisi"), { it }, { onDraft(draft.copy(dominantFoot = it)) }, modifier = Modifier.weight(1f))
                             }
+                            ProfileEditField("Forma numarası", draft.jerseyNumber, { onDraft(draft.copy(jerseyNumber = it.filter(Char::isDigit).take(2))) }, keyboardType = KeyboardType.Number)
+                            ProfileEditField("Telefon", draft.phone, { onDraft(draft.copy(phone = it.take(20))) }, keyboardType = KeyboardType.Phone)
+                            ProfileEditField("E-posta", draft.email, { onDraft(draft.copy(email = it.take(100))) }, keyboardType = KeyboardType.Email)
+                            ProfileEditField("Kampüs / üniversite", draft.campus, { onDraft(draft.copy(campus = it.take(80))) })
+                            ProfileEditField("Şirket / kurum", draft.company, { onDraft(draft.copy(company = it.take(80))) })
                         }
-                    )
+                    }
                 }
-
-                AuthStage.PHONE_OTP -> {
-                    PhoneOtpView(
-                        phoneNumber = phoneNumber,
-                        otpCode = otpCode,
-                        onOtpChange = { otpCode = it },
-                        onBack = { stage = AuthStage.PHONE_INPUT },
-                        onVerify = {
-                            loginProvider = "Telefon"
-                            athleteName = "Özcan Özden"
-                            stage = AuthStage.PASSPORT_SETUP
-                        }
-                    )
-                }
-
-                AuthStage.PASSPORT_SETUP -> {
-                    PassportSetupView(
-                        loginProvider = loginProvider,
-                        prefilledName = athleteName,
-                        prefilledPhone = phoneNumber,
-                        prefilledEmail = if (loginProvider == "Apple ID") "ozcan@icloud.com" else if (loginProvider == "Google") "ozcan@gmail.com" else "",
-                        initialCity = currentCity,
-                        initialDistrict = currentDistrict,
-                        onBack = { stage = AuthStage.LOGIN_OPTIONS },
-                        onSaveAndContinue = { completedProfile ->
-                            onCompletePassport(completedProfile, loginProvider)
-                            onDismiss()
-                        }
-                    )
+            }
+        }
+        Surface(color = Color.White, shadowElevation = 6.dp) {
+            Column(Modifier.navigationBarsPadding().padding(horizontal = 22.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MColors.Rose) }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedIconButton(onClick = { if (section == 0) onBack() else onSection(section - 1) }, modifier = Modifier.size(50.dp), shape = RoundedCornerShape(14.dp)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Geri") }
+                    MButton(if (section < 2) "Devam et · ${titles[section + 1]}" else "Pasaportumu oluştur", {
+                        val validation = if (section == 0) draft.identityError() else if (section == 2) draft.identityError() ?: draft.preferencesError() else null
+                        if (validation != null) error = validation else if (section < 2) onSection(section + 1) else onSave()
+                    }, Modifier.weight(1f), icon = if (section == 2) Icons.Rounded.Check else null)
                 }
             }
         }
     }
+    if (showLocation) CityAndLocationSelectorSheet(draft.city, draft.district, false, { showLocation = false }, { city, district, _ -> onDraft(draft.copy(city = city, district = district)); showLocation = false })
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 1. GİRİŞ SEÇENEKLERİ EKRANI
-// ═══════════════════════════════════════════════════════════════════════════════
 @Composable
-private fun LoginOptionsView(
-    onSelectApple: () -> Unit,
-    onSelectGoogle: () -> Unit,
-    onSelectPhone: () -> Unit,
-    onContinueAsGuest: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 22.dp)
-            .navigationBarsPadding()
-            .padding(bottom = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // Üst Başlık ve Kapatma İkonu
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .background(MGradients.Brand, RoundedCornerShape(10.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.SportsSoccer,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(19.dp)
-                    )
-                }
-                Text(
-                    text = "MATCHORA",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 0.5.sp,
-                    color = MColors.Ink900
-                )
-            }
-
-            Surface(
-                onClick = onDismiss,
-                shape = CircleShape,
-                color = Color(0xFFE2E8F0),
-                modifier = Modifier.size(30.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Close, "Kapat", tint = MColors.Ink700, modifier = Modifier.size(16.dp))
-                }
-            }
-        }
-
-        // Başlık ve Açıklama
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Text(
-                text = "Matchora'ya Giriş Yap",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = MColors.Ink900
-            )
-            Text(
-                text = "Giriş yap ve tek ekranda sporcu pasaportunu tamamla.",
-                fontSize = 12.5.sp,
-                color = MColors.Ink600,
-                textAlign = TextAlign.Center,
-                lineHeight = 17.sp
-            )
-        }
-
-        // Hediye Token Çağrısı
-        Surface(
-            shape = RoundedCornerShape(13.dp),
-            color = Color(0xFFFFF7ED),
-            border = BorderStroke(1.dp, Color(0xFFFFB37B)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(9.dp)
-            ) {
-                Text("🎁", fontSize = 18.sp)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "+20 TKN Hoş Geldin Bonusu Tanımlanır",
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF9A3412)
-                    )
-                    Text(
-                        text = "Girişte pasaportunla birlikte cüzdanına aktarılır.",
-                        fontSize = 11.sp,
-                        color = Color(0xFFC2410C)
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(2.dp))
-
-        // 1. Apple ile Giriş Yap (App Store standart siyah buton)
-        Surface(
-            onClick = onSelectApple,
-            shape = RoundedCornerShape(14.dp),
-            color = Color.Black,
-            shadowElevation = 3.dp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                AppleLogoIcon(modifier = Modifier.size(19.dp), tint = Color.White)
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = "Apple ile Giriş Yap",
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-        }
-
-        // 2. Google ile Giriş Yap
-        Surface(
-            onClick = onSelectGoogle,
-            shape = RoundedCornerShape(14.dp),
-            color = Color.White,
-            border = BorderStroke(1.2.dp, Color(0xFFDCE3ED)),
-            shadowElevation = 1.dp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                GoogleLogoIcon(modifier = Modifier.size(19.dp))
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = "Google ile Devam Et",
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MColors.Ink900
-                )
-            }
-        }
-
-        // 3. Telefon Numarası ile Giriş
-        Surface(
-            onClick = onSelectPhone,
-            shape = RoundedCornerShape(14.dp),
-            color = MColors.Ink900,
-            shadowElevation = 2.dp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.PhoneIphone,
-                    contentDescription = null,
-                    tint = Color(0xFFFFB37B),
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = "Telefon Numarası ile Giriş",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-        }
-
-        // Ayırıcı
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
-            Text(
-                text = "veya",
-                fontSize = 11.sp,
-                color = MColors.Ink400,
-                modifier = Modifier.padding(horizontal = 10.dp)
-            )
-            HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
-        }
-
-        // Misafir Olarak Devam Et
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            TextButton(
-                onClick = onContinueAsGuest,
-                modifier = Modifier.height(34.dp),
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
-            ) {
-                Text(
-                    text = "Şimdilik giriş yapmadan keşfet →",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MColors.BrandDeep
-                )
-            }
-            Text(
-                text = "Tüm maçları ve sahaları serbestçe inceleyebilirsin",
-                fontSize = 10.5.sp,
-                color = MColors.Ink500
-            )
-        }
+private fun PhoneInputView(phone: String, onChange: (String) -> Unit, onBack: () -> Unit, onSend: () -> Unit) {
+    Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(22.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        AuthHeader("Telefonla devam et", "Numaran profilinde herkese gösterilmez.", onBack)
+        OutlinedTextField(phone, { onChange(it.filter(Char::isDigit).take(10)) }, label = { Text("Telefon numarası") }, prefix = { Text("+90 ") }, placeholder = { Text("5XX XXX XX XX") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), singleLine = true, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+        MButton("Doğrulama koduna geç", onSend, enabled = normalizeTurkishPhone(phone) != null)
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 2. SPORCU PASAPORTU BİLGİLERİNİ DOLDURMA PENCERESİ (PREMIUM & MENÜLÜ SEÇİM)
-// ═══════════════════════════════════════════════════════════════════════════════
-private fun dayOrder(day: String): Int = when (day) {
-    "Pzt" -> 1
-    "Sal" -> 2
-    "Çar" -> 3
-    "Per" -> 4
-    "Cum" -> 5
-    "Cmt" -> 6
-    "Paz" -> 7
-    else -> 8
-}
-
 @Composable
-private fun ProfileEditorSectionTitle(text: String) {
-    Text(
-        text = text,
-        modifier = Modifier.padding(top = 4.dp),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 0.9.sp,
-        color = MColors.Ink500
-    )
+private fun PhoneOtpView(phone: String, code: String, error: String?, onCode: (String) -> Unit, onBack: () -> Unit, onVerify: () -> Unit) {
+    var resendSeconds by remember { mutableIntStateOf(50) }
+    LaunchedEffect(resendSeconds) { if (resendSeconds > 0) { delay(1000); resendSeconds-- } }
+    Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(22.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        AuthHeader("Kodunu doğrula", "+90 $phone", onBack)
+        Text("Önizleme akışını denemek için 2026 kodunu kullan.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+        OutlinedTextField(code, { onCode(it.filter(Char::isDigit).take(4)) }, label = { Text("4 haneli kod") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), isError = error != null, singleLine = true, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+        error?.let { Text(it, color = MColors.Rose, style = MaterialTheme.typography.bodySmall) }
+        TextButton(onClick = { resendSeconds = 50; onCode("") }, enabled = resendSeconds == 0) { Text(if (resendSeconds > 0) "Tekrar kod iste · $resendSeconds sn" else "Tekrar kod iste") }
+        MButton("Doğrula ve devam et", onVerify, enabled = code.length == 4)
+    }
 }
 
 @Composable
@@ -569,990 +444,6 @@ private fun TimePickerMenu(
     }
 }
 
-@Composable
-private fun PassportSetupView(
-    loginProvider: String,
-    prefilledName: String,
-    prefilledPhone: String,
-    prefilledEmail: String,
-    initialCity: String,
-    initialDistrict: String,
-    onBack: () -> Unit,
-    onSaveAndContinue: (UserProfile) -> Unit
-) {
-    var section by remember { mutableIntStateOf(0) }
-    val scrollState = rememberScrollState()
-    LaunchedEffect(section) { scrollState.scrollTo(0) }
-
-    // Profil & Kimlik Değerleri
-    var athleteName by remember { mutableStateOf(prefilledName.ifBlank { "Özcan Özden" }) }
-    var birthYear by remember { mutableStateOf("1996") }
-    var jerseyNumber by remember { mutableStateOf("10") }
-    var phone by remember { mutableStateOf(prefilledPhone.ifBlank { "+90 532 555 42 18" }) }
-    var email by remember { mutableStateOf(prefilledEmail.ifBlank { "ozcan@matchora.app" }) }
-    var bio by remember {
-        mutableStateOf("Centilmence ve tempolu oyun. Fair play önce gelir.")
-    }
-
-    // Konum & Topluluk
-    var city by remember { mutableStateOf(initialCity) }
-    var district by remember { mutableStateOf(initialDistrict) }
-    var showLocationPicker by remember { mutableStateOf(false) }
-    var campus by remember { mutableStateOf("") }
-    var company by remember { mutableStateOf("") }
-
-    // Branş & E-Spor Kategorisi
-    var sportTab by remember { mutableStateOf("Tümü") }
-    val sportTabs = listOf("Tümü", "Saha & Takım ⚽", "Raket 🎾", "E-Spor & Zeka 🎮", "Bireysel 🏃")
-
-    var selectedSport by remember { mutableStateOf(Sport.FOOTBALL) }
-    var selectedPosition by remember { mutableStateOf("Orta Saha") }
-
-    // Fiziksel Tercihler (Sol El, Sağ El, Her İkisi / Ayak)
-    var dominantHand by remember { mutableStateOf("Sağ El") }
-    var dominantFoot by remember { mutableStateOf("Sağ Ayak") }
-
-    // Seviye & MMR
-    var selectedLevel by remember { mutableStateOf(SkillLevel.INTERMEDIATE) }
-
-    // Manuel Müsaitlik (Gün & Saat Serbest Seçimi)
-    var selectedDays by remember { mutableStateOf(setOf("Pzt", "Çar", "Cum")) }
-    var startHour by remember { mutableStateOf("19:00") }
-    var endHour by remember { mutableStateOf("23:00") }
-
-    // Spor Filtresi
-    val filteredSports = remember(sportTab) {
-        when (sportTab) {
-            "Saha & Takım ⚽" -> listOf(Sport.FOOTBALL, Sport.BASKETBALL, Sport.VOLLEYBALL, Sport.FUTSAL, Sport.HANDBALL, Sport.BEACH_VOLLEYBALL)
-            "Raket 🎾" -> listOf(Sport.TENNIS, Sport.PADEL, Sport.TABLE_TENNIS, Sport.BADMINTON, Sport.SQUASH, Sport.PICKLEBALL)
-            "E-Spor & Zeka 🎮" -> listOf(Sport.ESPORTS_FC, Sport.ESPORTS_VALORANT, Sport.ESPORTS_CS2, Sport.ESPORTS_LOL, Sport.CHESS)
-            "Bireysel 🏃" -> listOf(Sport.FITNESS, Sport.RUNNING, Sport.SWIMMING, Sport.CYCLING, Sport.BOXING, Sport.PILATES_YOGA)
-            else -> listOf(
-                Sport.FOOTBALL, Sport.BASKETBALL, Sport.TENNIS, Sport.PADEL, Sport.VOLLEYBALL,
-                Sport.ESPORTS_FC, Sport.ESPORTS_VALORANT, Sport.ESPORTS_CS2, Sport.ESPORTS_LOL, Sport.CHESS,
-                Sport.TABLE_TENNIS, Sport.SWIMMING, Sport.FITNESS, Sport.RUNNING
-            )
-        }
-    }
-
-    // Dinamik roller
-    val sportPositions = remember(selectedSport) {
-        when (selectedSport) {
-            Sport.ESPORTS_FC -> listOf("Forvet / Bitirici 🎯", "Orta Saha / Pasör 🧠", "Defans / Bek 🛡️", "Kaleci 🧤", "1v1 Tekler ⚡")
-            Sport.ESPORTS_VALORANT -> listOf("Duelist (Giriş) 💥", "Initiator (Öncü) 🎯", "Controller (Duman) 🌫️", "Sentinel (Gözcü) 🛡️", "IGL / Kaptan 🧠")
-            Sport.ESPORTS_CS2 -> listOf("Entry Fragger 💥", "AWPer (Sniper) 🎯", "Rifler 🔫", "Support 🛡️", "IGL / Kaptan 🧠")
-            Sport.ESPORTS_LOL -> listOf("Top (Üst) 🛡️", "Jungle (Orman) 🌲", "Mid (Orta) ⚡", "ADC (Alt) 🎯", "Support (Destek) 🤝")
-            Sport.CHESS -> listOf("Beyazlar (Hücum)", "Siyahlar (Savunma)", "Blitz (Yıldırım) ⚡", "Rapid (Hızlı) ⏱️", "Klasik")
-            Sport.FOOTBALL -> listOf("Kaleci 🧤", "Defans 🛡️", "Orta Saha ⚡", "Forvet / Kanat 🎯")
-            Sport.BASKETBALL -> listOf("Oyun Kurucu (PG) 🧠", "Şutör Gard (SG) 🎯", "Kısa Forvet (SF) ⚡", "Uzun Forvet (PF) 💪", "Pivot (C) 🛡️")
-            Sport.TENNIS -> listOf("Tekler (Singles) 🎾", "Çiftler (Doubles) 👥", "Baseline ⚡", "File Önü 🎯")
-            Sport.PADEL -> listOf("Sol Taraf 🎾", "Sağ Taraf 🎾", "Çiftler 👥", "Ofansif 🎯")
-            Sport.VOLLEYBALL -> listOf("Pasör 🧠", "Smaçör ⚡", "Orta Oyuncu 🛡️", "Libero 🧤", "Çapraz 🎯")
-            Sport.TABLE_TENNIS -> listOf("Ofansif Forehand 🏓", "Defansif Blok 🛡️", "Spin / Çok Yönlü ⚡")
-            Sport.SWIMMING -> listOf("Serbest & Kelebek 🏊", "Kurbağalama 🌊", "Sırtüstü ⚡")
-            Sport.FITNESS -> listOf("Fonksiyonel & HIIT 🏋️", "Güç & Kondisyon 💪", "Kardiyo 🏃")
-            else -> listOf("Genel / Çok Yönlü ⚡", "Hücum / Ofansif 🎯", "Savunma / Defansif 🛡️", "Kaptan / Lider 🧠")
-        }
-    }
-
-    LaunchedEffect(selectedSport) {
-        selectedPosition = sportPositions.first().substringBefore(" ")
-    }
-
-    val initials = remember(athleteName) {
-        athleteName.trim().split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1) }.uppercase().ifBlank { "M" }
-    }
-    val parsedYear = birthYear.toIntOrNull() ?: 1996
-    val athleteAge = (2026 - parsedYear).coerceIn(10, 85)
-    val ageCategory = when {
-        athleteAge < 18 -> "Genç Gelişim (U-18)"
-        athleteAge < 35 -> "Büyükler / Amatör Açık Lig"
-        else -> "Veteran / Master Ligi (+35)"
-    }
-
-    Column(Modifier.fillMaxWidth().fillMaxHeight(.92f).imePadding()) {
-        // 1. MSheetHeading Header
-        Box(Modifier.padding(horizontal = 20.dp)) {
-            MSheetHeading(
-                title = "Sporcu Pasaportu",
-                subtitle = "Kimlik, branş ve oyun tercihlerini belirle",
-                icon = Icons.Rounded.Badge,
-                onDismiss = onBack
-            )
-        }
-
-        // 2. Scrollable Content
-        Column(
-            Modifier
-                .weight(1f)
-                .verticalScroll(scrollState)
-                .padding(horizontal = 22.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
-            Spacer(Modifier.height(2.dp))
-
-            // Lüks Profil Önizleme Kartı (ProfileEditorSheet ile birebir aynı gradient ve tasarım)
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.linearGradient(listOf(Color(0xFFFFEBD9), Color(0xFFF5EFE6))),
-                        RoundedCornerShape(24.dp)
-                    )
-                    .padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Box(
-                    Modifier
-                        .size(52.dp)
-                        .background(Color.White.copy(alpha = .8f), CircleShape)
-                        .border(1.dp, Color.White, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        initials,
-                        fontSize = 23.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MColors.BrandDeep
-                    )
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        athleteName.ifBlank { "Sporcu profilin" },
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MColors.Ink900,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        "$city · $district · $dominantFoot · $dominantHand",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MColors.Ink600,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = Color.White.copy(alpha = 0.85f),
-                            border = BorderStroke(0.5.dp, MColors.Line)
-                        ) {
-                            Text(
-                                "✓ $loginProvider",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MColors.Ink700,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = Color(0xFFE1C49D).copy(alpha = 0.35f)
-                        ) {
-                            Text(
-                                "🎁 +20 TKN Hediye",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF9A3412),
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Segmentli Sekmeler: Kimlik · Spor & Rol · Müsaitlik & Saat
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                listOf("Kimlik", "Spor & Rol", "Müsaitlik & Saat").forEachIndexed { index, title ->
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .clickable { section = index }
-                            .padding(top = 6.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            title,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            fontWeight = if (section == index) FontWeight.Bold else FontWeight.Medium,
-                            color = if (section == index) MColors.Ink900 else MColors.Ink400
-                        )
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(3.dp)
-                                .background(if (section == index) MColors.Brand else MColors.Line, CircleShape)
-                        )
-                    }
-                }
-            }
-
-            // Sekme İçerikleri
-            when (section) {
-                0 -> {
-                    // ══════════════════════════════════════════════════════════════
-                    // SEKME 0: KİMLİK
-                    // ══════════════════════════════════════════════════════════════
-                    ProfileEditorSectionTitle("SAHADA SENİ TANISINLAR")
-                    ProfileEditField(
-                        label = "Ad soyad",
-                        value = athleteName,
-                        onValueChange = { athleteName = it },
-                        isError = athleteName.isBlank()
-                    )
-
-                    Surface(
-                        onClick = { showLocationPicker = true },
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color.White,
-                        border = BorderStroke(1.dp, MColors.Line)
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(Icons.Rounded.LocationOn, null, tint = MColors.BrandDeep)
-                            Column(Modifier.weight(1f)) {
-                                Text("Şehir ve bölge", style = MaterialTheme.typography.labelSmall, color = MColors.Ink500)
-                                Text("$city · $district", color = MColors.Ink900, fontWeight = FontWeight.SemiBold)
-                            }
-                            Icon(Icons.Rounded.ExpandMore, "Konumu değiştir", tint = MColors.Ink500)
-                        }
-                    }
-
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ProfileEditField(
-                            label = "Doğum yılı",
-                            value = birthYear,
-                            onValueChange = { value -> birthYear = value.filter { it.isDigit() }.take(4) },
-                            isError = parsedYear !in 1900..2026,
-                            keyboardType = KeyboardType.Number,
-                            modifier = Modifier.weight(1f)
-                        )
-                        ProfileEditField(
-                            label = "Forma no",
-                            value = jerseyNumber,
-                            onValueChange = { value -> jerseyNumber = value.filter { it.isDigit() }.take(2) },
-                            keyboardType = KeyboardType.Number,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFF1F5F9),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text("🎂", fontSize = 14.sp)
-                            Text(
-                                text = "$athleteAge Yaşında · $ageCategory",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MColors.Ink700
-                            )
-                        }
-                    }
-
-                    MFloatingInputBox(
-                        label = "Kendinden Bahset & Kısa Biyografi",
-                        value = bio,
-                        onValueChange = { bio = it },
-                        placeholder = "Örn: Tempolu maçları severim, fair play her zaman önceliğimdir...",
-                        subtitle = "Sporcu pasaportunda ve maç eşleşmelerinde görünür.",
-                        icon = Icons.Rounded.EditNote,
-                        badgeText = "Pasaport Notu",
-                        singleLine = false,
-                        minLines = 3,
-                        maxLines = 5,
-                        suggestions = listOf(
-                            "Tempolu ve centilmence maç arıyorum",
-                            "Hafta içi akşamları düzenli oynarım",
-                            "Turnuva ve lig maçlarına açığım",
-                            "E-Spor rekabetçi kadro arıyorum"
-                        )
-                    )
-                }
-
-                1 -> {
-                    // ══════════════════════════════════════════════════════════════
-                    // SEKME 1: SPOR & BRANŞ
-                    // ══════════════════════════════════════════════════════════════
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Icon(Icons.Rounded.Sports, null, tint = MColors.BrandDeep, modifier = Modifier.size(28.dp))
-                        Column {
-                            ProfileEditorSectionTitle("BRANŞ VE OYUN TARZIN")
-                            Text("Doğru ekiple aynı sahada veya oyunda buluş.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
-                        }
-                    }
-
-                    // Branş Kategorisi
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(sportTabs) { tab ->
-                            val isTabSelected = sportTab == tab
-                            Surface(
-                                onClick = { sportTab = tab },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isTabSelected) MColors.Ink900 else Color.White,
-                                border = BorderStroke(1.dp, if (isTabSelected) MColors.Ink900 else MColors.Line)
-                            ) {
-                                Text(
-                                    text = tab,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isTabSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isTabSelected) Color.White else MColors.Ink700,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Branş Seçici
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(filteredSports) { sport ->
-                            val isSelected = selectedSport == sport
-                            Surface(
-                                onClick = { selectedSport = sport },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) MColors.Ink900 else Color.White,
-                                border = BorderStroke(1.2.dp, if (isSelected) Color(0xFFFFB37B) else MColors.Line)
-                            ) {
-                                Text(
-                                    text = "${sport.emoji} ${sport.label}",
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else MColors.Ink900,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Sahadaki Rol / Mevki
-                    Text("Sahadaki Rol / Mevkin:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MColors.Ink700)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(sportPositions) { pos ->
-                            val isSelected = selectedPosition.equals(pos.substringBefore(" "), ignoreCase = true)
-                            Surface(
-                                onClick = { selectedPosition = pos.substringBefore(" ") },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) MColors.BrandDeep else Color.White,
-                                border = BorderStroke(1.dp, if (isSelected) MColors.BrandDeep else MColors.Line)
-                            ) {
-                                Text(
-                                    text = pos,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else MColors.Ink800,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Fiziksel Tercihler: Baskın El ve Baskın Ayak
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color.White,
-                        border = BorderStroke(1.dp, MColors.Line),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("✋ Baskın El:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MColors.Ink600)
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                listOf("Sağ El", "Sol El", "Her İkisi").forEach { opt ->
-                                    val isSel = dominantHand == opt
-                                    Surface(
-                                        onClick = { dominantHand = opt },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = if (isSel) MColors.Ink900 else Color(0xFFF8FAFC),
-                                        border = BorderStroke(1.dp, if (isSel) Color(0xFFFFB37B) else MColors.Line)
-                                    ) {
-                                        Box(Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-                                            Text(
-                                                text = opt,
-                                                fontSize = 12.sp,
-                                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (isSel) Color.White else MColors.Ink800
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            Text("⚽ Baskın Ayak:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MColors.Ink600)
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                listOf("Sağ Ayak", "Sol Ayak", "Her İki Ayak").forEach { opt ->
-                                    val isSel = dominantFoot == opt
-                                    Surface(
-                                        onClick = { dominantFoot = opt },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = if (isSel) MColors.Ink900 else Color(0xFFF8FAFC),
-                                        border = BorderStroke(1.dp, if (isSel) Color(0xFFFFB37B) else MColors.Line)
-                                    ) {
-                                        Box(Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-                                            Text(
-                                                text = opt,
-                                                fontSize = 12.sp,
-                                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (isSel) Color.White else MColors.Ink800
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Seviye / MMR Derecesi
-                    Text("Yetenek / MMR Derecesi:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MColors.Ink700)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        val levels = listOf(
-                            SkillLevel.BEGINNER to "Başlangıç\n1.100 MMR",
-                            SkillLevel.INTERMEDIATE to "Orta\n1.350 MMR",
-                            SkillLevel.ADVANCED to "İleri\n1.550 MMR",
-                            SkillLevel.PRO to "Pro\n1.800 MMR"
-                        )
-                        levels.forEach { (lvl, label) ->
-                            val isSel = selectedLevel == lvl
-                            Surface(
-                                onClick = { selectedLevel = lvl },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSel) MColors.Ink900 else Color.White,
-                                border = BorderStroke(1.2.dp, if (isSel) Color(0xFFFFB37B) else MColors.Line)
-                            ) {
-                                Box(Modifier.padding(vertical = 8.dp, horizontal = 2.dp), contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = label,
-                                        fontSize = 11.sp,
-                                        lineHeight = 14.sp,
-                                        textAlign = TextAlign.Center,
-                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSel) Color.White else MColors.Ink800
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                2 -> {
-                    // ══════════════════════════════════════════════════════════════
-                    // SEKME 2: MÜSAİTLİK & İLETİŞİM
-                    // ══════════════════════════════════════════════════════════════
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Icon(Icons.Rounded.Schedule, null, tint = MColors.BrandDeep, modifier = Modifier.size(28.dp))
-                        Column {
-                            ProfileEditorSectionTitle("OYUN TAKVİMİN VE İLETİŞİM")
-                            Text("Maç davetleri ve organizasyon takvimin.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
-                        }
-                    }
-
-                    // Gün Seçici Kartı
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color.White,
-                        border = BorderStroke(1.dp, MColors.Line),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Oynayabileceğin Günler:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MColors.Ink600)
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(
-                                        text = "Hafta İçi",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MColors.BrandDeep,
-                                        modifier = Modifier
-                                            .clickable { selectedDays = setOf("Pzt", "Sal", "Çar", "Per", "Cum") }
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    )
-                                    Text("·", fontSize = 11.sp, color = MColors.Ink400)
-                                    Text(
-                                        text = "Hafta Sonu",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MColors.BrandDeep,
-                                        modifier = Modifier
-                                            .clickable { selectedDays = setOf("Cmt", "Paz") }
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    )
-                                    Text("·", fontSize = 11.sp, color = MColors.Ink400)
-                                    Text(
-                                        text = "Tümü",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MColors.BrandDeep,
-                                        modifier = Modifier
-                                            .clickable { selectedDays = setOf("Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz") }
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                listOf("Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz").forEach { day ->
-                                    val isChecked = selectedDays.contains(day)
-                                    Surface(
-                                        onClick = {
-                                            selectedDays = if (isChecked) selectedDays - day else selectedDays + day
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = if (isChecked) MColors.Ink900 else Color(0xFFF1F5F9),
-                                        border = BorderStroke(1.dp, if (isChecked) Color(0xFFFFB37B) else MColors.Line)
-                                    ) {
-                                        Box(Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-                                            Text(
-                                                text = day,
-                                                fontSize = 11.5.sp,
-                                                fontWeight = if (isChecked) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (isChecked) Color.White else MColors.Ink800
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Saat Seçimi (AÇILIR MENÜ ŞEKLİNDE - DROP-DOWN PICKER)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TimePickerMenu(
-                            label = "Başlangıç Saati",
-                            selectedTime = startHour,
-                            onTimeSelected = { startHour = it },
-                            modifier = Modifier.weight(1f)
-                        )
-                        TimePickerMenu(
-                            label = "Bitiş Saati",
-                            selectedTime = endHour,
-                            onTimeSelected = { endHour = it },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    // Canlı Özet Satırı
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFFFF7ED),
-                        border = BorderStroke(1.dp, Color(0xFFFFD8BF)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text("📅", fontSize = 15.sp)
-                            Text(
-                                text = if (selectedDays.isEmpty()) "Lütfen en az bir gün seç"
-                                else "${selectedDays.sortedBy { dayOrder(it) }.joinToString(", ")} · $startHour - $endHour",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF9A3412)
-                            )
-                        }
-                    }
-
-                    ProfileEditorSectionTitle("İLETİŞİM BİLGİLERİN")
-                    ProfileEditField(
-                        label = "Telefon (Acil maç bildirimleri)",
-                        value = phone,
-                        onValueChange = { phone = it },
-                        isError = phone.count { it.isDigit() } < 7,
-                        keyboardType = KeyboardType.Phone
-                    )
-                    ProfileEditField(
-                        label = "E-posta",
-                        value = email,
-                        onValueChange = { email = it },
-                        isError = !email.contains('@'),
-                        keyboardType = KeyboardType.Email
-                    )
-
-                    HorizontalDivider(color = MColors.Line)
-                    ProfileEditorSectionTitle("BAĞLANTILARIN (İSTEĞE BAĞLI)")
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        ProfileEditField(
-                            label = "Kampüs / Üniversite",
-                            value = campus,
-                            onValueChange = { campus = it },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ProfileEditField(
-                            label = "Şirket / Kurum",
-                            value = company,
-                            onValueChange = { company = it },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(8.dp))
-        }
-
-        // 3. Sabit Yapışkan Alt Eylem Barı
-        Surface(color = Color.White, shadowElevation = 8.dp) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 22.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (section > 0) {
-                        Surface(
-                            onClick = { section-- },
-                            shape = RoundedCornerShape(14.dp),
-                            color = Color.White,
-                            border = BorderStroke(1.dp, MColors.Line),
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                    contentDescription = "Önceki Adım",
-                                    tint = MColors.Ink800,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-                    MButton(
-                        text = when (section) {
-                            0 -> "Sonraki: Spor & Branş →"
-                            1 -> "Sonraki: Müsaitlik & İletişim →"
-                            else -> "Pasaportumu Kaydet & Sahaya Çık 🚀"
-                        },
-                        onClick = {
-                            if (section < 2) {
-                                section++
-                            } else {
-                                val availabilityText = if (selectedDays.isEmpty()) {
-                                    "Hafta içi $startHour–$endHour"
-                                } else {
-                                    "${selectedDays.sortedBy { dayOrder(it) }.joinToString(", ")} $startHour–$endHour"
-                                }
-
-                                val newProfile = UserProfile(
-                                    name = athleteName.trim().ifBlank { "Yeni Sporcu" },
-                                    city = city.trim().ifBlank { "İstanbul" },
-                                    area = district.trim().ifBlank { "Kadıköy" },
-                                    bio = bio.trim().ifBlank { "Sporcu pasaportu aktif. Fair play ve tempolu oyun." },
-                                    birthYear = birthYear.toIntOrNull() ?: 1996,
-                                    phone = phone.trim().ifBlank { "+90 532 555 42 18" },
-                                    email = email.trim().ifBlank { "sporcu@matchora.app" },
-                                    skills = listOf(
-                                        SportSkill(
-                                            sport = selectedSport,
-                                            level = selectedLevel,
-                                            rating = when (selectedLevel) {
-                                                SkillLevel.BEGINNER -> 1100
-                                                SkillLevel.INTERMEDIATE -> 1350
-                                                SkillLevel.ADVANCED -> 1550
-                                                SkillLevel.PRO -> 1800
-                                            },
-                                            verifiedMatches = 1,
-                                            winRate = 60,
-                                            localRank = 14,
-                                            position = if (jerseyNumber.isNotBlank()) "$selectedPosition (#$jerseyNumber)" else selectedPosition
-                                        )
-                                    ),
-                                    verifications = setOf(VerificationLevel.BASIC, VerificationLevel.PHOTO),
-                                    reliability = 95,
-                                    fairPlay = 5.0f,
-                                    verifiedMatches = 1,
-                                    streakWeeks = 1,
-                                    campus = campus.trim().ifBlank { null },
-                                    company = company.trim().ifBlank { null },
-                                    dominantSide = "$dominantFoot · $dominantHand",
-                                    availability = listOf(availabilityText)
-                                )
-                                onSaveAndContinue(newProfile)
-                            }
-                        },
-                        enabled = athleteName.trim().isNotBlank(),
-                        modifier = Modifier.weight(1f),
-                        icon = if (section == 2) Icons.Rounded.Check else null
-                    )
-                }
-            }
-        }
-    }
-
-    if (showLocationPicker) {
-        CityAndLocationSelectorSheet(
-            currentCity = city,
-            currentDistrict = district,
-            isGpsActive = true,
-            onDismiss = { showLocationPicker = false },
-            onSelectLocation = { selectedCity, selectedDistrict, _ ->
-                city = selectedCity
-                district = selectedDistrict
-                showLocationPicker = false
-            }
-        )
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 3. TELEFON NUMARASI GİRİŞ EKRANI
-// ═══════════════════════════════════════════════════════════════════════════════
-@Composable
-private fun PhoneInputView(
-    phoneNumber: String,
-    onPhoneChange: (String) -> Unit,
-    onBack: () -> Unit,
-    onSendCode: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 22.dp)
-            .navigationBarsPadding()
-            .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Geri", tint = MColors.Ink900)
-            }
-            Text(
-                text = "Telefon Numarası ile Giriş",
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                color = MColors.Ink900
-            )
-        }
-
-        Text(
-            text = "Doğrulama kodu gönderebilmemiz için telefon numaranı gir. Giriş yaptığında sporcu pasaportun hazırlanacaktır.",
-            fontSize = 12.5.sp,
-            color = MColors.Ink600,
-            lineHeight = 17.sp
-        )
-
-        // Telefon Input Kartı
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = Color.White,
-            border = BorderStroke(1.dp, Color(0xFFDCE3ED)),
-            shadowElevation = 1.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFFF1F5F9),
-                    modifier = Modifier.padding(end = 8.dp)
-                ) {
-                    Text(
-                        text = "🇹🇷 +90",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MColors.Ink800,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                    )
-                }
-
-                TextField(
-                    value = phoneNumber,
-                    onValueChange = { input ->
-                        val digits = input.filter { it.isDigit() }.take(10)
-                        onPhoneChange(digits)
-                    },
-                    placeholder = { Text("5XX XXX XX XX", fontSize = 14.sp, color = MColors.Ink400) },
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    ),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                    modifier = Modifier.weight(1f)
-                )
-
-                if (phoneNumber.isNotEmpty()) {
-                    IconButton(onClick = { onPhoneChange("") }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Rounded.Cancel, null, tint = MColors.Ink400, modifier = Modifier.size(16.dp))
-                    }
-                }
-            }
-        }
-
-        MButton(
-            text = "Doğrulama Kodu Gönder 💬",
-            onClick = onSendCode,
-            enabled = phoneNumber.length >= 10,
-            icon = Icons.AutoMirrored.Rounded.Send
-        )
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 4. SMS OTP ONAY EKRANI
-// ═══════════════════════════════════════════════════════════════════════════════
-@Composable
-private fun PhoneOtpView(
-    phoneNumber: String,
-    otpCode: String,
-    onOtpChange: (String) -> Unit,
-    onBack: () -> Unit,
-    onVerify: () -> Unit
-) {
-    var timeLeft by remember { mutableIntStateOf(50) }
-    LaunchedEffect(Unit) {
-        while (timeLeft > 0) {
-            delay(1000L)
-            timeLeft--
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 22.dp)
-            .navigationBarsPadding()
-            .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Geri", tint = MColors.Ink900)
-            }
-            Text(
-                text = "SMS Kodunu Onayla",
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                color = MColors.Ink900
-            )
-        }
-
-        Text(
-            text = "+90 $phoneNumber numarana gelen 4 haneli SMS onay kodunu gir. (Demo Kodu: 2026)",
-            fontSize = 12.5.sp,
-            color = MColors.Ink600,
-            lineHeight = 17.sp
-        )
-
-        // 4 Haneli Görsel OTP Kutuları
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                for (i in 0..3) {
-                    val char = otpCode.getOrNull(i)?.toString() ?: ""
-                    val isCurrent = (otpCode.length == i)
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color.White,
-                        border = BorderStroke(
-                            if (isCurrent) 1.8.dp else 1.dp,
-                            if (isCurrent) MColors.BrandDeep else Color(0xFFCBD5E1)
-                        ),
-                        shadowElevation = 1.dp,
-                        modifier = Modifier.size(52.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = char,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MColors.Ink900
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Gizli Klavye Girişi
-        OutlinedTextField(
-            value = otpCode,
-            onValueChange = { input ->
-                val digits = input.filter { it.isDigit() }.take(4)
-                onOtpChange(digits)
-            },
-            placeholder = { Text("Kodu buraya yaz (2026)") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = if (timeLeft > 0) "Tekrar kod gönder ($timeLeft sn)" else "Tekrar kod gönder",
-                fontSize = 12.sp,
-                color = if (timeLeft > 0) MColors.Ink500 else MColors.BrandDeep,
-                fontWeight = if (timeLeft == 0) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier.clickable(enabled = timeLeft == 0) { timeLeft = 50 }
-            )
-            Text(
-                text = "Hızlı Doldur (2026)",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = MColors.BrandDeep,
-                modifier = Modifier.clickable { onOtpChange("2026") }
-            )
-        }
-
-        MButton(
-            text = "Kodu Onayla & Pasaport Bilgilerine Geç ➔",
-            onClick = onVerify,
-            enabled = otpCode.length >= 4,
-            icon = Icons.Rounded.Check
-        )
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// APPLE & GOOGLE LOGO İKONLARI
-// ═══════════════════════════════════════════════════════════════════════════════
 @Composable
 private fun AppleLogoIcon(modifier: Modifier = Modifier, tint: Color = Color.White) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
