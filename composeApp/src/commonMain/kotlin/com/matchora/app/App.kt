@@ -1163,30 +1163,31 @@ private fun MainAppShell() {
         )
     }
 
-    // 11. Giriş ve Otomatik Pasaport Aktivasyon Çekmecesi
+    // 11. Giriş ve Pasaport Doldurma Çekmecesi
     if (showAuthSheet) {
         AuthAndOnboardingSheet(
             onDismiss = { showAuthSheet = false },
-            onLoginSuccess = { method, name ->
+            initialStage = AuthStage.LOGIN_OPTIONS,
+            currentCity = currentCity,
+            currentDistrict = currentDistrict,
+            onCompletePassport = { newProfile, method ->
                 isLoggedIn = true
                 showAuthSheet = false
-                profile = profile.copy(
-                    name = name,
-                    city = currentCity,
-                    area = currentDistrict
-                )
+                profile = newProfile
+                currentCity = newProfile.city
+                currentDistrict = newProfile.area
                 tokenBalance += 20
                 ledger = listOf(
                     LedgerEntry(
-                        id = nextUniqueId("l_login"),
+                        id = nextUniqueId("l_passport"),
                         type = LedgerType.PURCHASE,
                         amount = 20,
-                        description = "$method Girişi · Pasaport & Hoş Geldin Bonusu",
+                        description = "$method · Sporcu Pasaportu & Hoş Geldin Bonusu",
                         time = "Şimdi",
-                        idempotencyKey = nextUniqueId("login_bonus")
+                        idempotencyKey = nextUniqueId("passport_bonus")
                     )
                 ) + ledger
-                showToast("$method ile giriş yapıldı · Pasaportun aktif! (+20 TKN) 🪪", "✅")
+                showToast("Sporcu Pasaportun oluşturuldu! +20 TKN hediye 🎁", "🏆")
             },
             onContinueAsGuest = {
                 isLoggedIn = false

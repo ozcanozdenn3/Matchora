@@ -7,9 +7,13 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Send
@@ -30,6 +34,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.matchora.app.domain.Sport
+import com.matchora.app.state.*
 import com.matchora.app.ui.theme.MColors
 import com.matchora.app.ui.theme.MGradients
 import kotlinx.coroutines.delay
@@ -37,7 +43,8 @@ import kotlinx.coroutines.delay
 enum class AuthStage {
     LOGIN_OPTIONS,
     PHONE_INPUT,
-    PHONE_OTP
+    PHONE_OTP,
+    PASSPORT_SETUP
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,12 +52,37 @@ enum class AuthStage {
 fun AuthAndOnboardingSheet(
     onDismiss: () -> Unit,
     initialStage: AuthStage = AuthStage.LOGIN_OPTIONS,
-    onLoginSuccess: (provider: String, name: String) -> Unit,
+    currentCity: String = "İstanbul",
+    currentDistrict: String = "Kadıköy",
+    onCompletePassport: (UserProfile, String) -> Unit,
     onContinueAsGuest: () -> Unit
 ) {
     var stage by remember { mutableStateOf(initialStage) }
+    var loginProvider by remember { mutableStateOf("Apple ID") }
     var phoneNumber by remember { mutableStateOf("") }
     var otpCode by remember { mutableStateOf("") }
+
+    // Sporcu Pasaportu Form Değerleri
+    var athleteName by remember { mutableStateOf("Özcan Özden") }
+    var selectedSport by remember { mutableStateOf(Sport.FOOTBALL) }
+    var selectedPosition by remember { mutableStateOf("Orta Saha") }
+    var selectedLevel by remember { mutableStateOf(SkillLevel.INTERMEDIATE) }
+    var dominantFoot by remember { mutableStateOf("Sağ") }
+    var jerseyNumber by remember { mutableStateOf("10") }
+
+    val sportPositions: List<String> = remember(selectedSport) {
+        when (selectedSport) {
+            Sport.FOOTBALL -> listOf("Kaleci 🧤", "Defans 🛡️", "Orta Saha ⚡", "Forvet / Kanat 🎯")
+            Sport.TENNIS, Sport.PADEL -> listOf("Tekler 🎾", "Çiftler 👥", "Sağ Kanat", "Sol Kanat")
+            Sport.BASKETBALL -> listOf("Oyun Kurucu (PG)", "Şutör Gard (SG)", "Forvet (SF/PF)", "Pivot (C)")
+            Sport.VOLLEYBALL -> listOf("Pasör", "Smaçör", "Orta Oyuncu", "Libero")
+            else -> listOf("Genel / Çok Yönlü ⚡", "Hücum / Forvet 🎯", "Savunma / Defans 🛡️", "Oyun Kurucu 🧠")
+        }
+    }
+
+    LaunchedEffect(selectedSport) {
+        selectedPosition = sportPositions.first().substringBefore(" ")
+    }
 
     ModalBottomSheet(
         shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
@@ -87,12 +119,14 @@ fun AuthAndOnboardingSheet(
                 AuthStage.LOGIN_OPTIONS -> {
                     LoginOptionsView(
                         onSelectApple = {
-                            onLoginSuccess("Apple ID", "Özcan Özden")
-                            onDismiss()
+                            loginProvider = "Apple ID"
+                            athleteName = "Özcan Özden"
+                            stage = AuthStage.PASSPORT_SETUP
                         },
                         onSelectGoogle = {
-                            onLoginSuccess("Google", "Özcan Özden")
-                            onDismiss()
+                            loginProvider = "Google"
+                            athleteName = "Özcan Özden"
+                            stage = AuthStage.PASSPORT_SETUP
                         },
                         onSelectPhone = { stage = AuthStage.PHONE_INPUT },
                         onContinueAsGuest = {
@@ -123,7 +157,56 @@ fun AuthAndOnboardingSheet(
                         onOtpChange = { otpCode = it },
                         onBack = { stage = AuthStage.PHONE_INPUT },
                         onVerify = {
-                            onLoginSuccess("Telefon Numarası", "Özcan Özden")
+                            loginProvider = "Telefon"
+                            athleteName = "Özcan Özden"
+                            stage = AuthStage.PASSPORT_SETUP
+                        }
+                    )
+                }
+
+                AuthStage.PASSPORT_SETUP -> {
+                    PassportSetupView(
+                        loginProvider = loginProvider,
+                        athleteName = athleteName,
+                        onNameChange = { athleteName = it },
+                        currentCity = currentCity,
+                        currentDistrict = currentDistrict,
+                        selectedSport = selectedSport,
+                        onSportSelect = { selectedSport = it },
+                        positions = sportPositions,
+                        selectedPosition = selectedPosition,
+                        onPositionSelect = { selectedPosition = it.substringBefore(" ") },
+                        selectedLevel = selectedLevel,
+                        onLevelSelect = { selectedLevel = it },
+                        dominantFoot = dominantFoot,
+                        onFootSelect = { dominantFoot = it },
+                        jerseyNumber = jerseyNumber,
+                        onJerseyNumberChange = { jerseyNumber = it },
+                        onBack = { stage = AuthStage.LOGIN_OPTIONS },
+                        onSaveAndContinue = {
+                            val newProfile = DemoData.me.copy(
+                                name = athleteName.ifBlank { "Yeni Sporcu" },
+                                city = currentCity,
+                                area = currentDistrict,
+                                dominantSide = "$dominantFoot Ayak",
+                                skills = listOf(
+                                    SportSkill(
+                                        sport = selectedSport,
+                                        level = selectedLevel,
+                                        rating = when (selectedLevel) {
+                                            SkillLevel.BEGINNER -> 1100
+                                            SkillLevel.INTERMEDIATE -> 1350
+                                            SkillLevel.ADVANCED -> 1550
+                                            SkillLevel.PRO -> 1800
+                                        },
+                                        verifiedMatches = 1,
+                                        winRate = 60,
+                                        localRank = 28,
+                                        position = selectedPosition
+                                    )
+                                )
+                            )
+                            onCompletePassport(newProfile, loginProvider)
                             onDismiss()
                         }
                     )
@@ -134,7 +217,7 @@ fun AuthAndOnboardingSheet(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 1. TEK VE NET GİRİŞ EKRANI (OTOMATİK PASAPORT OLUŞTURMA İLE)
+// 1. GİRİŞ SEÇENEKLERİ EKRANI
 // ═══════════════════════════════════════════════════════════════════════════════
 @Composable
 private fun LoginOptionsView(
@@ -206,7 +289,7 @@ private fun LoginOptionsView(
                 color = MColors.Ink900
             )
             Text(
-                text = "Giriş yaptığında sporcu pasaportun ve başlangıç bakiyen otomatik hazırlanır.",
+                text = "Giriş yap ve tek ekranda sporcu pasaportunu tamamla.",
                 fontSize = 12.5.sp,
                 color = MColors.Ink600,
                 textAlign = TextAlign.Center,
@@ -235,7 +318,7 @@ private fun LoginOptionsView(
                         color = Color(0xFF9A3412)
                     )
                     Text(
-                        text = "İlk girişte pasaportunla birlikte cüzdanına aktarılır.",
+                        text = "Girişte pasaportunla birlikte cüzdanına aktarılır.",
                         fontSize = 11.sp,
                         color = Color(0xFFC2410C)
                     )
@@ -373,7 +456,272 @@ private fun LoginOptionsView(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 2. TELEFON NUMARASI GİRİŞ EKRANI
+// 2. SPORCU PASAPORTU BİLGİLERİNİ DOLDURMA PENCERESİ (GİRİŞ SONRASI ADIM)
+// ═══════════════════════════════════════════════════════════════════════════════
+@Composable
+private fun PassportSetupView(
+    loginProvider: String,
+    athleteName: String,
+    onNameChange: (String) -> Unit,
+    currentCity: String,
+    currentDistrict: String,
+    selectedSport: Sport,
+    onSportSelect: (Sport) -> Unit,
+    positions: List<String>,
+    selectedPosition: String,
+    onPositionSelect: (String) -> Unit,
+    selectedLevel: SkillLevel,
+    onLevelSelect: (SkillLevel) -> Unit,
+    dominantFoot: String,
+    onFootSelect: (String) -> Unit,
+    jerseyNumber: String,
+    onJerseyNumberChange: (String) -> Unit,
+    onBack: () -> Unit,
+    onSaveAndContinue: () -> Unit
+) {
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .padding(bottom = 16.dp)
+            .verticalScroll(scrollState),
+        verticalArrangement = Arrangement.spacedBy(13.dp)
+    ) {
+        // Üst Bar: Geri ve Başlık
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Geri", tint = MColors.Ink900)
+                }
+                Text(
+                    text = "Sporcu Pasaportu",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MColors.Ink900
+                )
+            }
+
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0xFFECFDF5),
+                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(Icons.Rounded.Check, null, tint = Color(0xFF059669), modifier = Modifier.size(13.dp))
+                    Text(
+                        text = loginProvider,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF047857)
+                    )
+                }
+            }
+        }
+
+        // Sporcu Adı Girişi
+        MFloatingInputBox(
+            value = athleteName,
+            onValueChange = onNameChange,
+            label = "Sporcu Adı Soyadı",
+            placeholder = "Özcan Özden",
+            icon = Icons.Rounded.Person,
+            singleLine = true
+        )
+
+        // Konum Göstergesi
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = Color.White,
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Rounded.LocationOn, null, tint = MColors.BrandDeep, modifier = Modifier.size(17.dp))
+                    Text("Bölge:", fontSize = 12.sp, color = MColors.Ink500)
+                    Text("$currentCity · $currentDistrict", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
+                }
+                Text("GPS Aktif 📍", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF059669))
+            }
+        }
+
+        // 1. Ana Spor Branşı
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Ana Spor Branşın", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
+            val sports = listOf(
+                Sport.FOOTBALL to "Futbol ⚽",
+                Sport.BASKETBALL to "Basketbol 🏀",
+                Sport.TENNIS to "Tenis 🎾",
+                Sport.PADEL to "Padel 🎾",
+                Sport.VOLLEYBALL to "Voleybol 🏐"
+            )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(sports) { (sport, label) ->
+                    val isSelected = selectedSport == sport
+                    Surface(
+                        onClick = { onSportSelect(sport) },
+                        shape = RoundedCornerShape(11.dp),
+                        color = if (isSelected) MColors.Ink900 else Color.White,
+                        border = BorderStroke(1.dp, if (isSelected) Color(0xFFFFB37B) else Color(0xFFCBD5E1))
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 12.5.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color.White else MColors.Ink800,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. Mevki Seçimi
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Sahadaki Mevkin / Rolün", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(positions) { pos ->
+                    val isSelected = selectedPosition.equals(pos.substringBefore(" "), ignoreCase = true)
+                    Surface(
+                        onClick = { onPositionSelect(pos) },
+                        shape = RoundedCornerShape(11.dp),
+                        color = if (isSelected) MColors.BrandDeep else Color.White,
+                        border = BorderStroke(1.dp, if (isSelected) MColors.BrandDeep else Color(0xFFCBD5E1))
+                    ) {
+                        Text(
+                            text = pos,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color.White else MColors.Ink800,
+                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // 3. Seviye Seçimi
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Yetenek Seviyesi", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
+            val levels = listOf(
+                SkillLevel.BEGINNER to "Başlangıç (1.100 MMR)",
+                SkillLevel.INTERMEDIATE to "Orta Seviye (1.350 MMR)",
+                SkillLevel.ADVANCED to "İleri Seviye (1.550 MMR)",
+                SkillLevel.PRO to "Pro / Lisanslı (1.800 MMR)"
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                levels.forEach { (level, label) ->
+                    val isSelected = selectedLevel == level
+                    Surface(
+                        onClick = { onLevelSelect(level) },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isSelected) MColors.Ink900 else Color.White,
+                        border = BorderStroke(1.dp, if (isSelected) Color(0xFFFFB37B) else Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 12.5.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) Color.White else MColors.Ink900
+                            )
+                            if (isSelected) {
+                                Icon(Icons.Rounded.CheckCircle, null, tint = Color(0xFFFFB37B), modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Forma No ve Tercih Ayak
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(Modifier.weight(1f)) {
+                MFloatingDropdownBox(
+                    label = "Tercih Ayak/El",
+                    selectedValue = dominantFoot,
+                    options = listOf("Sağ", "Sol", "Her İkisi"),
+                    optionLabel = { "$it Ayak" },
+                    onSelect = onFootSelect,
+                    icon = Icons.Rounded.Sports
+                )
+            }
+            Box(Modifier.weight(1f)) {
+                MFloatingInputBox(
+                    value = jerseyNumber,
+                    onValueChange = { if (it.length <= 2) onJerseyNumberChange(it) },
+                    label = "Forma No",
+                    placeholder = "10",
+                    icon = Icons.Rounded.Pin,
+                    singleLine = true
+                )
+            }
+        }
+
+        // +20 Token Hediyesi
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = Color(0xFFFFF7ED),
+            border = BorderStroke(1.dp, Color(0xFFFFB37B)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("🎁", fontSize = 17.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "+20 TKN Başlangıç Bonusu Hazır!",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF9A3412)
+                    )
+                    Text(
+                        text = "Kaydettiğin an cüzdan bakiyene aktarılır.",
+                        fontSize = 10.5.sp,
+                        color = Color(0xFFC2410C)
+                    )
+                }
+            }
+        }
+
+        // Kaydet ve Başla Butonu
+        MButton(
+            text = "Pasaportumu Kaydet & Sahaya Çık 🚀",
+            onClick = onSaveAndContinue,
+            enabled = athleteName.trim().isNotBlank(),
+            icon = Icons.Rounded.Check
+        )
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 3. TELEFON NUMARASI GİRİŞ EKRANI
 // ═══════════════════════════════════════════════════════════════════════════════
 @Composable
 private fun PhoneInputView(
@@ -403,7 +751,7 @@ private fun PhoneInputView(
         }
 
         Text(
-            text = "Doğrulama kodu gönderebilmemiz için telefon numaranı gir. Giriş yaptığında sporcu pasaportun hazır olacaktır.",
+            text = "Doğrulama kodu gönderebilmemiz için telefon numaranı gir. Giriş yaptığında sporcu pasaportun hazırlanacaktır.",
             fontSize = 12.5.sp,
             color = MColors.Ink600,
             lineHeight = 17.sp
@@ -473,7 +821,7 @@ private fun PhoneInputView(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 3. SMS OTP ONAY EKRANI
+// 4. SMS OTP ONAY EKRANI
 // ═══════════════════════════════════════════════════════════════════════════════
 @Composable
 private fun PhoneOtpView(
@@ -588,7 +936,7 @@ private fun PhoneOtpView(
         }
 
         MButton(
-            text = "Kodu Onayla & Sahaya Bağlan ⚡",
+            text = "Kodu Onayla & Pasaport Bilgilerine Geç ➔",
             onClick = onVerify,
             enabled = otpCode.length >= 4,
             icon = Icons.Rounded.Check
