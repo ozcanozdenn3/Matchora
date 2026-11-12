@@ -1,0 +1,11 @@
+# Son doğrulanmış durum — 10 Kasım 2026
+
+Aktif son talep: girişten telefon seçeneğini kaldır, gerçek Apple/Google akışı, Android’de Apple gizli, e-posta ile alternatif, misafir ve yasal bağlantıları belirginleştir, oturum olmadan hiçbir özellik kullanılamasın. Bu tur gerçek Supabase PKCE/OTP bağlantısı yazıldı; sağlayıcı anahtarları verilmediği için canlı hesapla giriş yapılmadı. Kullanıcı DB/socket/servis bağlantılarını en son birlikte yapacağımızı belirtti. Sahte giriş/preview hesabı artık giriş düğmelerinde yok.
+
+Detay: [GIRIS_GUNCELLEMESI_2026-11-10.md](GIRIS_GUNCELLEMESI_2026-11-10.md); genel kapsam ve kalan işler [SON_DURUM_2026-11-10.md](SON_DURUM_2026-11-10.md). Backend 220/220 ve ortak istemci 71/71 test son kaynakla geçti; Android APK/iOS framework ve Swift preview derlendi. Ana simülatöre kuruldu/başlatıldı: PID87305. GUI kontrolü Mac kilitli olduğu için yapılamadı; CUA completion_summary verildi. Mac açılınca son login/guest/legal kartları kontrol edilmeli. Gerçek sağlayıcı hesabı testi yapılmadı.
+
+Preview gerçek kimlik katmanından ayrıldı: doğrulanmış hesap + pasaport + gerekli yasal onay bekler; alt mock görünüm durur, misafir tüm dokunuşlarda girişe gider. DemoData.kt değiştirilmedi. Premium tema ve giriş öncesi/sonrası Explore pusulası korunur. Sadece GUI görmek için sahte giriş geri ekleme.
+
+Kaynak envanteri: 56 ortak UI dosyası,263 fonksiyon,95 popup/menu çağrısı,111 komut,67 tablo;406 özellik satırı. DATE2026-11-10. Kanıt docs/validation/2026-11-10/auth/. Önceki işler: ilan UUID/paylaş/ID araması ve gerçek radar merkezi; mesaj/vitrin; kupa kadro/kayıt/çıkarma/fikstür/şampiyon; kulüp/topluluk; tesis haftalık plan ve yorumlar. Eski backend ve mocklar silinmedi; tüm dirty tree önceki yetkili iş. Reset/commit yapma.
+
+Gerçek Supabase/APIHTTPS/worker; Apple/Google/e-posta SMTP/profil SMS/RevenueCat/push/harita/imza/yasal URL kurulumları; bazı kişisel/operasyon geçmişleri ve genel sporcu araması; provider hesap ve tüm mağaza transfer/iade uzlaştırması; kalıcı offline kuyruk ve Realtime; ileri ürünler; gerçek cihaz/mağaza/yük testleri kalır. Yalnız SQL Editor ve sosyal giriş kaldı deme. Yeni sub-agent spawn etme: yalnız açık kullanıcı/AGENTS/skill talebiyle izinli.

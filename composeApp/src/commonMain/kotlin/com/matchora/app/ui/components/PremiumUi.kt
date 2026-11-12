@@ -357,10 +357,11 @@ fun <T> MFloatingDropdownBox(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val requireAccount = LocalRequireAccount.current
 
     Box(modifier = modifier.fillMaxWidth()) {
         Surface(
-            onClick = { expanded = true },
+            onClick = { requireAccount { expanded = true } },
             shape = RoundedCornerShape(16.dp),
             color = Color.White,
             shadowElevation = if (expanded) 8.dp else 5.dp,
@@ -527,8 +528,9 @@ fun MFloatingActionRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val requireAccount = LocalRequireAccount.current
     Surface(
-        onClick = onClick,
+        onClick = { requireAccount(onClick) },
         shape = RoundedCornerShape(16.dp),
         color = Color.White,
         shadowElevation = 5.dp,
@@ -636,6 +638,12 @@ fun premiumTextFieldColors() = OutlinedTextFieldDefaults.colors(
 
 /** Triggered when the user taps the already-selected bottom navigation tab to scroll to top. */
 val LocalScrollToTopTrigger = compositionLocalOf { 0 }
+
+/** Whether interactive card/feature actions currently require signing in first. */
+val LocalFeaturesLocked = compositionLocalOf { false }
+
+/** Runs [action] immediately when signed in, or opens the authentication sheet when in guest mode. */
+val LocalRequireAccount = compositionLocalOf<(() -> Unit) -> Unit> { { it() } }
 
 /** Selection colors for the account flows, matching the existing ink and gold cards. */
 @Composable

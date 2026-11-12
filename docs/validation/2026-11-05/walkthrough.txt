@@ -1,0 +1,13 @@
+5 Kasım 2026 — iPhone 17 Pro / iOS 26.5 / preview
+CUA ile açılıp gözlenenler:
+- Ana akış ve örnek maçlar (64 etkinlik / 63 branş göstergesi)
+- Moda Akşam Halı Saha detay ekranı
+- Keşif menüsü
+- Yarış / sıralama ve Onur Ak sporcu profili
+- Turnuvalar / Kadıköy Sonbahar Kupası / fikstür / puanlar / DEMO analiz
+- Takımlar / Kadıköy Utd / Bostancı Rovers Challenge teklifi
+Sınır: Ağ geçişinde Sky Computer Use native pipe closed before response.
+CUA yeniden bağlantısı ve oturum sıfırlaması başarısız. Kalan ekranlar koddan incelendi; tüm ekranlar görsel olarak doğrulandı denemez.
+Son preview paketinin CLI kurulumu/başlatılması başarılı: com.matchora.app PID 76978.
+Son derleme/başlatmadan sonra CUA görsel kontrolü yapılamadı.
+DemoData.kt diff boş; backend kodu korunuyor.

@@ -243,8 +243,8 @@ enum class Tier(val label: String, val color: Color, val tint: Color, val minRat
 }
 
 enum class VerificationLevel(val label: String, val description: String, val emoji: String) {
-    BASIC("Temel Doğrulama", "Telefon ve e-posta doğrulandı", "📱"),
-    PHOTO("Fotoğraf Doğrulama", "Selfie + canlılık kontrolü ile profil fotoğrafı eşleşti", "🤳"),
+    BASIC("Temel Doğrulama", "Telefon numarası doğrulandı", "📱"),
+    PHOTO("Fotoğraf Doğrulama", "Profil fotoğrafı inceleme sonucunda onaylandı", "🤳"),
     ID("Kimlik Doğrulama", "Opsiyonel yüksek güven: resmi kimlik kontrolü", "🪪"),
     ORGANIZER("Organizatör / Tesis", "İşletme veya organizasyon belgeleri onaylandı", "🏟️")
 }
@@ -261,14 +261,25 @@ data class Player(
     val chemistry: Int?,
     val verified: Boolean,
     val position: String?,
-    val distanceKm: Float,
+    val distanceKm: Float?,
     val playedTogether: Int,
     val availableNow: Boolean,
-    val color: Color
+    val color: Color,
+    val reliabilityVisible: Boolean = true,
+    val profileAvailable: Boolean = true,
+    val bio: String = "",
+    val dominantSide: String = "",
+    val availability: List<String> = emptyList(),
+    val campus: String? = null,
+    val company: String? = null,
+    val jerseyNumber: Int? = null,
+    val fairPlay: Float = 0f
 ) {
     val initials: String get() = name.split(" ").mapNotNull { it.firstOrNull()?.uppercase() }.take(2).joinToString("")
     val firstName: String get() = name.substringBefore(" ")
     val tier: Tier get() = Tier.of(rating)
+    val reliabilityLabel: String get() = if (reliabilityVisible && profileAvailable) "%$reliability" else "—"
+    val ratingLabel: String get() = if (profileAvailable) "$rating MMR" else "—"
 }
 
 data class ScoreBreakdown(
@@ -314,9 +325,12 @@ data class SportEvent(
     val boosted: Boolean = false,
     val circleOnly: Boolean = false,
     val isTeamEvent: Boolean = false,
+    val homeParticipantIds: List<String> = emptyList(),
+    val awayParticipantIds: List<String> = emptyList(),
     val customSportName: String? = null,
     val networkScope: EventNetworkScope = EventNetworkScope.CITY,
     val networkName: String? = null,
+    val communityId: String? = null,
     val listingType: EventListingType = EventListingType.OPEN_MATCH,
     val format: String? = null,
     val gamePlatform: String? = null,
@@ -325,7 +339,11 @@ data class SportEvent(
     val hostGameTag: String? = null,
     val approximateLocation: EventGeoPoint? = null,
     val city: String = "İstanbul",
-    val startsAtEpochMillis: Long? = null
+    val startsAtEpochMillis: Long? = null,
+    val approvalRequired: Boolean = false,
+    val meetingLocation: EventGeoPoint? = null,
+    val checkedInParticipantIds: List<String> = emptyList(),
+    val version: Int = 1
 ) {
     val freeSpots: Int get() = (capacity - participantIds.size).coerceAtLeast(0)
     val fillRatio: Float get() = if (capacity <= 0) 0f else (participantIds.size.toFloat() / capacity.toFloat()).coerceIn(0f, 1f)
@@ -358,7 +376,11 @@ data class TeamProfile(
     val description: String = "Kadıköy ve çevresinde haftalık düzenli maçlar yapan aktif takım.",
     val recruitingOpen: Boolean = true,
     val requiredMmr: Int = 1200,
-    val achievements: List<String> = emptyList()
+    val achievements: List<String> = emptyList(),
+    val city: String = "",
+    val homeVenue: String = "",
+    val networkScope: EventNetworkScope = EventNetworkScope.CITY,
+    val version: Int = 1
 ) {
     val tier: Tier get() = Tier.of(rating)
     val record: String get() = "$wins G · $draws B · $losses M"
@@ -369,7 +391,8 @@ enum class ChallengeStatus(val label: String) { PENDING("Bekliyor"), ACCEPTED("K
 enum class JoinRequestStatus(val label: String) {
     PENDING("Bekliyor"),
     APPROVED("Onaylandı"),
-    REJECTED("Reddedildi")
+    REJECTED("Reddedildi"),
+    CANCELLED("İptal edildi")
 }
 
 data class JoinRequest(
@@ -402,7 +425,8 @@ data class ChallengeOffer(
     val incoming: Boolean,
     val fitScore: Int,
     val stakeTokens: Int = 50,
-    val note: String? = null
+    val note: String? = null,
+    val startsAtEpochMillis: Long? = null
 )
 
 data class LeaderboardRow(
@@ -423,12 +447,17 @@ data class BracketMatch(
     val teamA: String,
     val teamB: String,
     val scoreA: Int?,
-    val scoreB: Int?
+    val scoreB: Int?,
+    val eventId: String? = null,
+    val startsAtEpochMillis: Long? = null,
+    val venue: String = "",
+    val status: String = ""
 ) {
     val winnerA: Boolean? get() = if (scoreA == null || scoreB == null) null else scoreA > scoreB
 }
 
 data class StandingRow(val team: String, val played: Int, val won: Int, val drawn: Int, val lost: Int, val goalDiff: Int, val points: Int)
+data class TournamentRegistration(val teamId: String, val name: String, val captainId: String, val rosterIds: List<String>, val status: String = "joined")
 
 data class TournamentInfo(
     val id: String,
@@ -447,14 +476,30 @@ data class TournamentInfo(
     val isLeague: Boolean,
     val customSportName: String? = null,
     val creatorId: String? = null,
-    val organizerLockTokens: Int = 0
+    val organizerLockTokens: Int = 0,
+    val gamePlatform: String = "",
+    val serverRegion: String = "",
+    val formatCode: String = "KNOCKOUT",
+    val minRating: Int = 0,
+    val verifiedOnly: Boolean = false,
+    val rosterSize: Int? = null,
+    val registrations: List<TournamentRegistration> = emptyList(),
+    val championTeamId: String? = null,
+    val city: String = "", val area: String = "",
+    val networkScope: EventNetworkScope = EventNetworkScope.CITY,
+    val networkName: String? = null,
+    val communityId: String? = null,
+    val venue: String = "",
+    val prizeToken: String = "",
+    val prizeCash: String = "",
+    val version: Int = 1
 ) {
     val displaySportLabel: String get() = if (sport == Sport.CUSTOM && !customSportName.isNullOrBlank()) customSportName else sport.label
     val displaySportEmoji: String get() = if (sport == Sport.CUSTOM) "✨" else sport.emoji
 }
 
 enum class CommunityType(val label: String, val emoji: String) {
-    CITY("Şehir", "🏙️"), CAMPUS("Kampüs", "🎓"), COMPANY("Şirket", "🏢"), CLUB("Kulüp", "🛡️")
+    CITY("Şehir", "🏙️"), CAMPUS("Kampüs", "🎓"), COMPANY("Şirket", "🏢"), CLUB("Kulüp", "🛡️"), TRAVEL("Seyahat", "✈️")
 }
 
 enum class CommunityAccess(val label: String) { OPEN("Açık"), APPROVAL("Onaylı"), INVITE("Davetli") }
@@ -469,7 +514,10 @@ data class CommunityInfo(
     val emoji: String,
     val upcomingEvents: Int,
     val description: String,
-    val sports: List<Sport>
+    val sports: List<Sport>,
+    val city: String = "",
+    val ownerId: String? = null,
+    val version: Int = 1
 )
 
 data class VenueSlotInfo(
@@ -479,7 +527,8 @@ data class VenueSlotInfo(
     val time: String,
     val durationMin: Int,
     val priceTry: Int,
-    val available: Boolean
+    val available: Boolean,
+    val priceMinor: Int = priceTry * 100
 )
 
 data class VenueInfo(
@@ -490,13 +539,18 @@ data class VenueInfo(
     val rating: Float,
     val reviews: Int,
     val verified: Boolean,
-    val distanceKm: Float,
+    val distanceKm: Float?,
     val fromPriceTry: Int,
     val amenities: List<String>,
     val courts: Int,
     val cancellationPolicy: String,
     val slots: List<VenueSlotInfo>,
-    val accent: Color
+    val accent: Color,
+    val address: String = "",
+    val approximateLocation: EventGeoPoint? = null,
+    val city: String = "İstanbul",
+    val phone: String = "",
+    val description: String = ""
 )
 
 enum class ThreadType(val label: String) {
@@ -512,6 +566,14 @@ enum class MemorySceneTheme(val label: String, val topColor: Color, val bottomCo
     TROPHY_MOMENT("Zafer Karesi", Color(0xFF31204A), Color(0xFF141122), Color(0xFFC084FC))
 }
 
+data class MemoryComment(
+    val id: String,
+    val authorId: String,
+    val authorName: String,
+    val text: String,
+    val timeAgo: String
+)
+
 data class MatchMemoryPost(
     val id: String,
     val authorId: String,
@@ -521,14 +583,21 @@ data class MatchMemoryPost(
     val venue: String,
     val area: String,
     val city: String,
-    val distanceKm: Float,
+    val distanceKm: Float?,
     val caption: String,
     val matchScoreTag: String? = null,
     val timeAgo: String,
     val likes: Int,
     val likedByMe: Boolean = false,
     val sceneTheme: MemorySceneTheme = MemorySceneTheme.NIGHT_TURF,
-    val customBitmap: ImageBitmap? = null
+    val customBitmap: ImageBitmap? = null,
+    val remoteUploadId: String? = null,
+    val status: String = "approved",
+    val version: Int = 1,
+    val approximateLocation: EventGeoPoint? = null,
+    val isShowcase: Boolean = true,
+    val authorAvatarUploadId: String? = null,
+    val comments: List<MemoryComment> = emptyList()
 )
 
 data class ChatMsg(
@@ -539,7 +608,18 @@ data class ChatMsg(
     val time: String,
     val isMine: Boolean = false,
     val isSystem: Boolean = false,
-    val attachedMemory: MatchMemoryPost? = null
+    val attachedMemory: MatchMemoryPost? = null,
+    val version: Int = 1,
+    val createdAt: Long = 0,
+    val edited: Boolean = false,
+    val deleted: Boolean = false,
+    val readBy: Int = 0,
+    val day: String = "",
+    val replyToId: String? = null,
+    val replyText: String? = null,
+    val replySenderId: String? = null,
+    val replyDeleted: Boolean = false,
+    val replyUnavailable: Boolean = false
 )
 
 data class ChatThread(
@@ -565,7 +645,7 @@ enum class NotifPriority(val label: String, val color: Color, val tint: Color) {
     P4("Kampanya", MColors.Ink500, MColors.SurfaceMuted)
 }
 
-enum class NotificationDestination { EVENT, CHALLENGES, RANKING, PASSPORT, ACCOUNT, PLAY, PLUS, WALLET, CHAT }
+enum class NotificationDestination { EVENT, CHALLENGES, TEAM, TOURNAMENT, RANKING, PASSPORT, ACCOUNT, PLAY, PLUS, WALLET, CHAT, NETWORK, VENUES, MODERATION, RESERVATIONS, VENUE_MANAGEMENT }
 
 data class AppNotification(
     val id: String,
@@ -578,7 +658,8 @@ data class AppNotification(
     val eventId: String? = null,
     val expiresIn: String? = null,
     val destination: NotificationDestination = NotificationDestination.EVENT,
-    val targetId: String? = null
+    val targetId: String? = null,
+    val category: String? = null
 )
 
 enum class LedgerType(val label: String, val color: Color, val tint: Color) {
@@ -612,7 +693,9 @@ data class VenuePayment(
     val method: String,
     val time: String,
     val status: PaymentStatus,
-    val bookingKey: String? = null
+    val bookingKey: String? = null,
+    val bookingStatus: String = "pending",
+    val amountMinor: Int = amountTry * 100
 )
 
 data class PaymentMethod(
@@ -656,7 +739,8 @@ data class Mission(
     val progress: Int,
     val target: Int,
     val rewardPoints: Int,
-    val emoji: String
+    val emoji: String,
+    val claimed: Boolean = false
 )
 
 data class ReliabilityRecord(
@@ -720,7 +804,9 @@ data class UserProfile(
     val dominantSide: String,
     val availability: List<String>,
     val avatar: ImageBitmap? = null,
-    val jerseyNumber: Int? = null
+    val jerseyNumber: Int? = null,
+    val version: Int = 0,
+    val avatarRemovalRequested: Boolean = false
 ) {
     val initials: String get() = name.split(" ").mapNotNull { it.firstOrNull()?.uppercase() }.take(2).joinToString("")
     val firstName: String get() = name.substringBefore(" ")

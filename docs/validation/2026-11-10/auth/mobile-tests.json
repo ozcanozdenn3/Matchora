@@ -1,0 +1,138 @@
+{
+  "tests": 71,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "suites": [
+    {
+      "name": "com.matchora.app.AuthenticationFlowClientTest",
+      "tests": "6",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-11-10T07:23:46.882Z",
+      "hostname": "MDs-MacBook-Pro.local",
+      "time": "0.252"
+    },
+    {
+      "name": "com.matchora.app.BackendClientTest",
+      "tests": "16",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-11-10T07:23:47.142Z",
+      "hostname": "MDs-MacBook-Pro.local",
+      "time": "0.124"
+    },
+    {
+      "name": "com.matchora.app.ChatInboxClientTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-11-10T07:23:47.270Z",
+      "hostname": "MDs-MacBook-Pro.local",
+      "time": "0.015"
+    },
+    {
+      "name": "com.matchora.app.CompetitionWorkflowClientTest",
+      "tests": "3",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-11-10T07:23:47.287Z",
+      "hostname": "MDs-MacBook-Pro.local",
+      "time": "0.011"
+    },
+    {
+      "name": "com.matchora.app.DemoCatalogTest",
+      "tests": "5",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-11-10T07:23:47.303Z",
+      "hostname": "MDs-MacBook-Pro.local",
+      "time": "0.061"
+    },
+    {
+      "name": "com.matchora.app.EventInvitationTest",
+      "tests": "3",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-11-10T07:23:47.367Z",
+      "hostname": "MDs-MacBook-Pro.local",
+      "time": "0.012"
+    },
+    {
+      "name": "com.matchora.app.EventSchedulingTest",
+      "tests": "4",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-11-10T07:23:47.382Z",
+      "hostname": "MDs-MacBook-Pro.local",
+      "time": "0.023"
+    },
+    {
+      "name": "com.matchora.app.NativeDeviceContractTest",
+      "tests": "7",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-11-10T07:23:47.407Z",
+      "hostname": "MDs-MacBook-Pro.local",
+      "time": "0.015"
+    },
+    {
+      "name": "com.matchora.app.PagedCollectionsClientTest",
+      "tests": "4",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-11-10T07:23:47.425Z",
+      "hostname": "MDs-MacBook-Pro.local",
+      "time": "0.026"
+    },
+    {
+      "name": "com.matchora.app.PassportDraftTest",
+      "tests": "7",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-11-10T07:23:47.454Z",
+      "hostname": "MDs-MacBook-Pro.local",
+      "time": "0.011"
+    },
+    {
+      "name": "com.matchora.app.PrivacyPresentationTest",
+      "tests": "7",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-11-10T07:23:47.470Z",
+      "hostname": "MDs-MacBook-Pro.local",
+      "time": "0.006"
+    },
+    {
+      "name": "com.matchora.app.SocialClientTest",
+      "tests": "5",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-11-10T07:23:47.479Z",
+      "hostname": "MDs-MacBook-Pro.local",
+      "time": "0.04"
+    },
+    {
+      "name": "com.matchora.app.VenueSelectionContractTest",
+      "tests": "2",
+      "skipped": "0",
+      "failures": "0",
+      "errors": "0",
+      "timestamp": "2026-11-10T07:23:47.521Z",
+      "hostname": "MDs-MacBook-Pro.local",
+      "time": "0.003"
+    }
+  ]
+}

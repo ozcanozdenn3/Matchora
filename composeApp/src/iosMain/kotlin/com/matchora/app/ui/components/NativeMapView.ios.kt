@@ -9,7 +9,11 @@ import platform.CoreLocation.CLLocationCoordinate2DMake
 import platform.MapKit.*
 import platform.UIKit.UIColor
 import platform.UIKit.UIEdgeInsetsMake
+import platform.UIKit.UIUserInterfaceStyle
 import platform.darwin.NSObject
+
+@OptIn(ExperimentalForeignApi::class)
+private class SportPinAnnotation(val pinId: String) : MKPointAnnotation()
 
 @OptIn(ExperimentalForeignApi::class)
 private class MapCoordinator(
@@ -19,11 +23,8 @@ private class MapCoordinator(
     
     @ObjCSignatureOverride
     override fun mapView(mapView: MKMapView, didSelectAnnotation: MKAnnotationProtocol) {
-        val title = didSelectAnnotation.title ?: return
-        val pin = pins.firstOrNull { it.title == title || it.id == title }
-        if (pin != null) {
-            onPinSelected(pin.id)
-        }
+        val annotation = didSelectAnnotation as? SportPinAnnotation ?: return
+        if (pins.any { it.id == annotation.pinId }) onPinSelected(annotation.pinId)
     }
 
     @ObjCSignatureOverride
@@ -38,7 +39,7 @@ private class MapCoordinator(
         marker.canShowCallout = true
         
         // Find matching pin
-        val pin = pins.firstOrNull { it.id == viewForAnnotation.title || it.title == viewForAnnotation.title }
+        val pin = pins.firstOrNull { it.id == (viewForAnnotation as? SportPinAnnotation)?.pinId }
         if (pin != null) {
             marker.glyphText = pin.sportEmoji
         }
@@ -61,6 +62,9 @@ actual fun NativeMapView(
     onPinSelected: (String) -> Unit,
     interactive: Boolean
 ) {
+    val safeLatitude = if (validMapCoordinate(latitude, longitude)) latitude.coerceIn(-85.0, 85.0) else 39.0
+    val safeLongitude = if (validMapCoordinate(latitude, longitude)) longitude else 35.0
+    val safeSpan = zoomMeters.takeIf { it.isFinite() && it > 0 }?.coerceIn(300.0, 20000000.0) ?: 4200.0
     val callback by rememberUpdatedState(onPinSelected)
     val coordinator = remember {
         MapCoordinator(pins) { callback(it) }
@@ -69,8 +73,8 @@ actual fun NativeMapView(
     var appliedPins by remember { mutableStateOf(pins) }
     var appliedViewport by remember { mutableStateOf(Triple(latitude, longitude, zoomMeters)) }
     val annotations = remember(pins) {
-        pins.map { pin ->
-            MKPointAnnotation().apply {
+        pins.filter { validMapCoordinate(it.latitude, it.longitude) }.distinctBy { it.id }.map { pin ->
+            SportPinAnnotation(pin.id).apply {
                 setCoordinate(CLLocationCoordinate2DMake(pin.latitude, pin.longitude))
                 setTitle(pin.title)
                 setSubtitle("${pin.sportEmoji} ${pin.subtitle}")
@@ -81,10 +85,11 @@ actual fun NativeMapView(
     UIKitView(
         factory = {
             MKMapView().apply {
-                val center = CLLocationCoordinate2DMake(latitude, longitude)
-                val region = MKCoordinateRegionMakeWithDistance(center, zoomMeters, zoomMeters)
+                val center = CLLocationCoordinate2DMake(safeLatitude, safeLongitude)
+                val region = MKCoordinateRegionMakeWithDistance(center, safeSpan, safeSpan)
                 setRegion(region, animated = false)
-                showsUserLocation = true
+                showsUserLocation = false
+                overrideUserInterfaceStyle = UIUserInterfaceStyle.UIUserInterfaceStyleLight
                 userInteractionEnabled = interactive
                 scrollEnabled = interactive
                 zoomEnabled = interactive
@@ -100,8 +105,14 @@ actual fun NativeMapView(
             }
         },
         update = { mapView ->
+            mapView.overrideUserInterfaceStyle = UIUserInterfaceStyle.UIUserInterfaceStyleLight
             coordinator.pins = pins
             mapView.delegate = coordinator
+            mapView.userInteractionEnabled = interactive
+            mapView.scrollEnabled = interactive
+            mapView.zoomEnabled = interactive
+            mapView.rotateEnabled = interactive
+            mapView.pitchEnabled = interactive
             if (appliedPins != pins) {
                 mapView.removeAnnotations(mapView.annotations)
                 annotations.forEach { mapView.addAnnotation(it) }
@@ -109,13 +120,13 @@ actual fun NativeMapView(
             }
             val viewport = Triple(latitude, longitude, zoomMeters)
             if (appliedViewport != viewport) {
-                mapView.setRegion(MKCoordinateRegionMakeWithDistance(CLLocationCoordinate2DMake(latitude, longitude), zoomMeters, zoomMeters), animated = true)
+                mapView.setRegion(MKCoordinateRegionMakeWithDistance(CLLocationCoordinate2DMake(safeLatitude, safeLongitude), safeSpan, safeSpan), animated = true)
                 appliedViewport = viewport
             }
             if (selectedPinId != null) {
                 val targetPin = pins.firstOrNull { it.id == selectedPinId }
                 if (targetPin != null) {
-                    annotations.firstOrNull { it.title == targetPin.title }?.let { selectedAnn ->
+                    annotations.firstOrNull { it.pinId == targetPin.id }?.let { selectedAnn ->
                         mapView.selectAnnotation(selectedAnn, animated = true)
                     }
                 }

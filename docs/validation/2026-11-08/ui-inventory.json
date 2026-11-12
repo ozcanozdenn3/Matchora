@@ -1,0 +1,3297 @@
+{
+  "date": "2026-11-08",
+  "method": "Static declaration and call-site inventory; not device execution or semantic coverage.",
+  "counts": {
+    "commonUiFiles": 55,
+    "functionDeclarations": 254,
+    "popupCallSites": 95,
+    "nativeKotlinFiles": 21,
+    "commands": 108
+  },
+  "commonUi": [
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+      "functions": [
+        {
+          "name": "nextUniqueId",
+          "line": 45
+        },
+        {
+          "name": "App",
+          "line": 55
+        },
+        {
+          "name": "MainAppShell",
+          "line": 77
+        },
+        {
+          "name": "requireAccount",
+          "line": 194
+        },
+        {
+          "name": "showToast",
+          "line": 207
+        },
+        {
+          "name": "remote",
+          "line": 211
+        },
+        {
+          "name": "remoteProfile",
+          "line": 231
+        },
+        {
+          "name": "remotePhoto",
+          "line": 254
+        },
+        {
+          "name": "remoteMemoryEdit",
+          "line": 273
+        },
+        {
+          "name": "remotePhotoVerification",
+          "line": 293
+        },
+        {
+          "name": "remoteLogout",
+          "line": 313
+        },
+        {
+          "name": "openEventById",
+          "line": 323
+        },
+        {
+          "name": "activateDemoPlan",
+          "line": 449
+        },
+        {
+          "name": "lockTokens",
+          "line": 459
+        },
+        {
+          "name": "releaseTokens",
+          "line": 471
+        },
+        {
+          "name": "releaseEventTokens",
+          "line": 478
+        },
+        {
+          "name": "joinEventImmediately",
+          "line": 484
+        },
+        {
+          "name": "openDirectChatWithPlayer",
+          "line": 517
+        },
+        {
+          "name": "approveJoinRequest",
+          "line": 554
+        },
+        {
+          "name": "rejectJoinRequest",
+          "line": 581
+        },
+        {
+          "name": "submitJoinRequest",
+          "line": 590
+        },
+        {
+          "name": "cancelJoinRequest",
+          "line": 632
+        },
+        {
+          "name": "createTeam",
+          "line": 643
+        },
+        {
+          "name": "sendTeamChallenge",
+          "line": 649
+        },
+        {
+          "name": "acceptTeamChallenge",
+          "line": 663
+        },
+        {
+          "name": "declineTeamChallenge",
+          "line": 698
+        },
+        {
+          "name": "applyToTeam",
+          "line": 706
+        },
+        {
+          "name": "approveTeamJoinRequest",
+          "line": 721
+        },
+        {
+          "name": "rejectTeamJoinRequest",
+          "line": 734
+        },
+        {
+          "name": "FloatingAppDock",
+          "line": 1703
+        },
+        {
+          "name": "FloatingPlayButton",
+          "line": 1731
+        },
+        {
+          "name": "DockNavItem",
+          "line": 1771
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "Popup",
+          "line": 1160
+        },
+        {
+          "type": "Popup",
+          "line": 1164
+        },
+        {
+          "type": "AlertDialog",
+          "line": 1172
+        },
+        {
+          "type": "AlertDialog",
+          "line": 1175
+        },
+        {
+          "type": "AlertDialog",
+          "line": 1346
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/AccountAndActivitySheets.kt",
+      "functions": [
+        {
+          "name": "ActivitySheet",
+          "line": 30
+        },
+        {
+          "name": "AccountSettingsSheet",
+          "line": 42
+        },
+        {
+          "name": "SettingsGroup",
+          "line": 171
+        },
+        {
+          "name": "PreferenceRow",
+          "line": 176
+        },
+        {
+          "name": "MyActivitySheet",
+          "line": 185
+        },
+        {
+          "name": "MatchResultSheet",
+          "line": 224
+        },
+        {
+          "name": "ContactVerificationSheet",
+          "line": 273
+        },
+        {
+          "name": "PhotoVerificationSheet",
+          "line": 323
+        },
+        {
+          "name": "PlayerFeedbackSheet",
+          "line": 338
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 31
+        },
+        {
+          "type": "AlertDialog",
+          "line": 155
+        },
+        {
+          "type": "AlertDialog",
+          "line": 159
+        },
+        {
+          "type": "AlertDialog",
+          "line": 160
+        },
+        {
+          "type": "ModalBottomSheet",
+          "line": 191
+        },
+        {
+          "type": "AlertDialog",
+          "line": 219
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/AppLinks.kt",
+      "functions": [
+        {
+          "name": "AppLinkButton",
+          "line": 34
+        },
+        {
+          "name": "AppLegalLinks",
+          "line": 55
+        },
+        {
+          "name": "LegalReviewButton",
+          "line": 63
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "AlertDialog",
+          "line": 51
+        },
+        {
+          "type": "AlertDialog",
+          "line": 72
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/ApplyToTeamSheet.kt",
+      "functions": [
+        {
+          "name": "ApplyToTeamSheet",
+          "line": 38
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 58
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/AthleteQrPassSheet.kt",
+      "functions": [
+        {
+          "name": "AthleteQrPassSheet",
+          "line": 37
+        },
+        {
+          "name": "refresh",
+          "line": 45
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 52
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/AuthAndOnboardingSheet.kt",
+      "functions": [
+        {
+          "name": "AuthAndOnboardingSheet",
+          "line": 50
+        },
+        {
+          "name": "continueToPassport",
+          "line": 78
+        },
+        {
+          "name": "enter",
+          "line": 90
+        },
+        {
+          "name": "sendPhoneCode",
+          "line": 106
+        },
+        {
+          "name": "LoginOptionsView",
+          "line": 188
+        },
+        {
+          "name": "ProviderButton",
+          "line": 221
+        },
+        {
+          "name": "AuthHeader",
+          "line": 233
+        },
+        {
+          "name": "PassportSetupView",
+          "line": 248
+        },
+        {
+          "name": "PhoneInputView",
+          "line": 368
+        },
+        {
+          "name": "PhoneOtpView",
+          "line": 377
+        },
+        {
+          "name": "ProfileEditField",
+          "line": 391
+        },
+        {
+          "name": "TimePickerMenu",
+          "line": 428
+        },
+        {
+          "name": "AppleLogoIcon",
+          "line": 543
+        },
+        {
+          "name": "GoogleLogoIcon",
+          "line": 550
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 121
+        },
+        {
+          "type": "DropdownMenu",
+          "line": 496
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendEditingActions.kt",
+      "functions": [
+        {
+          "name": "BackendEventEditing",
+          "line": 18
+        },
+        {
+          "name": "BackendTeamEditing",
+          "line": 64
+        },
+        {
+          "name": "BackendChallengeActions",
+          "line": 105
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "AlertDialog",
+          "line": 45
+        },
+        {
+          "type": "AlertDialog",
+          "line": 87
+        },
+        {
+          "type": "AlertDialog",
+          "line": 110
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+      "functions": [
+        {
+          "name": "BackendPlayerSafetyActions",
+          "line": 21
+        },
+        {
+          "name": "BackendChatMuteAction",
+          "line": 45
+        },
+        {
+          "name": "BackendIncomingTeamInvites",
+          "line": 55
+        },
+        {
+          "name": "rememberBackendAction",
+          "line": 66
+        },
+        {
+          "name": "BackendTeamActions",
+          "line": 92
+        },
+        {
+          "name": "BackendCommunityActions",
+          "line": 148
+        },
+        {
+          "name": "BackendTournamentActions",
+          "line": 222
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "AlertDialog",
+          "line": 34
+        },
+        {
+          "type": "AlertDialog",
+          "line": 38
+        },
+        {
+          "type": "AlertDialog",
+          "line": 83
+        },
+        {
+          "type": "AlertDialog",
+          "line": 116
+        },
+        {
+          "type": "AlertDialog",
+          "line": 131
+        },
+        {
+          "type": "AlertDialog",
+          "line": 134
+        },
+        {
+          "type": "AlertDialog",
+          "line": 137
+        },
+        {
+          "type": "AlertDialog",
+          "line": 140
+        },
+        {
+          "type": "AlertDialog",
+          "line": 168
+        },
+        {
+          "type": "AlertDialog",
+          "line": 180
+        },
+        {
+          "type": "AlertDialog",
+          "line": 188
+        },
+        {
+          "type": "AlertDialog",
+          "line": 195
+        },
+        {
+          "type": "AlertDialog",
+          "line": 203
+        },
+        {
+          "type": "AlertDialog",
+          "line": 235
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendMoreCatalogButton.kt",
+      "functions": [
+        {
+          "name": "BackendMoreCatalogButton",
+          "line": 13
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendMoreEventsButton.kt",
+      "functions": [
+        {
+          "name": "BackendMoreEventsButton",
+          "line": 12
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendPhoto.kt",
+      "functions": [
+        {
+          "name": "BackendPhoto",
+          "line": 22
+        },
+        {
+          "name": "playerAvatarUploadId",
+          "line": 41
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CheckInCodeActions.kt",
+      "functions": [
+        {
+          "name": "makeQrCode",
+          "line": 14
+        },
+        {
+          "name": "readQrCode",
+          "line": 15
+        },
+        {
+          "name": "CheckInCodeActions",
+          "line": 18
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "AlertDialog",
+          "line": 37
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CityAndLocationSelectorSheet.kt",
+      "functions": [
+        {
+          "name": "CityAndLocationSelectorSheet",
+          "line": 38
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 64
+        },
+        {
+          "type": "ExposedDropdownMenu",
+          "line": 84
+        },
+        {
+          "type": "AlertDialog",
+          "line": 99
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CommonUi.kt",
+      "functions": [
+        {
+          "name": "MCard",
+          "line": 52
+        },
+        {
+          "name": "MScreenHeaderCard",
+          "line": 95
+        },
+        {
+          "name": "MModuleCard",
+          "line": 155
+        },
+        {
+          "name": "MSubCard",
+          "line": 246
+        },
+        {
+          "name": "MSectionHeader",
+          "line": 282
+        },
+        {
+          "name": "MBadge",
+          "line": 351
+        },
+        {
+          "name": "MChemistryBadge",
+          "line": 391
+        },
+        {
+          "name": "MChip",
+          "line": 432
+        },
+        {
+          "name": "MButton",
+          "line": 474
+        },
+        {
+          "name": "MTopBar",
+          "line": 545
+        },
+        {
+          "name": "ExploreMenuSheet",
+          "line": 666
+        },
+        {
+          "name": "MToastBanner",
+          "line": 854
+        },
+        {
+          "name": "MSegmentedControl",
+          "line": 959
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 671
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CompetitionHighlights.kt",
+      "functions": [
+        {
+          "name": "AthleteAwardCard",
+          "line": 28
+        },
+        {
+          "name": "MatchScouterCard",
+          "line": 49
+        },
+        {
+          "name": "CreateCupCard",
+          "line": 70
+        },
+        {
+          "name": "CreateClubCard",
+          "line": 87
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CreateCommunitySheet.kt",
+      "functions": [
+        {
+          "name": "CreateCommunitySheet",
+          "line": 15
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CreateEventAndChallengeSheets.kt",
+      "functions": [
+        {
+          "name": "CreateEventSheet",
+          "line": 36
+        },
+        {
+          "name": "TeamChallengeSheet",
+          "line": 287
+        },
+        {
+          "name": "ReportAndDisputeDialog",
+          "line": 519
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 54
+        },
+        {
+          "type": "ModalBottomSheet",
+          "line": 310
+        },
+        {
+          "type": "AlertDialog",
+          "line": 527
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CreateTeamSheet.kt",
+      "functions": [
+        {
+          "name": "CreateTeamSheet",
+          "line": 38
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 69
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CreateTournamentSheet.kt",
+      "functions": [
+        {
+          "name": "CreateTournamentSheet",
+          "line": 38
+        },
+        {
+          "name": "formatLabel",
+          "line": 55
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 75
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/DeviceServices.kt",
+      "functions": [
+        {
+          "name": "freshLocationFix",
+          "line": 11
+        },
+        {
+          "name": "canonicalRegionCity",
+          "line": 16
+        },
+        {
+          "name": "key",
+          "line": 18
+        },
+        {
+          "name": "approximateDistanceKm",
+          "line": 24
+        },
+        {
+          "name": "rememberLocationRequester",
+          "line": 37
+        },
+        {
+          "name": "rememberRegionCenter",
+          "line": 41
+        },
+        {
+          "name": "rememberNotificationPermissionRequester",
+          "line": 44
+        },
+        {
+          "name": "openApplicationSettings",
+          "line": 46
+        },
+        {
+          "name": "shareAccountExport",
+          "line": 48
+        },
+        {
+          "name": "rememberAppActive",
+          "line": 51
+        },
+        {
+          "name": "NotificationPermissionButton",
+          "line": 54
+        },
+        {
+          "name": "hasForegroundLocationPermission",
+          "line": 67
+        },
+        {
+          "name": "rememberForegroundLocationRefresh",
+          "line": 71
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "AlertDialog",
+          "line": 61
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/DockCutoutShape.kt",
+      "functions": [
+        {
+          "name": "createOutline",
+          "line": 10
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/EventDateTimePicker.kt",
+      "functions": [
+        {
+          "name": "EventDateTimeField",
+          "line": 15
+        },
+        {
+          "name": "isSelectableDate",
+          "line": 26
+        },
+        {
+          "name": "isSelectableYear",
+          "line": 27
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "DatePickerDialog",
+          "line": 29
+        },
+        {
+          "type": "AlertDialog",
+          "line": 38
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/EventDetailSheet.kt",
+      "functions": [
+        {
+          "name": "EventDetailSheet",
+          "line": 36
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "AlertDialog",
+          "line": 80
+        },
+        {
+          "type": "AlertDialog",
+          "line": 84
+        },
+        {
+          "type": "AlertDialog",
+          "line": 101
+        },
+        {
+          "type": "ModalBottomSheet",
+          "line": 108
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/EventDeviceActions.kt",
+      "functions": [
+        {
+          "name": "isOnlineMeeting",
+          "line": 8
+        },
+        {
+          "name": "eventDirectionsPoint",
+          "line": 13
+        },
+        {
+          "name": "eventCalendarNotes",
+          "line": 16
+        },
+        {
+          "name": "shareEventInvitation",
+          "line": 25
+        },
+        {
+          "name": "openEventDirections",
+          "line": 26
+        },
+        {
+          "name": "openEventCalendar",
+          "line": 27
+        },
+        {
+          "name": "EventDeviceActions",
+          "line": 30
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "AlertDialog",
+          "line": 34
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/EventLocationPicker.kt",
+      "functions": [
+        {
+          "name": "LocationSelectionMap",
+          "line": 17
+        },
+        {
+          "name": "EventLocationPicker",
+          "line": 21
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 53
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/InteractiveActionSheets.kt",
+      "functions": [
+        {
+          "name": "AutoSquadSheet",
+          "line": 43
+        },
+        {
+          "name": "SquadSummaryTile",
+          "line": 196
+        },
+        {
+          "name": "PlayerProfileSheet",
+          "line": 215
+        },
+        {
+          "name": "VenueBookingSheet",
+          "line": 630
+        },
+        {
+          "name": "TournamentDetailSheet",
+          "line": 715
+        },
+        {
+          "name": "SkillBreakdownDialog",
+          "line": 1249
+        },
+        {
+          "name": "BadgeDetailDialog",
+          "line": 1319
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 55
+        },
+        {
+          "type": "ModalBottomSheet",
+          "line": 258
+        },
+        {
+          "type": "ModalBottomSheet",
+          "line": 640
+        },
+        {
+          "type": "ModalBottomSheet",
+          "line": 759
+        },
+        {
+          "type": "AlertDialog",
+          "line": 1200
+        },
+        {
+          "type": "AlertDialog",
+          "line": 1222
+        },
+        {
+          "type": "AlertDialog",
+          "line": 1260
+        },
+        {
+          "type": "AlertDialog",
+          "line": 1327
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/ManageJoinRequestsSheet.kt",
+      "functions": [
+        {
+          "name": "ManageJoinRequestsSheet",
+          "line": 35
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 50
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/ManageTeamRequestsSheet.kt",
+      "functions": [
+        {
+          "name": "ManageTeamRequestsSheet",
+          "line": 36
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 44
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/MatchoraWalletCard.kt",
+      "functions": [
+        {
+          "name": "MatchoraWalletCard",
+          "line": 23
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/NativeMapView.kt",
+      "functions": [
+        {
+          "name": "validMapCoordinate",
+          "line": 8
+        },
+        {
+          "name": "mapZoomForMeters",
+          "line": 12
+        },
+        {
+          "name": "NativeMapView",
+          "line": 29
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/NetworkSpotlightCards.kt",
+      "functions": [
+        {
+          "name": "SpotlightTitle",
+          "line": 31
+        },
+        {
+          "name": "SpotlightStats",
+          "line": 60
+        },
+        {
+          "name": "CommunitySpotlightCard",
+          "line": 89
+        },
+        {
+          "name": "RankingSpotlightCard",
+          "line": 127
+        },
+        {
+          "name": "TournamentSpotlightCard",
+          "line": 170
+        },
+        {
+          "name": "TeamSpotlightCard",
+          "line": 184
+        },
+        {
+          "name": "ChallengeSpotlightCard",
+          "line": 199
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/NotificationsSheet.kt",
+      "functions": [
+        {
+          "name": "NotificationDeliveryControls",
+          "line": 45
+        },
+        {
+          "name": "matchesFilter",
+          "line": 60
+        },
+        {
+          "name": "NotificationsSheet",
+          "line": 80
+        },
+        {
+          "name": "NotificationPreference",
+          "line": 248
+        },
+        {
+          "name": "NotificationInboxCard",
+          "line": 263
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "AlertDialog",
+          "line": 90
+        },
+        {
+          "type": "ModalBottomSheet",
+          "line": 118
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+      "functions": [
+        {
+          "name": "OperatorActionDialog",
+          "line": 24
+        },
+        {
+          "name": "ModerationSheet",
+          "line": 36
+        },
+        {
+          "name": "VenueOperatorSheet",
+          "line": 146
+        },
+        {
+          "name": "CreateVenueSheet",
+          "line": 218
+        },
+        {
+          "name": "CreateVenueSlotSheet",
+          "line": 255
+        },
+        {
+          "name": "venuePriceMinor",
+          "line": 278
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "AlertDialog",
+          "line": 27
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/PhotoPicker.kt",
+      "functions": [
+        {
+          "name": "rememberNativeGalleryPicker",
+          "line": 8
+        },
+        {
+          "name": "rememberNativeCameraPicker",
+          "line": 11
+        },
+        {
+          "name": "rememberGalleryPhotoPicker",
+          "line": 15
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "AlertDialog",
+          "line": 20
+        },
+        {
+          "type": "AlertDialog",
+          "line": 26
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/PlayNowSheet.kt",
+      "functions": [
+        {
+          "name": "formatTime",
+          "line": 44
+        },
+        {
+          "name": "parseClockMinutes",
+          "line": 50
+        },
+        {
+          "name": "PlayNowModalSheet",
+          "line": 66
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 163
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/PremiumUi.kt",
+      "functions": [
+        {
+          "name": "premiumSurface",
+          "line": 46
+        },
+        {
+          "name": "pressMotion",
+          "line": 55
+        },
+        {
+          "name": "MFeatureHeader",
+          "line": 63
+        },
+        {
+          "name": "MPremiumSheetHandle",
+          "line": 91
+        },
+        {
+          "name": "MSheetHeading",
+          "line": 99
+        },
+        {
+          "name": "MFloatingInputBox",
+          "line": 176
+        },
+        {
+          "name": "MFloatingDropdownBox",
+          "line": 350
+        },
+        {
+          "name": "MFloatingActionRow",
+          "line": 523
+        },
+        {
+          "name": "premiumTextFieldColors",
+          "line": 627
+        },
+        {
+          "name": "premiumChoiceChipColors",
+          "line": 642
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "DropdownMenu",
+          "line": 464
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/RatingAndMissionSheets.kt",
+      "functions": [
+        {
+          "name": "RatingPolicyButton",
+          "line": 15
+        },
+        {
+          "name": "RatingPolicySheet",
+          "line": 22
+        },
+        {
+          "name": "RatingStatusCard",
+          "line": 44
+        },
+        {
+          "name": "MissionsSheet",
+          "line": 76
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/SendTeamChallengeSheet.kt",
+      "functions": [
+        {
+          "name": "SendTeamChallengeSheet",
+          "line": 49
+        },
+        {
+          "name": "MatchChallengeDetailSheet",
+          "line": 240
+        },
+        {
+          "name": "AiMatchScouterSheet",
+          "line": 406
+        },
+        {
+          "name": "PremiumMatchupPanel",
+          "line": 572
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 89
+        },
+        {
+          "type": "ModalBottomSheet",
+          "line": 256
+        },
+        {
+          "type": "ModalBottomSheet",
+          "line": 427
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/SportPicker.kt",
+      "functions": [
+        {
+          "name": "searchKey",
+          "line": 46
+        },
+        {
+          "name": "SportPickerField",
+          "line": 50
+        },
+        {
+          "name": "SportPickerSheet",
+          "line": 106
+        },
+        {
+          "name": "SportOptionRow",
+          "line": 175
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 121
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/SportsFlowBackground.kt",
+      "functions": [
+        {
+          "name": "SportsFlowBackground",
+          "line": 70
+        },
+        {
+          "name": "position",
+          "line": 162
+        },
+        {
+          "name": "visibility",
+          "line": 171
+        },
+        {
+          "name": "scaleDraw",
+          "line": 234
+        },
+        {
+          "name": "drawTennisCourt",
+          "line": 240
+        },
+        {
+          "name": "drawGoal",
+          "line": 260
+        },
+        {
+          "name": "drawHoop",
+          "line": 284
+        },
+        {
+          "name": "drawGoalkeeperGlove",
+          "line": 309
+        },
+        {
+          "name": "drawRacket",
+          "line": 329
+        },
+        {
+          "name": "drawDumbbell",
+          "line": 341
+        },
+        {
+          "name": "drawGoggles",
+          "line": 349
+        },
+        {
+          "name": "drawShuttle",
+          "line": 357
+        },
+        {
+          "name": "drawSkate",
+          "line": 367
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/SubmitJoinRequestSheet.kt",
+      "functions": [
+        {
+          "name": "SubmitJoinRequestSheet",
+          "line": 35
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 59
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/TeamDetailSheet.kt",
+      "functions": [
+        {
+          "name": "TeamDetailSheet",
+          "line": 41
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 75
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/TokenTopUpCardSheet.kt",
+      "functions": [
+        {
+          "name": "TokenTopUpCardSheet",
+          "line": 7
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/VenueChoiceField.kt",
+      "functions": [
+        {
+          "name": "venueChoiceValue",
+          "line": 10
+        },
+        {
+          "name": "VenueChoiceField",
+          "line": 22
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/VenueReviewSheets.kt",
+      "functions": [
+        {
+          "name": "VenueReviewsSheet",
+          "line": 18
+        },
+        {
+          "name": "VenueReviewEditorSheet",
+          "line": 65
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "AlertDialog",
+          "line": 80
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/VenueSpotlightCard.kt",
+      "functions": [
+        {
+          "name": "VenueSpotlightCard",
+          "line": 32
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/WalletAndPaymentSheet.kt",
+      "functions": [
+        {
+          "name": "WalletAndPaymentSheet",
+          "line": 44
+        },
+        {
+          "name": "TokenWalletSheet",
+          "line": 70
+        },
+        {
+          "name": "price",
+          "line": 102
+        },
+        {
+          "name": "storeAction",
+          "line": 103
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 119
+        },
+        {
+          "type": "AlertDialog",
+          "line": 553
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/ChatHubScreen.kt",
+      "functions": [
+        {
+          "name": "ChatHubScreen",
+          "line": 67
+        },
+        {
+          "name": "open",
+          "line": 134
+        },
+        {
+          "name": "OlderMessagesAction",
+          "line": 906
+        },
+        {
+          "name": "MiniMemoryStoryTile",
+          "line": 931
+        },
+        {
+          "name": "HeroMemoryExploreCard",
+          "line": 995
+        },
+        {
+          "name": "GridMemoryExploreTile",
+          "line": 1148
+        },
+        {
+          "name": "ChatAttachedPhotoBubble",
+          "line": 1264
+        },
+        {
+          "name": "MatchMemoryVisualCanvas",
+          "line": 1323
+        },
+        {
+          "name": "CreateMemoryPostSheet",
+          "line": 1392
+        },
+        {
+          "name": "MemoryDetailSheet",
+          "line": 1618
+        },
+        {
+          "name": "ChatAvatar",
+          "line": 1805
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "DropdownMenu",
+          "line": 469
+        },
+        {
+          "type": "AlertDialog",
+          "line": 822
+        },
+        {
+          "type": "AlertDialog",
+          "line": 884
+        },
+        {
+          "type": "AlertDialog",
+          "line": 892
+        },
+        {
+          "type": "AlertDialog",
+          "line": 894
+        },
+        {
+          "type": "AlertDialog",
+          "line": 896
+        },
+        {
+          "type": "ModalBottomSheet",
+          "line": 1434
+        },
+        {
+          "type": "AlertDialog",
+          "line": 1629
+        },
+        {
+          "type": "ModalBottomSheet",
+          "line": 1634
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/CommunityAndVenueScreen.kt",
+      "functions": [
+        {
+          "name": "CommunityAndVenueScreen",
+          "line": 39
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/CompetitionScreen.kt",
+      "functions": [
+        {
+          "name": "CompetitionScreen",
+          "line": 52
+        },
+        {
+          "name": "requestChallenge",
+          "line": 159
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "AlertDialog",
+          "line": 459
+        },
+        {
+          "type": "AlertDialog",
+          "line": 613
+        },
+        {
+          "type": "AlertDialog",
+          "line": 618
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/DiscoverMapScreen.kt",
+      "functions": [
+        {
+          "name": "DiscoverMapScreen",
+          "line": 56
+        },
+        {
+          "name": "demoCoordinatesForArea",
+          "line": 726
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/HomeScreen.kt",
+      "functions": [
+        {
+          "name": "HomeScreen",
+          "line": 64
+        },
+        {
+          "name": "SmartMatchSheet",
+          "line": 895
+        },
+        {
+          "name": "LiveMiniRadarView",
+          "line": 1117
+        },
+        {
+          "name": "ExpandableMatchCard",
+          "line": 1276
+        },
+        {
+          "name": "demoCoordinatesForArea",
+          "line": 1596
+        },
+        {
+          "name": "CompactEventDirectory",
+          "line": 1609
+        },
+        {
+          "name": "NetworkScopeIsland",
+          "line": 1694
+        },
+        {
+          "name": "feedCardFinish",
+          "line": 1723
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 912
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/SplashScreen.kt",
+      "functions": [
+        {
+          "name": "createOutline",
+          "line": 56
+        },
+        {
+          "name": "MatchoraSplashScreen",
+          "line": 90
+        },
+        {
+          "name": "startKnifeSlice",
+          "line": 161
+        },
+        {
+          "name": "SplashContent",
+          "line": 359
+        }
+      ],
+      "popupSites": []
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/SportsPassportScreen.kt",
+      "functions": [
+        {
+          "name": "SportsPassportScreen",
+          "line": 49
+        },
+        {
+          "name": "SkillProfileEditorSheet",
+          "line": 736
+        },
+        {
+          "name": "ProfileEditorSheet",
+          "line": 833
+        },
+        {
+          "name": "ProfileEditorSectionTitle",
+          "line": 1033
+        },
+        {
+          "name": "ProfileEditField",
+          "line": 1045
+        },
+        {
+          "name": "PassportMetric",
+          "line": 1081
+        },
+        {
+          "name": "VerificationChip",
+          "line": 1106
+        },
+        {
+          "name": "ExpandPassportRows",
+          "line": 1139
+        },
+        {
+          "name": "PassportSectionCard",
+          "line": 1169
+        },
+        {
+          "name": "GuestPassportView",
+          "line": 1214
+        },
+        {
+          "name": "GuestPerkRow",
+          "line": 1537
+        }
+      ],
+      "popupSites": [
+        {
+          "type": "ModalBottomSheet",
+          "line": 744
+        },
+        {
+          "type": "ModalBottomSheet",
+          "line": 871
+        },
+        {
+          "type": "AlertDialog",
+          "line": 1019
+        }
+      ]
+    },
+    {
+      "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/theme/Theme.kt",
+      "functions": [
+        {
+          "name": "MatchoraTheme",
+          "line": 115
+        }
+      ],
+      "popupSites": []
+    }
+  ],
+  "native": [
+    {
+      "file": "composeApp/src/androidMain/kotlin/com/matchora/app/MainActivity.kt",
+      "functions": [
+        "onCreate",
+        "onNewIntent",
+        "handleNotification"
+      ]
+    },
+    {
+      "file": "composeApp/src/androidMain/kotlin/com/matchora/app/data/BackendTransport.android.kt",
+      "functions": [
+        "executeApiRequest",
+        "key",
+        "preferences",
+        "read",
+        "write",
+        "encodeUploadPhoto",
+        "decodeApiPhoto"
+      ]
+    },
+    {
+      "file": "composeApp/src/androidMain/kotlin/com/matchora/app/data/BrowserAuthentication.android.kt",
+      "functions": [
+        "authenticateInBrowser"
+      ]
+    },
+    {
+      "file": "composeApp/src/androidMain/kotlin/com/matchora/app/data/MatchoraMessagingService.kt",
+      "functions": [
+        "initializePush",
+        "onNewToken",
+        "onMessageReceived"
+      ]
+    },
+    {
+      "file": "composeApp/src/androidMain/kotlin/com/matchora/app/data/StorePlatform.android.kt",
+      "functions": []
+    },
+    {
+      "file": "composeApp/src/androidMain/kotlin/com/matchora/app/ui/components/CheckInCodeActions.android.kt",
+      "functions": [
+        "makeQrCode",
+        "readQrCode"
+      ]
+    },
+    {
+      "file": "composeApp/src/androidMain/kotlin/com/matchora/app/ui/components/DeviceServices.android.kt",
+      "functions": [
+        "shareAccountExport",
+        "rememberAppActive",
+        "openApplicationSettings",
+        "boundedGeocode",
+        "rememberRegionCenter",
+        "rememberLocationRequester",
+        "valid",
+        "onLocationChanged",
+        "onProviderDisabled",
+        "onProviderEnabled",
+        "onStatusChanged",
+        "rememberNotificationPermissionRequester",
+        "hasForegroundLocationPermission"
+      ]
+    },
+    {
+      "file": "composeApp/src/androidMain/kotlin/com/matchora/app/ui/components/EventDeviceActions.android.kt",
+      "functions": [
+        "shareEventInvitation",
+        "openEventDirections",
+        "openEventCalendar"
+      ]
+    },
+    {
+      "file": "composeApp/src/androidMain/kotlin/com/matchora/app/ui/components/LocationSelectionMap.android.kt",
+      "functions": [
+        "LocationSelectionMap"
+      ]
+    },
+    {
+      "file": "composeApp/src/androidMain/kotlin/com/matchora/app/ui/components/NativeMapView.android.kt",
+      "functions": [
+        "NativeMapView",
+        "AndroidLiveMap",
+        "start",
+        "resume",
+        "pause",
+        "stop",
+        "onConfigurationChanged",
+        "onLowMemory",
+        "onTrimMemory",
+        "PreviewNativeMapView",
+        "drawCleanRoad"
+      ]
+    },
+    {
+      "file": "composeApp/src/androidMain/kotlin/com/matchora/app/ui/components/PhotoPicker.android.kt",
+      "functions": [
+        "readPhoto",
+        "rememberNativeGalleryPicker",
+        "rememberNativeCameraPicker"
+      ]
+    },
+    {
+      "file": "composeApp/src/iosMain/kotlin/com/matchora/app/MainViewController.kt",
+      "functions": [
+        "MainViewController"
+      ]
+    },
+    {
+      "file": "composeApp/src/iosMain/kotlin/com/matchora/app/data/BackendTransport.ios.kt",
+      "functions": [
+        "executeApiRequest",
+        "query",
+        "read",
+        "write",
+        "encodeUploadPhoto",
+        "decodeApiPhoto"
+      ]
+    },
+    {
+      "file": "composeApp/src/iosMain/kotlin/com/matchora/app/data/BrowserAuthentication.ios.kt",
+      "functions": [
+        "authenticateInBrowser",
+        "presentationAnchorForWebAuthenticationSession"
+      ]
+    },
+    {
+      "file": "composeApp/src/iosMain/kotlin/com/matchora/app/data/StorePlatform.ios.kt",
+      "functions": []
+    },
+    {
+      "file": "composeApp/src/iosMain/kotlin/com/matchora/app/ui/components/CheckInCodeActions.ios.kt",
+      "functions": [
+        "qrData",
+        "makeQrCode",
+        "readQrCode"
+      ]
+    },
+    {
+      "file": "composeApp/src/iosMain/kotlin/com/matchora/app/ui/components/DeviceServices.ios.kt",
+      "functions": [
+        "shareAccountExport",
+        "rememberAppActive",
+        "openApplicationSettings",
+        "rememberRegionCenter",
+        "start",
+        "cancel",
+        "finish",
+        "authorize",
+        "locationManagerDidChangeAuthorization",
+        "locationManager",
+        "locationManager",
+        "rememberLocationRequester",
+        "rememberNotificationPermissionRequester",
+        "hasForegroundLocationPermission"
+      ]
+    },
+    {
+      "file": "composeApp/src/iosMain/kotlin/com/matchora/app/ui/components/EventDeviceActions.ios.kt",
+      "functions": [
+        "eventPresenter",
+        "shareEventInvitation",
+        "openEventDirections",
+        "openEventCalendar",
+        "eventEditViewController"
+      ]
+    },
+    {
+      "file": "composeApp/src/iosMain/kotlin/com/matchora/app/ui/components/LocationSelectionMap.ios.kt",
+      "functions": [
+        "mapView",
+        "LocationSelectionMap"
+      ]
+    },
+    {
+      "file": "composeApp/src/iosMain/kotlin/com/matchora/app/ui/components/NativeMapView.ios.kt",
+      "functions": [
+        "mapView",
+        "mapView",
+        "NativeMapView"
+      ]
+    },
+    {
+      "file": "composeApp/src/iosMain/kotlin/com/matchora/app/ui/components/PhotoPicker.ios.kt",
+      "functions": [
+        "photoBytes",
+        "preparePhoto",
+        "topController",
+        "close",
+        "rememberNativeGalleryPicker",
+        "picker",
+        "rememberNativeCameraPicker",
+        "imagePickerController",
+        "imagePickerControllerDidCancel"
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "name": "account.delete",
+      "file": "backend/src/identity.mjs",
+      "line": 83,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1670
+        }
+      ]
+    },
+    {
+      "name": "account.delete.cancel",
+      "file": "backend/src/identity.mjs",
+      "line": 89,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/AccountAndActivitySheets.kt",
+          "line": 149
+        }
+      ]
+    },
+    {
+      "name": "account.session.revoke",
+      "file": "backend/src/account.mjs",
+      "line": 30,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/AccountAndActivitySheets.kt",
+          "line": 164
+        }
+      ]
+    },
+    {
+      "name": "admin.announcement.send",
+      "file": "backend/src/operations.mjs",
+      "line": 113,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 67
+        }
+      ]
+    },
+    {
+      "name": "admin.feature.set",
+      "file": "backend/src/admin.mjs",
+      "line": 11,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 72
+        }
+      ]
+    },
+    {
+      "name": "admin.legal.publish",
+      "file": "backend/src/legal.mjs",
+      "line": 11,
+      "literalMobileReferences": []
+    },
+    {
+      "name": "admin.memory.review",
+      "file": "backend/src/admin.mjs",
+      "line": 7,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 106
+        }
+      ]
+    },
+    {
+      "name": "admin.operator.assign",
+      "file": "backend/src/operations.mjs",
+      "line": 166,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 134
+        }
+      ]
+    },
+    {
+      "name": "admin.outbox.retry",
+      "file": "backend/src/operations.mjs",
+      "line": 173,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 130
+        }
+      ]
+    },
+    {
+      "name": "admin.report.resolve",
+      "file": "backend/src/admin.mjs",
+      "line": 5,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 96
+        }
+      ]
+    },
+    {
+      "name": "admin.result.resolve",
+      "file": "backend/src/admin.mjs",
+      "line": 9,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 122
+        }
+      ]
+    },
+    {
+      "name": "admin.support.resolve",
+      "file": "backend/src/admin.mjs",
+      "line": 6,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 92
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 111
+        }
+      ]
+    },
+    {
+      "name": "admin.user.status",
+      "file": "backend/src/admin.mjs",
+      "line": 10,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 135
+        }
+      ]
+    },
+    {
+      "name": "admin.venue.application.review",
+      "file": "backend/src/venue-applications.mjs",
+      "line": 25,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 87
+        }
+      ]
+    },
+    {
+      "name": "admin.venue.review",
+      "file": "backend/src/operations.mjs",
+      "line": 147,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 126
+        }
+      ]
+    },
+    {
+      "name": "admin.verification.photo",
+      "file": "backend/src/admin.mjs",
+      "line": 8,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 114
+        }
+      ]
+    },
+    {
+      "name": "billing.sync",
+      "file": "backend/src/store-sync.mjs",
+      "line": 39,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/data/StoreBilling.kt",
+          "line": 64
+        }
+      ]
+    },
+    {
+      "name": "booking.cancel",
+      "file": "backend/src/network.mjs",
+      "line": 16,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1676
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 203
+        }
+      ]
+    },
+    {
+      "name": "booking.complete",
+      "file": "backend/src/management.mjs",
+      "line": 39,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 202
+        }
+      ]
+    },
+    {
+      "name": "booking.confirm",
+      "file": "backend/src/network.mjs",
+      "line": 17,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 200
+        }
+      ]
+    },
+    {
+      "name": "booking.create",
+      "file": "backend/src/network.mjs",
+      "line": 15,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 221
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 969
+        }
+      ]
+    },
+    {
+      "name": "booking.payment.record",
+      "file": "backend/src/network.mjs",
+      "line": 18,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 201
+        }
+      ]
+    },
+    {
+      "name": "booking.refund.record",
+      "file": "backend/src/operations.mjs",
+      "line": 154,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 204
+        }
+      ]
+    },
+    {
+      "name": "challenge.cancel",
+      "file": "backend/src/management.mjs",
+      "line": 22,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendEditingActions.kt",
+          "line": 110
+        }
+      ]
+    },
+    {
+      "name": "challenge.create",
+      "file": "backend/src/competition.mjs",
+      "line": 55,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 650
+        }
+      ]
+    },
+    {
+      "name": "challenge.respond",
+      "file": "backend/src/competition.mjs",
+      "line": 56,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 664
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 699
+        }
+      ]
+    },
+    {
+      "name": "chat.clear",
+      "file": "backend/src/chat-management.mjs",
+      "line": 47,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1030
+        }
+      ]
+    },
+    {
+      "name": "chat.delete",
+      "file": "backend/src/chat-management.mjs",
+      "line": 48,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1032
+        }
+      ]
+    },
+    {
+      "name": "chat.direct",
+      "file": "backend/src/social.mjs",
+      "line": 12,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 518
+        }
+      ]
+    },
+    {
+      "name": "chat.mute",
+      "file": "backend/src/social.mjs",
+      "line": 15,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 49
+        }
+      ]
+    },
+    {
+      "name": "chat.read",
+      "file": "backend/src/social.mjs",
+      "line": 14,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 745
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1042
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1295
+        }
+      ]
+    },
+    {
+      "name": "chat.send",
+      "file": "backend/src/social.mjs",
+      "line": 13,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 265
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1019
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1049
+        }
+      ]
+    },
+    {
+      "name": "community.archive",
+      "file": "backend/src/community-management.mjs",
+      "line": 20,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 169
+        }
+      ]
+    },
+    {
+      "name": "community.create",
+      "file": "backend/src/network.mjs",
+      "line": 8,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 964
+        }
+      ]
+    },
+    {
+      "name": "community.invite",
+      "file": "backend/src/network.mjs",
+      "line": 12,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 206
+        }
+      ]
+    },
+    {
+      "name": "community.invite.decline",
+      "file": "backend/src/management.mjs",
+      "line": 37,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 165
+        }
+      ]
+    },
+    {
+      "name": "community.join",
+      "file": "backend/src/network.mjs",
+      "line": 9,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 979
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 164
+        }
+      ]
+    },
+    {
+      "name": "community.leave",
+      "file": "backend/src/network.mjs",
+      "line": 10,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 979
+        }
+      ]
+    },
+    {
+      "name": "community.member.remove",
+      "file": "backend/src/community-management.mjs",
+      "line": 45,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 195
+        }
+      ]
+    },
+    {
+      "name": "community.review",
+      "file": "backend/src/network.mjs",
+      "line": 11,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 215
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 216
+        }
+      ]
+    },
+    {
+      "name": "community.transfer",
+      "file": "backend/src/management.mjs",
+      "line": 36,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 206
+        }
+      ]
+    },
+    {
+      "name": "community.update",
+      "file": "backend/src/community-management.mjs",
+      "line": 34,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 184
+        }
+      ]
+    },
+    {
+      "name": "device.register",
+      "file": "backend/src/identity.mjs",
+      "line": 91,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 374
+        }
+      ]
+    },
+    {
+      "name": "device.remove",
+      "file": "backend/src/identity.mjs",
+      "line": 97,
+      "literalMobileReferences": []
+    },
+    {
+      "name": "discovery.location",
+      "file": "backend/src/identity.mjs",
+      "line": 66,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 364
+        }
+      ]
+    },
+    {
+      "name": "discovery.save",
+      "file": "backend/src/identity.mjs",
+      "line": 73,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1587
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/CommunityAndVenueScreen.kt",
+          "line": 70
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/CommunityAndVenueScreen.kt",
+          "line": 126
+        }
+      ]
+    },
+    {
+      "name": "event.checkin",
+      "file": "backend/src/events.mjs",
+      "line": 38,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1182
+        }
+      ]
+    },
+    {
+      "name": "event.checkin.code",
+      "file": "backend/src/events.mjs",
+      "line": 37,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1180
+        }
+      ]
+    },
+    {
+      "name": "event.create",
+      "file": "backend/src/events.mjs",
+      "line": 7,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 221
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1414
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1467
+        }
+      ]
+    },
+    {
+      "name": "event.join",
+      "file": "backend/src/events.mjs",
+      "line": 30,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 221
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 486
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1223
+        }
+      ]
+    },
+    {
+      "name": "event.leave",
+      "file": "backend/src/events.mjs",
+      "line": 31,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1223
+        }
+      ]
+    },
+    {
+      "name": "event.member.remove",
+      "file": "backend/src/event-management.mjs",
+      "line": 14,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1210
+        }
+      ]
+    },
+    {
+      "name": "event.member.restore",
+      "file": "backend/src/event-management.mjs",
+      "line": 30,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1217
+        }
+      ]
+    },
+    {
+      "name": "event.request",
+      "file": "backend/src/events.mjs",
+      "line": 32,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 591
+        }
+      ]
+    },
+    {
+      "name": "event.request.cancel",
+      "file": "backend/src/events.mjs",
+      "line": 33,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 633
+        }
+      ]
+    },
+    {
+      "name": "event.request.review",
+      "file": "backend/src/events.mjs",
+      "line": 34,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 555
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 582
+        }
+      ]
+    },
+    {
+      "name": "event.transition",
+      "file": "backend/src/events.mjs",
+      "line": 36,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1316
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1320
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1325
+        }
+      ]
+    },
+    {
+      "name": "event.update",
+      "file": "backend/src/management.mjs",
+      "line": 6,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendEditingActions.kt",
+          "line": 57
+        }
+      ]
+    },
+    {
+      "name": "event.waitlist",
+      "file": "backend/src/events.mjs",
+      "line": 35,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 860
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1248
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1249
+        }
+      ]
+    },
+    {
+      "name": "feedback.submit",
+      "file": "backend/src/events.mjs",
+      "line": 44,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1691
+        }
+      ]
+    },
+    {
+      "name": "legal.accept",
+      "file": "backend/src/legal.mjs",
+      "line": 10,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/data/BackendRepository.kt",
+          "line": 328
+        }
+      ]
+    },
+    {
+      "name": "memory.create",
+      "file": "backend/src/social.mjs",
+      "line": 17,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 264
+        }
+      ]
+    },
+    {
+      "name": "memory.delete",
+      "file": "backend/src/social.mjs",
+      "line": 19,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1014
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 99
+        }
+      ]
+    },
+    {
+      "name": "memory.like",
+      "file": "backend/src/social.mjs",
+      "line": 18,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1113
+        }
+      ]
+    },
+    {
+      "name": "memory.update",
+      "file": "backend/src/memory-management.mjs",
+      "line": 6,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 282
+        }
+      ]
+    },
+    {
+      "name": "message.delete",
+      "file": "backend/src/chat-management.mjs",
+      "line": 60,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1028
+        }
+      ]
+    },
+    {
+      "name": "message.edit",
+      "file": "backend/src/chat-management.mjs",
+      "line": 53,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1025
+        }
+      ]
+    },
+    {
+      "name": "message.hide",
+      "file": "backend/src/chat-management.mjs",
+      "line": 49,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1028
+        }
+      ]
+    },
+    {
+      "name": "notification.clear",
+      "file": "backend/src/social.mjs",
+      "line": 9,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1512
+        }
+      ]
+    },
+    {
+      "name": "notification.read",
+      "file": "backend/src/identity.mjs",
+      "line": 90,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1491
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1513
+        }
+      ]
+    },
+    {
+      "name": "passport.code",
+      "file": "backend/src/passport.mjs",
+      "line": 6,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/AthleteQrPassSheet.kt",
+          "line": 46
+        }
+      ]
+    },
+    {
+      "name": "preferences.save",
+      "file": "backend/src/identity.mjs",
+      "line": 48,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1488
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1661
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1662
+        }
+      ]
+    },
+    {
+      "name": "profile.save",
+      "file": "backend/src/identity.mjs",
+      "line": 24,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 245
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 304
+        }
+      ]
+    },
+    {
+      "name": "report.create",
+      "file": "backend/src/social.mjs",
+      "line": 20,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 963
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1540
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 40
+        }
+      ]
+    },
+    {
+      "name": "result.confirm",
+      "file": "backend/src/events.mjs",
+      "line": 42,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1688
+        }
+      ]
+    },
+    {
+      "name": "result.dispute",
+      "file": "backend/src/events.mjs",
+      "line": 43,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1685
+        }
+      ]
+    },
+    {
+      "name": "result.submit",
+      "file": "backend/src/events.mjs",
+      "line": 39,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1683
+        }
+      ]
+    },
+    {
+      "name": "support.create",
+      "file": "backend/src/identity.mjs",
+      "line": 74,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1668
+        }
+      ]
+    },
+    {
+      "name": "team.archive",
+      "file": "backend/src/competition.mjs",
+      "line": 53,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 135
+        }
+      ]
+    },
+    {
+      "name": "team.create",
+      "file": "backend/src/competition.mjs",
+      "line": 46,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 644
+        }
+      ]
+    },
+    {
+      "name": "team.invite",
+      "file": "backend/src/competition.mjs",
+      "line": 49,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 901
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 127
+        }
+      ]
+    },
+    {
+      "name": "team.invite.respond",
+      "file": "backend/src/competition.mjs",
+      "line": 50,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 105
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 106
+        }
+      ]
+    },
+    {
+      "name": "team.leave",
+      "file": "backend/src/competition.mjs",
+      "line": 51,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 138
+        }
+      ]
+    },
+    {
+      "name": "team.member.remove",
+      "file": "backend/src/competition.mjs",
+      "line": 52,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 132
+        }
+      ]
+    },
+    {
+      "name": "team.request",
+      "file": "backend/src/competition.mjs",
+      "line": 47,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 707
+        }
+      ]
+    },
+    {
+      "name": "team.request.cancel",
+      "file": "backend/src/management.mjs",
+      "line": 23,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendEditingActions.kt",
+          "line": 100
+        }
+      ]
+    },
+    {
+      "name": "team.request.review",
+      "file": "backend/src/competition.mjs",
+      "line": 48,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 722
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 735
+        }
+      ]
+    },
+    {
+      "name": "team.transfer",
+      "file": "backend/src/competition.mjs",
+      "line": 54,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 142
+        }
+      ]
+    },
+    {
+      "name": "team.update",
+      "file": "backend/src/management.mjs",
+      "line": 24,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendEditingActions.kt",
+          "line": 98
+        }
+      ]
+    },
+    {
+      "name": "tournament.cancel",
+      "file": "backend/src/competition.mjs",
+      "line": 60,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 932
+        }
+      ]
+    },
+    {
+      "name": "tournament.complete",
+      "file": "backend/src/competition.mjs",
+      "line": 61,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 232
+        }
+      ]
+    },
+    {
+      "name": "tournament.create",
+      "file": "backend/src/competition.mjs",
+      "line": 57,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 906
+        }
+      ]
+    },
+    {
+      "name": "tournament.register",
+      "file": "backend/src/competition.mjs",
+      "line": 58,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1350
+        }
+      ]
+    },
+    {
+      "name": "tournament.schedule",
+      "file": "backend/src/competition.mjs",
+      "line": 62,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 240
+        }
+      ]
+    },
+    {
+      "name": "tournament.withdraw",
+      "file": "backend/src/competition.mjs",
+      "line": 59,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1350
+        }
+      ]
+    },
+    {
+      "name": "user.block",
+      "file": "backend/src/social.mjs",
+      "line": 16,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1011
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 1665
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/data/BackendRepository.kt",
+          "line": 378
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/AccountAndActivitySheets.kt",
+          "line": 82
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt",
+          "line": 36
+        }
+      ]
+    },
+    {
+      "name": "venue.application.create",
+      "file": "backend/src/venue-applications.mjs",
+      "line": 7,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 247
+        }
+      ]
+    },
+    {
+      "name": "venue.application.withdraw",
+      "file": "backend/src/venue-applications.mjs",
+      "line": 20,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/CommunityAndVenueScreen.kt",
+          "line": 153
+        }
+      ]
+    },
+    {
+      "name": "venue.archive",
+      "file": "backend/src/operations.mjs",
+      "line": 79,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 177
+        }
+      ]
+    },
+    {
+      "name": "venue.create",
+      "file": "backend/src/network.mjs",
+      "line": 13,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 247
+        }
+      ]
+    },
+    {
+      "name": "venue.review.delete",
+      "file": "backend/src/operations.mjs",
+      "line": 141,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 99
+        },
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/VenueReviewSheets.kt",
+          "line": 81
+        }
+      ]
+    },
+    {
+      "name": "venue.review.save",
+      "file": "backend/src/operations.mjs",
+      "line": 129,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/VenueReviewSheets.kt",
+          "line": 77
+        }
+      ]
+    },
+    {
+      "name": "venue.slot.cancel",
+      "file": "backend/src/management.mjs",
+      "line": 38,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 187
+        }
+      ]
+    },
+    {
+      "name": "venue.slot.create",
+      "file": "backend/src/network.mjs",
+      "line": 14,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 272
+        }
+      ]
+    },
+    {
+      "name": "venue.slot.reopen",
+      "file": "backend/src/operations.mjs",
+      "line": 105,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 190
+        }
+      ]
+    },
+    {
+      "name": "venue.slot.update",
+      "file": "backend/src/operations.mjs",
+      "line": 95,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 272
+        }
+      ]
+    },
+    {
+      "name": "venue.update",
+      "file": "backend/src/operations.mjs",
+      "line": 68,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt",
+          "line": 247
+        }
+      ]
+    },
+    {
+      "name": "verification.photo",
+      "file": "backend/src/identity.mjs",
+      "line": 78,
+      "literalMobileReferences": [
+        {
+          "file": "composeApp/src/commonMain/kotlin/com/matchora/app/App.kt",
+          "line": 305
+        }
+      ]
+    }
+  ]
+}

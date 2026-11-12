@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.sp
 import com.matchora.app.state.AppNotification
 import com.matchora.app.state.NotificationPrefs
 import com.matchora.app.state.NotifPriority
+import com.matchora.app.data.*
+import kotlinx.coroutines.launch
 import com.matchora.app.ui.theme.MColors
 
 // Filtering and notification actions remain shared with the app's notification state.
@@ -39,6 +41,40 @@ enum class NotifFilterCategory(val label: String, val icon: ImageVector) {
     WALLET("Cüzdan", Icons.Rounded.AccountBalanceWallet)
 }
 
+@Composable
+fun NotificationDeliveryControls(preferences: NotificationPrefs, onChange: (NotificationPrefs) -> Unit) {
+    val times = (0 until 48).map { slot -> "${(slot / 2).toString().padStart(2, '0')}:${if (slot % 2 == 0) "00" else "30"}" }
+    if (preferences.quietHours) {
+        MFloatingDropdownBox("Sessiz saat başlangıcı", preferences.quietFrom, (times + preferences.quietFrom).distinct().sorted(), { it }, { onChange(preferences.copy(quietFrom = it)) })
+        MFloatingDropdownBox("Sessiz saat bitişi", preferences.quietTo, (times + preferences.quietTo).distinct().sorted(), { it }, { onChange(preferences.copy(quietTo = it)) })
+        if (preferences.quietFrom == preferences.quietTo) Text("Başlangıç ve bitiş aynı olduğunda sessiz saat uygulanmaz.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+    }
+    MFloatingDropdownBox("Günlük cihaz bildirimi sınırı", preferences.dailyCap, (listOf(1, 3, 6, 10, 20, 50, 100) + preferences.dailyCap).distinct().sorted(), { "$it bildirim" }, { onChange(preferences.copy(dailyCap = it)) })
+    if (preferences.emergencyFill) {
+        MFloatingDropdownBox("Yakındaki acil çağrılar", preferences.emergencyRadiusKm, (listOf(1, 3, 5, 10, 25, 50) + preferences.emergencyRadiusKm).distinct().sorted(), { "En fazla $it km" }, { onChange(preferences.copy(emergencyRadiusKm = it)) })
+        Text("Güncel yaklaşık konumun varsa bu mesafe uygulanır. Konum yoksa seçtiğin ilçedeki çağrılar gösterilir.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+    }
+    Text("Sınır cihaz bildirimlerini düzenler; tüm hareketler uygulamadaki bildirim kutusunda bulunur. Ödeme bildirimleri günlük kotanın dışındadır.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+}
+
+fun AppNotification.matchesFilter(filter: NotifFilterCategory): Boolean {
+    if (filter == NotifFilterCategory.ALL) return true
+    category?.let { actual ->
+        return when (filter) {
+            NotifFilterCategory.ALL -> true
+            NotifFilterCategory.MATCHES -> actual in setOf("matches", "emergencyFill", "weeklyDigest", "rematch")
+            NotifFilterCategory.SQUADS -> actual in setOf("challenges", "waitlist", "teams")
+            NotifFilterCategory.WALLET -> actual == "wallet"
+        }
+    }
+    return when (filter) {
+        NotifFilterCategory.ALL -> true
+        NotifFilterCategory.MATCHES -> priority == NotifPriority.P1 || priority == NotifPriority.P2
+        NotifFilterCategory.SQUADS -> priority == NotifPriority.P3 || title.contains("Kadro", true) || title.contains("Başvuru", true)
+        NotifFilterCategory.WALLET -> priority == NotifPriority.P0 || title.contains("Token", true) || title.contains("Tesis", true)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsSheet(
@@ -47,24 +83,36 @@ fun NotificationsSheet(
     onNotificationClick: (AppNotification) -> Unit,
     preferences: NotificationPrefs = NotificationPrefs(),
     onPreferencesChange: (NotificationPrefs) -> Unit = {},
+    onClearNotifications: (String?) -> Unit = {},
     onMarkAllRead: () -> Unit
 ) {
+    var pendingDelete by remember { mutableStateOf<String?>(null) }
+    pendingDelete?.let { id -> AlertDialog(onDismissRequest = { pendingDelete = null }, title = { Text(if (id == "all") "Bildirimler temizlensin mi?" else "Bildirim silinsin mi?") }, text = { Text("Bildirim kutundan kaldırılır. Maç, ödeme ve diğer işlem kayıtların korunur.") }, confirmButton = { TextButton(onClick = { onClearNotifications(id.takeUnless { it == "all" }); pendingDelete = null }) { Text("Temizle") } }, dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Vazgeç") } }) }
     var selectedCategory by remember { mutableStateOf(NotifFilterCategory.ALL) }
+    val backend = LocalBackendRepository.current
+    val remoteFeed = if (backend != null) backend.notificationFeed.collectAsState().value else null
+    var feedBusy by remember { mutableStateOf(false) }
+    var feedError by remember { mutableStateOf<String?>(null) }
+    var feedRetry by remember { mutableIntStateOf(0) }
+    val feedActions = rememberCoroutineScope()
+    val visibleNotifications = if (backend != null && remoteFeed != null) BackendSnapshot(apiPayload("notifications" to remoteFeed.a("items"))).notifications else notifications
+    LaunchedEffect(backend, selectedCategory, feedRetry) {
+        if (backend != null) {
+            feedBusy = true; feedError = null
+            val filter = when (selectedCategory) { NotifFilterCategory.ALL -> "all"; NotifFilterCategory.MATCHES -> "matches"; NotifFilterCategory.SQUADS -> "squads"; NotifFilterCategory.WALLET -> "wallet" }
+            try { backend.selectNotifications(filter) }
+            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+            catch (error: Exception) { feedError = error.message }
+            finally { feedBusy = false }
+        }
+    }
+    DisposableEffect(backend) { onDispose { backend?.closeNotifications() } }
     var showPreferences by remember { mutableStateOf(false) }
     val quietHoursActive = preferences.quietHours
     val emergencyCallsActive = preferences.emergencyFill
-    val unreadCount = notifications.count { !it.read }
-    val filteredList = remember(notifications, selectedCategory) {
-        when (selectedCategory) {
-            NotifFilterCategory.ALL -> notifications
-            NotifFilterCategory.MATCHES -> notifications.filter { it.priority == NotifPriority.P1 || it.priority == NotifPriority.P2 }
-            NotifFilterCategory.SQUADS -> notifications.filter {
-                it.priority == NotifPriority.P3 || it.title.contains("Kadro", true) || it.title.contains("Başvuru", true)
-            }
-            NotifFilterCategory.WALLET -> notifications.filter {
-                it.priority == NotifPriority.P0 || it.title.contains("Token", true) || it.title.contains("Tesis", true)
-            }
-        }
+    val unreadCount = remoteFeed?.i("unreadCount") ?: notifications.count { !it.read }
+    val filteredList = remember(visibleNotifications, selectedCategory) {
+        visibleNotifications.filter { it.matchesFilter(selectedCategory) }
     }
 
     ModalBottomSheet(
@@ -112,6 +160,7 @@ fun NotificationsSheet(
                             }
                         }
                         Spacer(Modifier.weight(1f))
+                        IconButton(onClick = { pendingDelete = "all" }, enabled = notifications.isNotEmpty()) { Icon(Icons.Rounded.DeleteSweep, "Tüm bildirimleri temizle") }
                         TextButton(onClick = onMarkAllRead, enabled = unreadCount > 0,
                             colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFE8D4BE), disabledContentColor = Color(0xFF8D99A4)),
                             contentPadding = PaddingValues(horizontal = 8.dp)) {
@@ -146,7 +195,8 @@ fun NotificationsSheet(
                         Surface(shape = RoundedCornerShape(18.dp), color = Color.White, border = BorderStroke(1.dp, MColors.Line)) {
                             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("SANA NASIL ULAŞALIM?", fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold, color = MColors.Ink500)
-                                NotificationPreference(Icons.Rounded.NightsStay, "Sessiz saatler", "23:00 – 08:00 · Acil olmayan çağrılar bekler", quietHoursActive, { onPreferencesChange(preferences.copy(quietHours = it)) })
+                                NotificationPreference(Icons.Rounded.NightsStay, "Sessiz saatler", "${preferences.quietFrom} – ${preferences.quietTo} · Bildirimler bekler", quietHoursActive, { onPreferencesChange(preferences.copy(quietHours = it)) })
+                                NotificationDeliveryControls(preferences, onPreferencesChange)
                                 HorizontalDivider(color = MColors.LineSoft)
                                 NotificationPreference(Icons.Rounded.Bolt, "Acil maç çağrıları", "Yakınındaki eksik kadrolardan haberdar ol", emergencyCallsActive, { onPreferencesChange(preferences.copy(emergencyFill = it)) })
                             }
@@ -158,6 +208,11 @@ fun NotificationsSheet(
                         Text(if (selectedCategory == NotifFilterCategory.ALL) "SON HAREKETLER" else selectedCategory.label.uppercase(), Modifier.weight(1f), fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold, color = MColors.Ink500)
                         Text("${filteredList.size} bildirim", fontSize = 11.sp, color = MColors.Ink400)
                     }
+                }
+                if (backend != null) item(key = "feed-status") {
+                    if (feedBusy) Text("Bildirimler yükleniyor…", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+                    feedError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MColors.Rose) }
+                    if (feedError != null || remoteFeed == null && !feedBusy) TextButton(onClick = { feedRetry++ }) { Text("Bildirimleri yeniden yükle") }
                 }
                 if (filteredList.isEmpty()) {
                     item(key = "empty") {
@@ -173,7 +228,16 @@ fun NotificationsSheet(
                     }
                 }
                 items(filteredList, key = { it.id }) { notification ->
-                    NotificationInboxCard(notification, { onNotificationClick(notification) })
+                    NotificationInboxCard(notification, { onNotificationClick(notification) }, { pendingDelete = notification.id })
+                }
+                if (backend != null && remoteFeed?.s("nextCursor")?.isNotBlank() == true) item(key = "more-notifications") {
+                    TextButton(enabled = !feedBusy, onClick = { feedActions.launch {
+                        feedBusy = true; feedError = null
+                        try { backend.loadMoreNotifications() }
+                        catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                        catch (error: Exception) { feedError = error.message }
+                        finally { feedBusy = false }
+                    } }) { Text("Önceki bildirimleri yükle") }
                 }
             }
         }
@@ -196,7 +260,7 @@ private fun NotificationPreference(icon: ImageVector, title: String, detail: Str
 }
 
 @Composable
-private fun NotificationInboxCard(notification: AppNotification, onClick: () -> Unit) {
+private fun NotificationInboxCard(notification: AppNotification, onClick: () -> Unit, onDelete: () -> Unit) {
     val unread = !notification.read
     val accent = notification.priority.color
     val icon = when (notification.priority) {
@@ -219,6 +283,7 @@ private fun NotificationInboxCard(notification: AppNotification, onClick: () -> 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text(notification.title, Modifier.weight(1f), fontSize = 13.sp, lineHeight = 18.sp, fontWeight = if (unread) FontWeight.Bold else FontWeight.SemiBold, color = MColors.Ink900)
                     if (unread) Box(Modifier.size(6.dp).background(accent, CircleShape))
+                    IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) { Icon(Icons.Rounded.DeleteOutline, "Bildirimi sil", modifier = Modifier.size(16.dp), tint = MColors.Ink400) }
                 }
                 Text(notification.body, fontSize = 12.sp, lineHeight = 17.sp, color = MColors.Ink600)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

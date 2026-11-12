@@ -31,6 +31,13 @@ import com.matchora.app.state.Player
 import com.matchora.app.state.TeamProfile
 import com.matchora.app.ui.theme.MColors
 import kotlin.math.abs
+import kotlin.math.pow
+import kotlin.math.roundToInt
+import com.matchora.app.state.todayDate
+import com.matchora.app.state.eventDateLabel
+import com.matchora.app.state.eventStartMillis
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.plus
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SEND TEAM CHALLENGE SHEET — RESMİ MEYDAN OKUMA VE MAÇ SÖZLEŞMESİ
@@ -44,15 +51,19 @@ fun SendTeamChallengeSheet(
     targetTeam: TeamProfile,
     tokenBalance: Int = 120,
     onDismiss: () -> Unit,
+    onRequestTokens: () -> Unit = {},
     onSendChallenge: (ChallengeOffer) -> Unit
 ) {
-    var proposedTime by remember { mutableStateOf("Çarşamba 21:00") }
-    var selectedVenue by remember { mutableStateOf("Moda Spor Parkı · Saha 2") }
+    val liveMode = LocalBackendRepository.current != null
+    var proposedDate by remember { mutableStateOf(todayDate().plus(1, DateTimeUnit.DAY)) }
+    var proposedHour by remember { mutableIntStateOf(21) }
+    var proposedMinute by remember { mutableIntStateOf(0) }
+    val proposedTime = "${eventDateLabel(proposedDate)} ${proposedHour.toString().padStart(2, '0')}:${proposedMinute.toString().padStart(2, '0')}"
+    var selectedVenue by remember { mutableStateOf(if (liveMode) "" else "Moda Spor Parkı · Saha 2") }
     var stakeTokens by remember { mutableIntStateOf(50) }
     var challengeNote by remember { mutableStateOf("") }
     var officialReferee by remember { mutableStateOf(true) }
 
-    val timeOptions = listOf("Bu Akşam 21:00", "Çarşamba 20:30", "Perşembe 21:00", "Cumartesi 18:00", "Pazar 19:30")
     val venueOptions = listOf(
         "Moda Spor Parkı · Saha 2",
         "Kalamış Sahil Kortları",
@@ -61,7 +72,8 @@ fun SendTeamChallengeSheet(
         "Online Discord Sunucusu"
     )
 
-    val myProb = remember(myTeam.rating, targetTeam.rating) {
+    val myProb = remember(myTeam.rating, targetTeam.rating, liveMode) {
+        if (liveMode) return@remember (100.0 / (1.0 + 10.0.pow((targetTeam.rating - myTeam.rating) / 400.0))).roundToInt()
         val diff = myTeam.rating - targetTeam.rating
         val p = 50 + (diff / 25)
         p.coerceIn(25, 75)
@@ -92,7 +104,7 @@ fun SendTeamChallengeSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                MSheetHeading("Meydan oku", "Maç teklifini hazırla · %$teamFit takım uyumu", Icons.Rounded.SportsSoccer, onDismiss)
+                MSheetHeading("Meydan oku", if (liveMode) "Maç teklifini hazırla · MMR farkı ${abs(myTeam.rating - targetTeam.rating)}" else "Maç teklifini hazırla · %$teamFit takım uyumu", Icons.Rounded.SportsSoccer, onDismiss)
             }
 
             item { PremiumMatchupPanel(myTeam, targetTeam) }
@@ -111,7 +123,7 @@ fun SendTeamChallengeSheet(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("DEMO · AI TAHMİNİ", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.35.sp, color = Color(0xFF166534), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            Text(if (liveMode) "MMR DENGE GÖSTERGESİ" else "DEMO · AI TAHMİNİ", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.35.sp, color = Color(0xFF166534), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                             Text("%$myProb – %$oppProb", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D))
                         }
                         Spacer(modifier = Modifier.height(6.dp))
@@ -131,7 +143,7 @@ fun SendTeamChallengeSheet(
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = matchupInsight,
+                            text = if (liveMode) "Doğrulanmış takım MMR ortalamalarından hesaplanır; sonuç garantisi değildir." else matchupInsight,
                             fontSize = 11.sp,
                             color = Color(0xFF14532D),
                             maxLines = 2,
@@ -148,23 +160,11 @@ fun SendTeamChallengeSheet(
                         modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        MFloatingDropdownBox(
-                            label = "Önerilen Maç Zamanı",
-                            selectedValue = proposedTime,
-                            options = timeOptions,
-                            optionLabel = { it },
-                            onSelect = { proposedTime = it },
-                            icon = Icons.Rounded.Schedule
-                        )
+                        EventDateTimeField(proposedDate, proposedHour, proposedMinute) { date, hour, minute ->
+                            proposedDate = date; proposedHour = hour; proposedMinute = minute
+                        }
 
-                        MFloatingDropdownBox(
-                            label = "Önerilen Saha / Tesis",
-                            selectedValue = selectedVenue,
-                            options = venueOptions,
-                            optionLabel = { it },
-                            onSelect = { selectedVenue = it },
-                            icon = Icons.Rounded.LocationOn
-                        )
+                        VenueChoiceField("Önerilen Saha / Tesis", selectedVenue, { selectedVenue = it }, venueOptions)
 
                         MFloatingDropdownBox(
                             label = "Maç Türü ve Kasa Kilidi",
@@ -204,9 +204,13 @@ fun SendTeamChallengeSheet(
             // Meydan Okuma Gönder Butonu
             item {
                 MButton(
-                    text = "Meydan okumayı gönder",
+                    text = if (tokenBalance < stakeTokens) "Token yükle · $stakeTokens TKN gerekli" else "Meydan okumayı gönder",
                     icon = Icons.Rounded.Send,
                     onClick = {
+                        if (tokenBalance < stakeTokens) {
+                            onRequestTokens()
+                            return@MButton
+                        }
                         val newChallenge = ChallengeOffer(
                             id = "c_${myTeam.id}_${targetTeam.id}_${proposedTime.hashCode()}",
                             fromTeamId = myTeam.id,
@@ -215,14 +219,16 @@ fun SendTeamChallengeSheet(
                             venue = selectedVenue,
                             status = ChallengeStatus.PENDING,
                             incoming = false,
-                            fitScore = 94,
+                            fitScore = if (liveMode) teamFit else 94,
                             stakeTokens = stakeTokens,
-                            note = challengeNote.ifBlank { "Resmi maç teklifi iletildi." }
+                            note = challengeNote.ifBlank { "Resmi maç teklifi iletildi." },
+                            startsAtEpochMillis = eventStartMillis(proposedDate, proposedHour, proposedMinute)
                         )
                         onSendChallenge(newChallenge)
                         onDismiss()
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !liveMode || selectedVenue.trim().length >= 2
                 )
             }
         }
@@ -238,16 +244,18 @@ fun SendTeamChallengeSheet(
 @Composable
 fun MatchChallengeDetailSheet(
     challenge: ChallengeOffer,
+    players: List<Player> = com.matchora.app.state.DemoData.players,
     fromTeam: TeamProfile,
     toTeam: TeamProfile,
     onAccept: () -> Unit,
     onDecline: () -> Unit,
     onOpenCaptainChat: (Player) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    canRespond: Boolean = true
 ) {
     val oppCaptain = remember(fromTeam, toTeam, challenge.incoming) {
         val target = if (challenge.incoming) fromTeam else toTeam
-        com.matchora.app.state.DemoData.player(target.captainId) ?: com.matchora.app.state.DemoData.players.first()
+        players.firstOrNull { it.id == target.captainId }
     }
 
     ModalBottomSheet(
@@ -277,6 +285,7 @@ fun MatchChallengeDetailSheet(
             }
 
             item { PremiumMatchupPanel(fromTeam, toTeam) }
+            item { BackendChallengeActions(challenge) }
 
             // Maç Detayları (Zaman, Saha, Hakem) — Yüzen Beyaz Ada
             item {
@@ -303,7 +312,7 @@ fun MatchChallengeDetailSheet(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Rounded.Shield, null, tint = MColors.Mint, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Kasa Güvencesi: ${challenge.stakeTokens * 2} TKN Toplam Havuz (Kazanan +25 MMR)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MColors.Mint)
+                            Text("${challenge.stakeTokens} TKN teklif taahhüdü · Yanıtlandığında iade edilir", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MColors.Mint)
                         }
                     }
                 }
@@ -342,7 +351,7 @@ fun MatchChallengeDetailSheet(
             // Aksiyon Butonları
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (challenge.incoming && challenge.status == ChallengeStatus.PENDING) {
+                    if (canRespond && challenge.incoming && challenge.status == ChallengeStatus.PENDING) {
                         MButton(
                             text = "Meydan Okumayı Kabul Et ✓",
                             onClick = {
@@ -369,7 +378,7 @@ fun MatchChallengeDetailSheet(
                                 text = "Kaptanla Görüş",
                                 onClick = {
                                     onDismiss()
-                                    onOpenCaptainChat(oppCaptain)
+                                    oppCaptain?.let(onOpenCaptainChat)
                                 },
                                 icon = Icons.Rounded.ChatBubbleOutline,
                                 modifier = Modifier.weight(1f),
@@ -382,7 +391,7 @@ fun MatchChallengeDetailSheet(
                             text = "Kaptan ile Canlı Sohbet Odası",
                             onClick = {
                                 onDismiss()
-                                onOpenCaptainChat(oppCaptain)
+                                oppCaptain?.let(onOpenCaptainChat)
                             },
                             icon = Icons.Rounded.Chat
                         )

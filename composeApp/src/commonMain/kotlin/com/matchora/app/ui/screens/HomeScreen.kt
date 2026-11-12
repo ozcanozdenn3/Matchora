@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.matchora.app.domain.*
 import com.matchora.app.state.*
+import com.matchora.app.data.*
 import com.matchora.app.ui.components.*
 import com.matchora.app.ui.theme.MColors
 
@@ -66,46 +67,75 @@ fun HomeScreen(
     currentCity: String,
     onOpenLocation: () -> Unit,
     user: UserProfile,
+    currentDistrict: String = user.area,
     currentPlayer: Player,
+    players: List<Player> = DemoData.players,
+    joinedEventIds: Set<String> = emptySet(),
+    waitlistedEventIds: Set<String> = emptySet(),
+    pendingRequestEventIds: Set<String> = emptySet(),
     onSelectEvent: (SportEvent) -> Unit,
     onOpenMap: () -> Unit,
     onOpenPlayNow: () -> Unit,
+    onFindEventById: (String) -> Unit,
+    onNetworkScopeChanged: (EventNetworkScope) -> Unit = {},
     onOpenEmergencyFill: () -> Unit,
-    onOpenAutoSquad: () -> Unit,
+    onOpenAutoSquad: (SportEvent?) -> Unit,
     onOpenTeamChallenge: () -> Unit,
     onOpenLeaderboard: () -> Unit,
     onOpenWallet: () -> Unit,
-    onOpenProfile: () -> Unit
+    onOpenProfile: () -> Unit,
+    onOpenCommunities: () -> Unit = onOpenProfile
 ) {
+    val repository = LocalBackendRepository.current
+    val backendMode = repository?.enabled == true
+    val requireAccount = LocalRequireAccount.current
+    val featuresLocked = LocalFeaturesLocked.current
+    val wire = if (repository != null) repository.snapshots.collectAsState().value else null
+    val myTeamSummary = wire?.a("teams")?.firstOrNull { it.b("isMine") }
+    val primarySport = user.skills.firstOrNull()?.sport?.name
+    val localRanking = wire?.a("rankings")?.filter { it.s("sport") == primarySport && it.s("city").equals(currentCity, ignoreCase = true) }.orEmpty()
+    val rankIndex = localRanking.indexOfFirst { it.s("userId") == repository?.userId }
+    val myRanking = localRanking.getOrNull(rankIndex)
+    val pendingOffers = wire?.a("challenges")?.count { it.s("status") == "PENDING" } ?: 0
     var selectedSportFilter by remember { mutableStateOf<Sport?>(null) }
     var activeNetworkMode by remember { mutableStateOf(NetworkMode.CITY) }
     var activeAiFilterLabel by remember { mutableStateOf<String?>(null) }
     var expandedEventIds by remember { mutableStateOf(setOf<String>()) }
     var showAutoSquadSheet by remember { mutableStateOf(false) }
     var showSmartMatchSheet by remember { mutableStateOf(false) }
+    var invitationId by remember { mutableStateOf("") }
+    var invitationError by remember { mutableStateOf<String?>(null) }
 
-    val scopedEvents = remember(events, activeNetworkMode, user.campus, user.company, currentCity) {
+    val joinedCommunityIds = wire?.ss("joinedCommunityIds").orEmpty().toSet()
+    val joinedCommunities = wire?.a("communities").orEmpty().filter { it.s("id") in joinedCommunityIds }
+    val campusMemberships = joinedCommunities.filter { it.s("type") == "CAMPUS" }
+    val companyMemberships = joinedCommunities.filter { it.s("type") == "COMPANY" }
+    val scopedEvents = remember(events, activeNetworkMode, user.campus, user.company, currentCity, backendMode) {
         events.filter { event ->
             event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING, EventStatus.FULL) &&
             when (activeNetworkMode) {
-                NetworkMode.CITY -> event.networkScope == EventNetworkScope.CITY && event.city.equals(currentCity, ignoreCase = true)
-                NetworkMode.CAMPUS -> event.networkScope == EventNetworkScope.CAMPUS &&
-                    !user.campus.isNullOrBlank() && event.networkName.equals(user.campus, ignoreCase = true)
-                NetworkMode.COMPANY -> event.networkScope == EventNetworkScope.COMPANY &&
-                    !user.company.isNullOrBlank() && event.networkName.equals(user.company, ignoreCase = true)
+                NetworkMode.CITY -> event.networkScope == EventNetworkScope.CITY && (!backendMode || event.city.equals(currentCity, ignoreCase = true))
+                NetworkMode.CAMPUS -> event.networkScope == EventNetworkScope.CAMPUS
+                NetworkMode.COMPANY -> event.networkScope == EventNetworkScope.COMPANY
                 NetworkMode.TRAVEL -> event.networkScope == EventNetworkScope.TRAVEL
             }
         }
     }
     val networkBadge = when (activeNetworkMode) {
         NetworkMode.CITY -> "$currentCity · spor buluşmaları"
-        NetworkMode.CAMPUS -> user.campus?.let { "$it Kampüs Ligi" } ?: "Kampüs profili ekle"
-        NetworkMode.COMPANY -> user.company?.let { "$it Ağı" } ?: "Şirket profili ekle"
+        NetworkMode.CAMPUS -> if (backendMode) {
+            campusMemberships.singleOrNull()?.s("name")?.let { "$it Kampüs Ligi" }
+                ?: if (campusMemberships.isEmpty()) "Kampüs üyeliği gerekli" else "Kampüs ağların"
+        } else user.campus?.let { "$it Kampüs Ligi" } ?: "Kampüs profili ekle"
+        NetworkMode.COMPANY -> if (backendMode) {
+            companyMemberships.singleOrNull()?.s("name")?.let { "$it Ağı" }
+                ?: if (companyMemberships.isEmpty()) "Şirket üyeliği gerekli" else "Şirket ağların"
+        } else user.company?.let { "$it Ağı" } ?: "Şirket profili ekle"
         NetworkMode.TRAVEL -> "Seyahat etkinlikleri"
     }
     val missingNetworkProfile = when (activeNetworkMode) {
-        NetworkMode.CAMPUS -> user.campus.isNullOrBlank()
-        NetworkMode.COMPANY -> user.company.isNullOrBlank()
+        NetworkMode.CAMPUS -> if (backendMode) campusMemberships.isEmpty() else user.campus.isNullOrBlank()
+        NetworkMode.COMPANY -> if (backendMode) companyMemberships.isEmpty() else user.company.isNullOrBlank()
         else -> false
     }
     val filteredEvents = remember(scopedEvents, selectedSportFilter, activeAiFilterLabel) {
@@ -151,7 +181,7 @@ fun HomeScreen(
             // 0. AĞ KAPSAMI SEÇİCİ (Saha · Kampüs · Şirket · Seyahat)
             // ═══════════════════════════════════════════════════════════════════
             item {
-                NetworkScopeIsland(activeNetworkMode, { activeNetworkMode = it })
+                NetworkScopeIsland(activeNetworkMode, { activeNetworkMode = it; onNetworkScopeChanged(EventNetworkScope.valueOf(it.name)) })
             }
 
             // ═══════════════════════════════════════════════════════════════════
@@ -227,13 +257,43 @@ fun HomeScreen(
                         // Mini Radar Harita Vitrini
                         LiveMiniRadarView(
                             events = filteredEvents,
+                            currentCity = currentCity,
+                            currentDistrict = currentDistrict,
                             scopeLabel = activeNetworkMode.label,
-                            hasActiveSmartMatch = activeAiFilterLabel != null,
-                            onOpenSmartMatch = { showSmartMatchSheet = true },
                             onOpenMap = onOpenMap
                         )
 
                         Spacer(Modifier.height(14.dp))
+                        Box(Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = invitationId,
+                                onValueChange = { requireAccount { invitationId = it.take(200); invitationError = null } },
+                                readOnly = featuresLocked,
+                                label = { Text("ID ile bul") },
+                                placeholder = { Text("İlan, turnuva, kulüp veya tesis ID’si") },
+                                leadingIcon = { Icon(Icons.Rounded.Tag, null, tint = MColors.BrandDeep) },
+                                trailingIcon = { IconButton(onClick = {
+                                    requireAccount {
+                                        val id = eventInvitationId(invitationId, preview = true) ?: invitationId.trim().removePrefix("#").takeIf { it.isNotBlank() }
+                                        if (id == null) invitationError = "Geçerli bir ilan, turnuva, kulüp veya tesis ID’si gir."
+                                        else { invitationError = null; onFindEventById(id) }
+                                    }
+                                }, enabled = !featuresLocked && invitationId.isNotBlank()) { Icon(Icons.Rounded.Search, "İlan veya turnuvayı bul") } },
+                                singleLine = true, isError = invitationError != null,
+                                shape = RoundedCornerShape(14.dp), colors = premiumTextFieldColors(),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            if (featuresLocked) {
+                                Box(
+                                    Modifier
+                                        .matchParentSize()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .clickable { requireAccount {} }
+                                )
+                            }
+                        }
+                        invitationError?.let { Text(it, color = MColors.Rose, style = MaterialTheme.typography.bodySmall) }
+                        Spacer(Modifier.height(10.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             OutlinedButton(
                                 onClick = onOpenLocation,
@@ -274,7 +334,7 @@ fun HomeScreen(
                         ) {
                             Text(
                                 when {
-                                    missingNetworkProfile -> "Ağ profilini tamamla"
+                                    missingNetworkProfile -> if (backendMode) "Ağ üyeliği gerekli" else "Ağ profilini tamamla"
                                     noMatchAfterFiltering -> "Filtreyle eşleşen yok"
                                     else -> "Bu ağda henüz karşılaşma yok"
                                 },
@@ -284,7 +344,8 @@ fun HomeScreen(
                             )
                             Text(
                                 when {
-                                    missingNetworkProfile -> "Kampüs veya şirket bilgini pasaportuna ekleyince sana uygun ilanları gösteririz."
+                                    missingNetworkProfile -> if (backendMode) "Kampüs ve şirket maçları yalnızca ilgili topluluğun onaylı üyelerine açılır."
+                                        else "Kampüs veya şirket bilgini pasaportuna ekleyince sana uygun ilanları gösteririz."
                                     noMatchAfterFiltering -> "Filtreleri temizle veya başka bir branş seç."
                                     else -> "Başka bir kapsam seçebilir veya yeni ilan açabilirsin."
                                 },
@@ -293,7 +354,7 @@ fun HomeScreen(
                             )
                             TextButton(
                                 onClick = when {
-                                    missingNetworkProfile -> onOpenProfile
+                                    missingNetworkProfile -> if (backendMode) onOpenCommunities else onOpenProfile
                                     noMatchAfterFiltering -> {
                                         {
                                             selectedSportFilter = null
@@ -305,7 +366,7 @@ fun HomeScreen(
                             ) {
                                 Text(
                                     when {
-                                        missingNetworkProfile -> "Pasaportu tamamla"
+                                        missingNetworkProfile -> if (backendMode) "Toplulukları keşfet" else "Pasaportu tamamla"
                                         noMatchAfterFiltering -> "Filtreleri temizle"
                                         else -> "İlan oluştur"
                                     },
@@ -466,7 +527,7 @@ fun HomeScreen(
                                                 modifier = Modifier.shadow(4.dp, RoundedCornerShape(6.dp), ambientColor = Color(0x240B1220), spotColor = Color(0x340B1220))
                                             ) {
                                                 Text(
-                                                    text = "TKN ${activeMatch.pricePerPersonTry}",
+                                                    text = if (activeMatch.pricePerPersonTry == 0) "Ücretsiz" else "₺${activeMatch.pricePerPersonTry}",
                                                     fontSize = 10.5.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = MColors.Ink800,
@@ -506,7 +567,7 @@ fun HomeScreen(
                                                     .background(MColors.Mint)
                                             )
                                             Text(
-                                                text = "Son ${activeMatch.freeSpots} Boş Kontenjan",
+                                                text = if (activeMatch.isFull) "Kontenjan Dolu" else "Son ${activeMatch.freeSpots} Boş Kontenjan",
                                                 fontSize = 10.5.sp,
                                                 fontWeight = FontWeight.ExtraBold,
                                                 color = Color(0xFF047857)
@@ -514,6 +575,14 @@ fun HomeScreen(
                                         }
                                     }
 
+                                    val heroActionLabel = when {
+                                        activeMatch.id in joinedEventIds -> "Katıldın"
+                                        activeMatch.id in pendingRequestEventIds -> "Başvurun Bekliyor"
+                                        activeMatch.id in waitlistedEventIds -> "Yedek Listedesin"
+                                        activeMatch.isFull -> "Yedek Liste"
+                                        activeMatch.approvalRequired -> "Kadroya Başvur"
+                                        else -> "Kadroya Katıl"
+                                    }
                                     Surface(
                                         shape = RoundedCornerShape(10.dp),
                                         color = MColors.Brand,
@@ -529,7 +598,7 @@ fun HomeScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
-                                            Text("Kadroya Katıl", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            Text(heroActionLabel, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                             Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = Color.White, modifier = Modifier.size(12.dp))
                                         }
                                     }
@@ -546,7 +615,7 @@ fun HomeScreen(
             // ═══════════════════════════════════════════════════════════════════
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     // Sol Bento: Takım Challenge
@@ -556,7 +625,7 @@ fun HomeScreen(
                         border = BorderStroke(1.dp, Brush.linearGradient(listOf(Color(0xFF4C5960), MColors.Brand.copy(alpha = 0.35f), Color(0xFF4C5960)))),
                         shadowElevation = 4.dp,
                         modifier = Modifier
-                            .weight(1f)
+                            .weight(1f).fillMaxHeight()
                             .clickable(onClick = onOpenTeamChallenge)
                     ) {
                         Column(
@@ -602,14 +671,14 @@ fun HomeScreen(
                                         .padding(horizontal = 5.dp, vertical = 2.dp)
                                 ) {
                                     Box(Modifier.size(5.dp).background(MColors.Mint, CircleShape))
-                                    Text("AKTİF", fontSize = 8.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF9EDDC8))
+                                    Text(if (backendMode && myTeamSummary == null) "KEŞFET" else "AKTİF", fontSize = 8.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF9EDDC8))
                                 }
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))
 
                             Text(
-                                text = "Kadıköy Utd",
+                                text = if (backendMode) myTeamSummary?.s("name") ?: "Takımını oluştur" else "Kadıköy Utd",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFF4F7F8),
@@ -622,14 +691,14 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = "1.640 MMR",
+                                    text = if (backendMode) myTeamSummary?.let { "${it.i("rating")} MMR" } ?: "Takım ağı" else "1.640 MMR",
                                     fontSize = 10.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFFFBE91)
                                 )
                                 Text("•", fontSize = 10.sp, color = MColors.Ink300)
                                 Text(
-                                    text = "1 Açık Teklif",
+                                    text = if (backendMode) "$pendingOffers Açık Teklif" else "1 Açık Teklif",
                                     fontSize = 10.5.sp,
                                     color = Color(0xFFBCCBD2)
                                 )
@@ -680,7 +749,7 @@ fun HomeScreen(
                         border = BorderStroke(1.dp, Brush.linearGradient(listOf(Color(0xFFE4D4B6), Color(0xFFD97706).copy(alpha = 0.35f), Color(0xFFE4D4B6)))),
                         shadowElevation = 4.dp,
                         modifier = Modifier
-                            .weight(1f)
+                            .weight(1f).fillMaxHeight()
                             .clickable(onClick = onOpenLeaderboard)
                     ) {
                         Column(
@@ -727,7 +796,7 @@ fun HomeScreen(
                                     modifier = Modifier.shadow(4.dp, RoundedCornerShape(6.dp), ambientColor = Color(0x240B1220), spotColor = Color(0x340B1220))
                                 ) {
                                     Text(
-                                        text = "3. Sıra",
+                                        text = if (backendMode) if (rankIndex >= 0) "${rankIndex + 1}. Sıra" else "Yeni" else "3. Sıra",
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = Color(0xFFB45309),
@@ -739,7 +808,7 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.height(8.dp))
 
                             Text(
-                                text = "Kadıköy Ligi",
+                                text = if (backendMode) "$currentCity Ligi" else "Kadıköy Ligi",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF493A27),
@@ -752,14 +821,14 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = "1.820 MMR",
+                                    text = if (backendMode) user.skills.firstOrNull()?.let { "${it.rating} MMR" } ?: "— MMR" else "1.820 MMR",
                                     fontSize = 10.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF795B30)
                                 )
                                 Text("•", fontSize = 10.sp, color = MColors.Ink300)
                                 Text(
-                                    text = "+18 Puan",
+                                    text = if (backendMode) "${myRanking?.i("delta") ?: 0} Puan" else "+18 Puan",
                                     fontSize = 10.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MColors.Mint
@@ -824,6 +893,8 @@ fun HomeScreen(
                 }
             }
 
+            if (backendMode) item { BackendMoreEventsButton() }
+
             item {
                 Spacer(modifier = Modifier.height(80.dp))
             }
@@ -848,6 +919,7 @@ fun HomeScreen(
         AutoSquadSheet(
             event = activeMatch,
             currentPlayer = currentPlayer,
+            players = players,
             onDismiss = { showAutoSquadSheet = false },
             onConfirmSquad = {
                 showAutoSquadSheet = false
@@ -855,7 +927,7 @@ fun HomeScreen(
             },
             onOpenChat = {
                 showAutoSquadSheet = false
-                onOpenAutoSquad()
+                onOpenAutoSquad(activeMatch)
             }
         )
     }
@@ -898,7 +970,7 @@ fun SmartMatchSheet(
             MSheetHeading(
                 title = "Akıllı Eşleşme",
                 subtitle = "$matchingCount uygun oyun bulundu",
-                icon = Icons.Rounded.AutoAwesome,
+                icon = Icons.Rounded.Radar,
                 onDismiss = onDismiss
             )
 
@@ -913,7 +985,7 @@ fun SmartMatchSheet(
                         options = filterOptions,
                         optionLabel = { it.second },
                         onSelect = { onSelectFilter(it.first) },
-                        icon = Icons.Rounded.AutoAwesome
+                        icon = Icons.Rounded.Radar
                     )
 
                 // En Uygun Eşleşme Yüzen Kartı
@@ -1087,16 +1159,23 @@ fun SmartMatchSheet(
 @Composable
 private fun LiveMiniRadarView(
     events: List<SportEvent>,
+    currentCity: String,
+    currentDistrict: String,
     scopeLabel: String,
-    hasActiveSmartMatch: Boolean,
-    onOpenSmartMatch: () -> Unit,
     onOpenMap: () -> Unit
 ) {
-    val previewPins = remember(events) {
+    val backendMode = LocalBackendRepository.current?.enabled == true
+    val regionCenter = rememberRegionCenter(currentCity, currentDistrict)
+    val deviceLocation by DeviceLocationState.current.collectAsState()
+    val selectedRegionLocation = deviceLocation?.takeIf {
+        it.city.equals(currentCity, ignoreCase = true) &&
+            (currentDistrict.isBlank() || it.district.equals(currentDistrict, ignoreCase = true))
+    }
+    val previewPins = remember(events, backendMode) {
         events.filterNot { it.area.contains("online", ignoreCase = true) }
             .take(6)
-            .mapIndexed { index, event ->
-                val location = event.approximateLocation?.let { it.latitude to it.longitude } ?: demoCoordinatesForArea(event.area)
+            .mapNotNull { event ->
+                val location = event.approximateLocation?.let { it.latitude to it.longitude } ?: if (backendMode) return@mapNotNull null else demoCoordinatesForArea(event.area)
                 MapPinData(
                     id = event.id,
                     title = event.title,
@@ -1108,6 +1187,7 @@ private fun LiveMiniRadarView(
             }
     }
     val mapCenter = previewPins.firstOrNull()
+    val selectedCenter = selectedRegionLocation ?: regionCenter
 
     Box(
         modifier = Modifier
@@ -1126,9 +1206,10 @@ private fun LiveMiniRadarView(
         // Gerçek Harita Katmanı (Harita sekmesindeki gerçek Apple Maps görünümü)
         NativeMapView(
             modifier = Modifier.fillMaxSize(),
-            latitude = mapCenter?.latitude ?: 40.9760,
-            longitude = mapCenter?.longitude ?: 29.0400,
-            zoomMeters = 4200.0,
+            latitude = selectedCenter?.latitude ?: if (currentCity == "İstanbul") mapCenter?.latitude ?: 40.9760 else 39.0,
+            longitude = selectedCenter?.longitude ?: if (currentCity == "İstanbul") mapCenter?.longitude ?: 29.0400 else 35.0,
+            zoomMeters = if (selectedCenter == null && currentCity != "İstanbul") 1600000.0
+                else if (currentDistrict.isBlank() || currentDistrict == "Merkez") 60000.0 else 4200.0,
             pins = previewPins,
             selectedPinId = null,
             onPinSelected = { onOpenMap() },
@@ -1142,61 +1223,6 @@ private fun LiveMiniRadarView(
                 .background(Color.Transparent)
                 .clickable(onClick = onOpenMap)
         )
-
-        // Sol üst: Akıllı Eşleşme ufak sembol butonu
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(9.dp)
-        ) {
-            Surface(
-                onClick = onOpenSmartMatch,
-                shape = RoundedCornerShape(11.dp),
-                color = MColors.Ink900,
-                shadowElevation = 6.dp,
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = if (hasActiveSmartMatch) Color(0xFFFFB37B) else Color.White.copy(alpha = 0.25f)
-                ),
-                modifier = Modifier
-                    .size(36.dp)
-                    .shadow(
-                        elevation = 8.dp,
-                        shape = RoundedCornerShape(11.dp),
-                        ambientColor = Color(0x3A0B1220),
-                        spotColor = Color(0x520B1220)
-                    )
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.linearGradient(
-                                listOf(Color(0xFF283548), MColors.Ink900)
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.AutoAwesome,
-                        contentDescription = "Akıllı Eşleşme",
-                        tint = Color(0xFFFFB37B),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-            if (hasActiveSmartMatch) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = 2.dp, y = (-2).dp)
-                        .size(9.dp)
-                        .clip(CircleShape)
-                        .background(MColors.Mint)
-                        .border(1.5.dp, Color.White, CircleShape)
-                )
-            }
-        }
 
         // Harita üstü durum rozeti (RADAR ibaresi kaldırıldı)
         Surface(
@@ -1392,7 +1418,7 @@ private fun ExpandableMatchCard(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "TKN ${event.pricePerPersonTry}",
+                            text = if (event.pricePerPersonTry == 0) "Ücretsiz" else "₺${event.pricePerPersonTry}",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = MColors.Brand
@@ -1469,20 +1495,13 @@ private fun ExpandableMatchCard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             event.participantIds.take(5).forEach { pid ->
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(MColors.BrandTint),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = pid.take(1).uppercase(),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MColors.Brand
-                                    )
-                                }
+                                UserAvatar(
+                                    userId = pid,
+                                    name = pid,
+                                    modifier = Modifier.size(24.dp),
+                                    fallbackColor = MColors.BrandTint,
+                                    fallbackTextColor = MColors.Brand
+                                )
                             }
                             repeat(minOf(event.freeSpots, 3)) {
                                 Box(
@@ -1569,6 +1588,7 @@ private fun demoCoordinatesForArea(area: String): Pair<Double, Double> = when {
 private fun CompactEventDirectory(
     events: List<SportEvent>, city: String, selectedSport: Sport?, onSelectEvent: (SportEvent) -> Unit
 ) {
+    val requireAccount = LocalRequireAccount.current
     var page by remember(city, selectedSport, events.map { it.id }) { mutableIntStateOf(0) }
     val groups = events.groupBy { it.sport }.entries.toList()
     val pageCount = ((groups.size + 2) / 3).coerceAtLeast(1)
@@ -1589,9 +1609,9 @@ private fun CompactEventDirectory(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${sport.emoji} ${sport.label}", style = MaterialTheme.typography.titleSmall, color = MColors.Ink800, modifier = Modifier.weight(1f))
                         if (matches.size > 1) {
-                            IconButton(onClick = { matchPage = (matchPage - 1 + matches.size) % matches.size }, modifier = Modifier.size(32.dp)) { Icon(Icons.Rounded.ChevronLeft, "Önceki etkinlik") }
+                            IconButton(onClick = { requireAccount { matchPage = (matchPage - 1 + matches.size) % matches.size } }, modifier = Modifier.size(32.dp)) { Icon(Icons.Rounded.ChevronLeft, "Önceki etkinlik") }
                             Text("${matchPage + 1}/${matches.size}", style = MaterialTheme.typography.labelSmall, color = MColors.Ink500)
-                            IconButton(onClick = { matchPage = (matchPage + 1) % matches.size }, modifier = Modifier.size(32.dp)) { Icon(Icons.Rounded.ChevronRight, "Sonraki etkinlik") }
+                            IconButton(onClick = { requireAccount { matchPage = (matchPage + 1) % matches.size } }, modifier = Modifier.size(32.dp)) { Icon(Icons.Rounded.ChevronRight, "Sonraki etkinlik") }
                         }
                     }
                     Surface(
@@ -1642,9 +1662,9 @@ private fun CompactEventDirectory(
                 }
             }
             if (pageCount > 1) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { page = currentPage - 1 }, enabled = currentPage > 0) { Icon(Icons.Rounded.ChevronLeft, null); Text("Önceki") }
+                TextButton(onClick = { requireAccount { page = currentPage - 1 } }, enabled = currentPage > 0) { Icon(Icons.Rounded.ChevronLeft, null); Text("Önceki") }
                 Text("Branşlar", style = MaterialTheme.typography.labelSmall, color = MColors.Ink500)
-                TextButton(onClick = { page = currentPage + 1 }, enabled = currentPage < pageCount - 1) { Text("Sonraki"); Icon(Icons.Rounded.ChevronRight, null) }
+                TextButton(onClick = { requireAccount { page = currentPage + 1 } }, enabled = currentPage < pageCount - 1) { Text("Sonraki"); Icon(Icons.Rounded.ChevronRight, null) }
             }
         }
     }

@@ -15,3 +15,17 @@ xcuserdata/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 DerivedData/
+
+# Local backend state and credentials
+backend/node_modules/
+backend/var/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Native provider config is supplied per environment
+composeApp/google-services.json
+GoogleService-Info.plist

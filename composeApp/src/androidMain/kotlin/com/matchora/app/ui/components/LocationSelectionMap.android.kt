@@ -12,10 +12,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.matchora.app.state.EventGeoPoint
+import com.matchora.app.data.BackendBuildConfig
 import kotlin.math.roundToInt
 
 @Composable
 actual fun LocationSelectionMap(modifier: Modifier, initialPoint: EventGeoPoint, onCenterChanged: (EventGeoPoint) -> Unit) {
+    if (BackendBuildConfig.MODE != "preview") {
+        AndroidLiveMap(modifier, initialPoint.latitude, initialPoint.longitude, 2200.0,
+            onCenterChanged = { latitude, longitude -> onCenterChanged(EventGeoPoint(latitude, longitude)) })
+        return
+    }
     var point by remember { mutableStateOf(initialPoint) }
     var pan by remember { mutableStateOf(Offset.Zero) }
     val callback by rememberUpdatedState(onCenterChanged)

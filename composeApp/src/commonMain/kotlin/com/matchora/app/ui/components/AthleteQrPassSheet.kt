@@ -1,5 +1,6 @@
 package com.matchora.app.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -9,7 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,6 +23,9 @@ import androidx.compose.ui.unit.sp
 import com.matchora.app.state.UserProfile
 import com.matchora.app.state.VerificationLevel
 import com.matchora.app.ui.theme.MColors
+import com.matchora.app.data.*
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DİJİTAL SPORCU KARTI ÖNİZLEMESİ
@@ -33,7 +37,23 @@ import com.matchora.app.ui.theme.MColors
 fun AthleteQrPassSheet(
     user: UserProfile,
     onDismiss: () -> Unit
-) {
+ ) {
+    val backend = LocalBackendRepository.current
+    val backendWire = if (backend != null) backend.snapshots.collectAsState().value else null
+    val avatarUploadId = backendWire?.o("profile")?.s("avatarUploadId")?.takeIf { it.isNotBlank() && it != "null" }
+    val scope = rememberCoroutineScope()
+    var code by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var showVerifyInput by remember { mutableStateOf(false) }
+    var verifyCodeInput by remember { mutableStateOf("") }
+    var verifyResult by remember { mutableStateOf<String?>(null) }
+    fun refresh() { if (backend != null) scope.launch {
+        try { code = backend.command("passport.code", apiPayload(), backend.requestKey("passport-code")).s("code"); error = null }
+        catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+        catch (e: Exception) { error = e.message }
+    } }
+    LaunchedEffect(backend) { if (backend != null) { refresh(); while (true) { delay(10 * 60_000L); refresh() } } }
+    val qr = remember(code) { if (code.isBlank() || backend == null) null else makeQrCode("${backend.baseUrl}/v1/passports/verify?code=$code") }
     ModalBottomSheet(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         tonalElevation = 0.dp,
@@ -54,7 +74,7 @@ fun AthleteQrPassSheet(
             // Üst Başlık & Kapat Butonu
             MSheetHeading(
                 title = "Dijital sporcu kartı",
-                subtitle = "${user.name} · QR geçiş önizlemesi",
+                subtitle = "${user.name} · ${if (backend == null) "QR geçiş önizlemesi" else "Sporcu kartı"}",
                 icon = Icons.Rounded.QrCode2,
                 onDismiss = onDismiss
             )
@@ -93,7 +113,13 @@ fun AthleteQrPassSheet(
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(user.initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                                if (user.avatar != null) {
+                                    Image(user.avatar, user.name, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                                } else if (avatarUploadId != null) {
+                                    BackendPhoto(avatarUploadId, user.name, Modifier.fillMaxSize())
+                                } else {
+                                    Text(user.initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                                }
                             }
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
@@ -152,7 +178,10 @@ fun AthleteQrPassSheet(
                                 .fillMaxSize()
                                 .padding(12.dp)
                         ) {
-                            Icon(
+                            if (backend != null) {
+                                if (qr != null) Image(qr, "Süreli sporcu kartı QR kodu", Modifier.size(165.dp))
+                                else CircularProgressIndicator(color = MColors.Brand)
+                            } else Icon(
                                 imageVector = Icons.Rounded.QrCode2,
                                 contentDescription = "Örnek QR görünümü",
                                 tint = MColors.Ink900,
@@ -162,16 +191,17 @@ fun AthleteQrPassSheet(
                     }
 
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text("QR önizlemesi · demo", fontSize = 10.sp, color = MColors.Ink500)
+                    Text(if (backend == null) "QR önizlemesi · demo" else "15 dakika geçerli · kimlik belgesi yerine geçmez", fontSize = 10.sp, color = MColors.Ink500)
 
                     Spacer(modifier = Modifier.height(14.dp))
 
+                    if (error != null) TextButton(onClick = ::refresh) { Text("${error} · Tekrar dene", color = MColors.Rose) }
                     // 3. ÇİZGİSEL BARKOD ALANI
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
+                        if (backend == null) Row(
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -196,7 +226,7 @@ fun AthleteQrPassSheet(
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
-                            text = "DEMO · ${user.area.uppercase()}",
+                            text = if (backend == null) "DEMO · ${user.area.uppercase()}" else "ID · ${backend.userId.orEmpty().takeLast(8).uppercase()}",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
@@ -232,7 +262,7 @@ fun AthleteQrPassSheet(
                             Box(modifier = Modifier.height(18.dp).width(1.dp).background(Color(0x15000000)))
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("Spor Ahlakı", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.Ink500)
-                                Text("${user.fairPlay}★", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MColors.Gold)
+                                Text(if (user.fairPlay > 0) "${user.fairPlay}★" else "—", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MColors.Gold)
                             }
                         }
                     }
@@ -240,6 +270,44 @@ fun AthleteQrPassSheet(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            if (backend != null) {
+                TextButton(onClick = { showVerifyInput = !showVerifyInput }) {
+                    Text(if (showVerifyInput) "Kod doğrulamayı gizle" else "Başka sporcu kartını doğrula")
+                }
+                if (showVerifyInput) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = verifyCodeInput,
+                            onValueChange = { verifyCodeInput = it.trim() },
+                            placeholder = { Text("Pasaport kodu") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedButton(
+                            enabled = verifyCodeInput.isNotBlank(),
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        val res = backend.verifyPassport(verifyCodeInput)
+                                        val p = res.o("passport")
+                                        verifyResult = "✓ Doğrulandı: ${p.s("name")} (${p.s("city")} · Güvenilirlik %${p.i("reliability")})"
+                                    } catch (e: Exception) {
+                                        verifyResult = e.message ?: "Kod doğrulanamadı."
+                                    }
+                                }
+                            }
+                        ) { Text("Doğrula") }
+                    }
+                    verifyResult?.let {
+                        Text(it, fontSize = 11.5.sp, color = if (it.startsWith("✓")) MColors.Mint else MColors.Rose, modifier = Modifier.padding(bottom = 8.dp))
+                    }
+                }
+            }
 
             // Tamam / Kapat Butonu
             Button(
@@ -256,7 +324,7 @@ fun AthleteQrPassSheet(
                 Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Önizlemeyi kapat",
+                    text = if (backend == null) "Önizlemeyi kapat" else "Kapat",
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )

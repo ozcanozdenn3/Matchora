@@ -1,0 +1,5 @@
+import { createHash,randomBytes,createCipheriv,createDecipheriv } from 'node:crypto';
+import { ensure } from './errors.mjs';
+const key=(ctx,purpose)=>createHash('sha256').update(`${ctx.config.secret}:${purpose}`).digest();
+export function sealCursor(ctx,purpose,data){const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',key(ctx,purpose),iv);const body=Buffer.concat([cipher.update(JSON.stringify({data,actor:ctx.actor?.id??'',expires:ctx.now+3600000})),cipher.final()]);return Buffer.concat([iv,cipher.getAuthTag(),body]).toString('base64url');}
+export function openCursor(ctx,purpose,token){try{ensure(typeof token==='string'&&token.length<=4096);const bytes=Buffer.from(token,'base64url');const cipher=createDecipheriv('aes-256-gcm',key(ctx,purpose),bytes.subarray(0,12));cipher.setAuthTag(bytes.subarray(12,28));const value=JSON.parse(Buffer.concat([cipher.update(bytes.subarray(28)),cipher.final()]).toString());ensure(value.expires>ctx.now&&value.actor===(ctx.actor?.id??''));return value.data;}catch{ensure(false,400,'INVALID_CURSOR','Akış sayfası geçersiz veya süresi doldu. Yenile ve tekrar dene.');}}

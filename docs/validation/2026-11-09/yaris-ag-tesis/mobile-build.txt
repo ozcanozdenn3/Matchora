@@ -1,0 +1,206 @@
+> Task :composeApp:preBuild UP-TO-DATE
+> Task :composeApp:preDebugBuild UP-TO-DATE
+> Task :composeApp:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :composeApp:kmpPartiallyResolvedDependenciesChecker
+> Task :composeApp:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :composeApp:convertXmlValueResourcesForAndroidMain NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForAndroidMain NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForAndroidMain NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForAndroidMain NO-SOURCE
+> Task :composeApp:convertXmlValueResourcesForCommonMain NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForCommonMain UP-TO-DATE
+> Task :composeApp:prepareComposeResourcesTaskForCommonMain UP-TO-DATE
+> Task :composeApp:generateResourceAccessorsForCommonMain UP-TO-DATE
+> Task :composeApp:generateActualResourceCollectorsForAndroidMain UP-TO-DATE
+> Task :composeApp:generateBackendConfig UP-TO-DATE
+> Task :composeApp:generateComposeResClass UP-TO-DATE
+> Task :composeApp:generateExpectResourceCollectorsForCommonMain UP-TO-DATE
+> Task :composeApp:convertXmlValueResourcesForAndroidDebug NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForAndroidDebug NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForAndroidDebug NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForAndroidDebug NO-SOURCE
+> Task :composeApp:checkDebugAarMetadata UP-TO-DATE
+> Task :composeApp:generateDebugResValues UP-TO-DATE
+> Task :composeApp:mapDebugSourceSetPaths UP-TO-DATE
+> Task :composeApp:generateDebugResources UP-TO-DATE
+> Task :composeApp:mergeDebugResources UP-TO-DATE
+> Task :composeApp:packageDebugResources UP-TO-DATE
+> Task :composeApp:parseDebugLocalResources UP-TO-DATE
+> Task :composeApp:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :composeApp:extractDeepLinksDebug UP-TO-DATE
+> Task :composeApp:processDebugMainManifest UP-TO-DATE
+> Task :composeApp:processDebugManifest UP-TO-DATE
+> Task :composeApp:processDebugManifestForPackage UP-TO-DATE
+> Task :composeApp:processDebugResources UP-TO-DATE
+> Task :composeApp:javaPreCompileDebug UP-TO-DATE
+> Task :composeApp:mergeDebugShaders UP-TO-DATE
+> Task :composeApp:compileDebugShaders NO-SOURCE
+> Task :composeApp:copyDebugComposeResourcesToAndroidAssets UP-TO-DATE
+> Task :composeApp:debugAssetsCopyForAGP NO-SOURCE
+> Task :composeApp:generateDebugAssets UP-TO-DATE
+> Task :composeApp:mergeDebugAssets UP-TO-DATE
+> Task :composeApp:compressDebugAssets UP-TO-DATE
+> Task :composeApp:checkDebugDuplicateClasses UP-TO-DATE
+> Task :composeApp:desugarDebugFileDependencies UP-TO-DATE
+> Task :composeApp:mergeExtDexDebug UP-TO-DATE
+> Task :composeApp:mergeLibDexDebug UP-TO-DATE
+> Task :composeApp:mergeDebugJniLibFolders UP-TO-DATE
+> Task :composeApp:mergeDebugNativeLibs UP-TO-DATE
+> Task :composeApp:stripDebugDebugSymbols UP-TO-DATE
+> Task :composeApp:validateSigningDebug UP-TO-DATE
+> Task :composeApp:writeDebugAppMetadata UP-TO-DATE
+> Task :composeApp:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :composeApp:convertXmlValueResourcesForAndroidUnitTest NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForAndroidUnitTest NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForAndroidUnitTest NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForAndroidUnitTest NO-SOURCE
+> Task :composeApp:convertXmlValueResourcesForAndroidUnitTestDebug NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForAndroidUnitTestDebug NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForAndroidUnitTestDebug NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForAndroidUnitTestDebug NO-SOURCE
+> Task :composeApp:convertXmlValueResourcesForCommonTest NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForCommonTest NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForCommonTest NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForCommonTest NO-SOURCE
+> Task :composeApp:preDebugUnitTestBuild UP-TO-DATE
+> Task :composeApp:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :composeApp:downloadKotlinNativeDistribution UP-TO-DATE
+> Task :composeApp:convertXmlValueResourcesForAppleMain NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForAppleMain NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForAppleMain NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForAppleMain NO-SOURCE
+> Task :composeApp:convertXmlValueResourcesForIosMain NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForIosMain NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForIosMain NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForIosMain NO-SOURCE
+> Task :composeApp:convertXmlValueResourcesForIosSimulatorArm64Main NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForIosSimulatorArm64Main NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForIosSimulatorArm64Main NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForIosSimulatorArm64Main NO-SOURCE
+> Task :composeApp:convertXmlValueResourcesForNativeMain NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForNativeMain NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForNativeMain NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForNativeMain NO-SOURCE
+> Task :composeApp:generateActualResourceCollectorsForIosSimulatorArm64Main UP-TO-DATE
+> Task :composeApp:compileDebugKotlinAndroid
+> Task :composeApp:compileKotlinIosSimulatorArm64
+
+> Task :composeApp:compileDebugKotlinAndroid
+w: file:///Users/md/Desktop/Matchora/composeApp/src/androidMain/kotlin/com/matchora/app/data/BackendTransport.android.kt:39:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+w: file:///Users/md/Desktop/Matchora/composeApp/src/androidMain/kotlin/com/matchora/app/ui/components/NativeMapView.android.kt:43:8 'class MarkerOptions : BaseMarkerOptions<Marker!, MarkerOptions!>, Parcelable' is deprecated. Deprecated in Java.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/androidMain/kotlin/com/matchora/app/ui/components/NativeMapView.android.kt:44:8 'class IconFactory : Any' is deprecated. Deprecated in Java.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/androidMain/kotlin/com/matchora/app/ui/components/NativeMapView.android.kt:112:26 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/App.kt:88:28 'val LocalClipboardManager: ProvidableCompositionLocal<ClipboardManager>' is deprecated. Use LocalClipboard instead which supports suspend functions.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/App.kt:1030:128 Unnecessary safe call on a non-null receiver of type 'BackendSnapshot'.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/data/BackendTransport.kt:8:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CheckInCodeActions.kt:23:13 Condition is always 'true'.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CityAndLocationSelectorSheet.kt:83:41 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes MenuAnchorType and enabled parameters.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CompetitionHighlights.kt:43:32 'val Icons.Rounded.ArrowForward: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.ArrowForward.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CompetitionHighlights.kt:99:32 'val Icons.Rounded.ArrowForward: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.ArrowForward.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CreateEventAndChallengeSheets.kt:499:44 'val Icons.Rounded.Send: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Send.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/ManageJoinRequestsSheet.kt:71:42 'val Icons.Rounded.FactCheck: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.FactCheck.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/ManageTeamRequestsSheet.kt:223:56 'val Icons.Rounded.Chat: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Chat.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/RatingAndMissionSheets.kt:28:98 'val Icons.Rounded.TrendingUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.TrendingUp.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/SendTeamChallengeSheet.kt:207:42 'val Icons.Rounded.Send: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Send.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/SendTeamChallengeSheet.kt:391:50 'val Icons.Rounded.Chat: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Chat.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/SubmitJoinRequestSheet.kt:213:36 'val Icons.Rounded.Send: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Send.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/WalletAndPaymentSheet.kt:96:35 Condition is always 'true'.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/ChatHubScreen.kt:618:17 Condition is always 'true'.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/SportsPassportScreen.kt:135:56 'val Icons.Rounded.Logout: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Logout.
+
+> Task :composeApp:compileKotlinIosSimulatorArm64
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/App.kt:88:28 'val LocalClipboardManager: ProvidableCompositionLocal<ClipboardManager>' is deprecated. Use LocalClipboard instead which supports suspend functions.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/App.kt:1030:128 Unnecessary safe call on a non-null receiver of type 'BackendSnapshot'.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/data/BackendTransport.kt:8:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CheckInCodeActions.kt:23:13 Condition is always 'true'.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CityAndLocationSelectorSheet.kt:83:41 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes MenuAnchorType and enabled parameters.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CompetitionHighlights.kt:43:32 'val Icons.Rounded.ArrowForward: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.ArrowForward.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CompetitionHighlights.kt:99:32 'val Icons.Rounded.ArrowForward: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.ArrowForward.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CreateEventAndChallengeSheets.kt:499:44 'val Icons.Rounded.Send: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Send.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/ManageJoinRequestsSheet.kt:71:42 'val Icons.Rounded.FactCheck: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.FactCheck.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/ManageTeamRequestsSheet.kt:223:56 'val Icons.Rounded.Chat: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Chat.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/RatingAndMissionSheets.kt:28:98 'val Icons.Rounded.TrendingUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.TrendingUp.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/SendTeamChallengeSheet.kt:207:42 'val Icons.Rounded.Send: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Send.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/SendTeamChallengeSheet.kt:391:50 'val Icons.Rounded.Chat: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Chat.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/SubmitJoinRequestSheet.kt:213:36 'val Icons.Rounded.Send: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Send.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/WalletAndPaymentSheet.kt:96:35 Condition is always 'true'.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/ChatHubScreen.kt:618:17 Condition is always 'true'.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/SportsPassportScreen.kt:135:56 'val Icons.Rounded.Logout: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Logout.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/iosMain/kotlin/com/matchora/app/data/BackendTransport.ios.kt:22:74 This declaration needs opt-in. Its usage should be marked with '@kotlinx.cinterop.BetaInteropApi' or '@OptIn(kotlinx.cinterop.BetaInteropApi::class)'
+w: file:///Users/md/Desktop/Matchora/composeApp/src/iosMain/kotlin/com/matchora/app/data/BackendTransport.ios.kt:35:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+w: file:///Users/md/Desktop/Matchora/composeApp/src/iosMain/kotlin/com/matchora/app/ui/components/CheckInCodeActions.ios.kt:14:61 This declaration needs opt-in. Its usage should be marked with '@kotlinx.cinterop.BetaInteropApi' or '@OptIn(kotlinx.cinterop.BetaInteropApi::class)'
+w: file:///Users/md/Desktop/Matchora/composeApp/src/iosMain/kotlin/com/matchora/app/ui/components/DeviceServices.ios.kt:20:60 No cast needed.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/iosMain/kotlin/com/matchora/app/ui/components/DeviceServices.ios.kt:22:20 This declaration needs opt-in. Its usage should be marked with '@kotlinx.cinterop.BetaInteropApi' or '@OptIn(kotlinx.cinterop.BetaInteropApi::class)'
+w: file:///Users/md/Desktop/Matchora/composeApp/src/iosMain/kotlin/com/matchora/app/ui/components/EventDeviceActions.ios.kt:36:26 This declaration needs opt-in. Its usage should be marked with '@kotlinx.cinterop.BetaInteropApi' or '@OptIn(kotlinx.cinterop.BetaInteropApi::class)'
+w: file:///Users/md/Desktop/Matchora/composeApp/src/iosMain/kotlin/com/matchora/app/ui/components/LocationSelectionMap.ios.kt:26:5 'fun <T : UIView> UIKitView(factory: () -> T, modifier: Modifier, update: (T) -> Unit = ..., background: Color = ..., onRelease: (T) -> Unit = ..., onResize: (T, CValue<CGRect>) -> Unit = ..., interactive: Boolean = ..., accessibilityEnabled: Boolean = ...): Unit' is deprecated. This function was deprecated in favor of newer API.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/iosMain/kotlin/com/matchora/app/ui/components/NativeMapView.ios.kt:84:5 'fun <T : UIView> UIKitView(factory: () -> T, modifier: Modifier, update: (T) -> Unit = ..., background: Color = ..., onRelease: (T) -> Unit = ..., onResize: (T, CValue<CGRect>) -> Unit = ..., interactive: Boolean = ..., accessibilityEnabled: Boolean = ...): Unit' is deprecated. This function was deprecated in favor of newer API.
+
+> Task :composeApp:compileDebugJavaWithJavac NO-SOURCE
+> Task :composeApp:processDebugJavaRes UP-TO-DATE
+> Task :composeApp:mergeDebugJavaResource UP-TO-DATE
+> Task :composeApp:dexBuilderDebug
+> Task :composeApp:bundleDebugClassesToRuntimeJar
+> Task :composeApp:bundleDebugClassesToCompileJar
+> Task :composeApp:mergeProjectDexDebug
+> Task :composeApp:linkDebugFrameworkIosSimulatorArm64
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/Foundation-31MYY0WZWPEEJ.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/Foundation-31MYY0WZWPEEJ.pcm
+note: Linking a static library that was built with -gmodules, but the module cache was not found.  Redistributable static libraries should never be built with module debugging enabled.  The debug experience will be degraded due to incomplete debug information.
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/_SwiftConcurrencyShims-1DF85YVNT7K5U.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/_SwiftConcurrencyShims-1DF85YVNT7K5U.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/UIKit-1CJ2Z7E7XG9BU.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/UIKit-1CJ2Z7E7XG9BU.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/AdServices-97E95CR3NW7Q.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/AdServices-97E95CR3NW7Q.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/StoreKit-3OV6HEOSCXG2S.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/StoreKit-3OV6HEOSCXG2S.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/CommonCrypto-1WXFHUH2CY377.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/CommonCrypto-1WXFHUH2CY377.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/os-2NWF25QJHH8D.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/os-2NWF25QJHH8D.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/Compression-1MVW57OM9B83K.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/Compression-1MVW57OM9B83K.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/zlib-3G6S1SA5VU52U.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/zlib-3G6S1SA5VU52U.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/SwiftUI-3SEMGWLQY9D5Q.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/SwiftUI-3SEMGWLQY9D5Q.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/CoreText-3JYDPJG46SXD.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/CoreText-3JYDPJG46SXD.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/Security-2N37Z1P8KDM2H.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/Security-2N37Z1P8KDM2H.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/_StoreKit_SwiftUI-EUBOQDE77I2A.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/_StoreKit_SwiftUI-EUBOQDE77I2A.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/ObjectiveC-XVKOU88GLR4V.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/ObjectiveC-XVKOU88GLR4V.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/Darwin-2PL241AJ9OCRQ.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/Darwin-2PL241AJ9OCRQ.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/SwiftShims-1DF85YVNT7K5U.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/SwiftShims-1DF85YVNT7K5U.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/CoreFoundation-NYK0HTAKFHEO.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/RevenueCat/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/CoreFoundation-NYK0HTAKFHEO.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/AdditionalSwift/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/Foundation-31MYY0WZWPEEJ.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/AdditionalSwift/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/Foundation-31MYY0WZWPEEJ.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/AdditionalSwift/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/_SwiftConcurrencyShims-1DF85YVNT7K5U.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/AdditionalSwift/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/_SwiftConcurrencyShims-1DF85YVNT7K5U.pcm
+warning: /Users/distiller/project/kn-core/build/swift-packages/AdditionalSwift/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/SwiftShims-1DF85YVNT7K5U.pcm: No such file or directory
+note: while processing /Users/distiller/project/kn-core/build/swift-packages/AdditionalSwift/.build/arm64-apple-ios-simulator/release/ModuleCache/2LPZTMGD2UMT2/SwiftShims-1DF85YVNT7K5U.pcm
+
+> Task :composeApp:compileDebugUnitTestKotlinAndroid UP-TO-DATE
+> Task :composeApp:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :composeApp:processDebugUnitTestJavaRes UP-TO-DATE
+> Task :composeApp:testDebugUnitTest
+> Task :composeApp:packageDebug
+> Task :composeApp:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :composeApp:assembleDebug
+
+[Incubating] Problems report is available at: file:///Users/md/Desktop/Matchora/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.3.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 1m 47s
+53 actionable tasks: 10 executed, 43 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.3.0/userguide/configuration_cache_enabling.html

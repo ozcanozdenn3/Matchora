@@ -18,13 +18,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.matchora.app.data.*
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.*
 import com.matchora.app.domain.EventStatus
 import com.matchora.app.state.*
 import com.matchora.app.ui.theme.MColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ActivitySheet(title: String, subtitle: String, onDismiss: () -> Unit, icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Rounded.ManageAccounts, content: @Composable ColumnScope.() -> Unit) {
+internal fun ActivitySheet(title: String, subtitle: String, onDismiss: () -> Unit, icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Rounded.ManageAccounts, content: @Composable ColumnScope.() -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         modifier = Modifier.statusBarsPadding().padding(top = 12.dp), containerColor = MColors.Canvas,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), dragHandle = { MPremiumSheetHandle() }) {
@@ -43,11 +46,22 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
     onSupport: (String, String, String) -> Unit, onLogout: () -> Unit,
     onRequestDeletion: () -> Unit, onDismiss: () -> Unit) {
     var section by remember { mutableIntStateOf(0) }
+    var showModeration by remember { mutableStateOf(false) }
+    var showVenueOperator by remember { mutableStateOf(false) }
     var subject by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Teknik sorun") }
     var confirmDelete by remember { mutableStateOf(false) }
     var deletionRequested by remember { mutableStateOf(false) }
+    val repository = LocalBackendRepository.current
+    val snapshot by (repository?.snapshots ?: kotlinx.coroutines.flow.MutableStateFlow<kotlinx.serialization.json.JsonObject?>(null)).collectAsState()
+    val blockedPeople = remember(snapshot) { snapshot?.let(::blockedPlayerEntries).orEmpty() }
+    val command = rememberBackendAction()
+    val pendingDeletion = (snapshot?.get("deletionRequest") as? kotlinx.serialization.json.JsonObject)?.get("status")?.toString() == "\"pending\""
+    var deletionError by remember { mutableStateOf<String?>(null) }
+    val deletionScope = rememberCoroutineScope()
+    var exporting by remember { mutableStateOf(false) }
+    var sessions by remember { mutableStateOf<List<JsonObject>?>(null) }
     ActivitySheet("Hesap ve tercihler", "Spor hayatının kontrolü sende", onDismiss) {
         MSegmentedControl(listOf("Gizlilik", "Bildirim", "Destek"), section, { section = it })
         when (section) {
@@ -60,21 +74,33 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
                 }
                 MFloatingDropdownBox("Mesaj istekleri", privacy.dmPolicy, listOf("Ortak etkinlik sonrası", "Herkes", "Kapalı"), { it }, { onPrivacy(privacy.copy(dmPolicy = it)) }, icon = Icons.Rounded.ChatBubbleOutline)
                 Text("Konumun ilçe düzeyinde paylaşılır; canlı kesin konumun profilinde gösterilmez.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
-                SettingsGroup("Engellenen sohbetler") {
-                    if (blockedChats.isEmpty()) Text("Engellediğin sohbet yok.", color = MColors.Ink500, style = MaterialTheme.typography.bodySmall)
-                    blockedChats.forEach { thread -> Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(thread.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                        TextButton(onClick = { onUnblock(thread.id) }) { Text("Engeli kaldır") }
-                    } }
+                SettingsGroup(if (repository?.enabled == true) "Engellenen sporcular" else "Engellenen sohbetler") {
+                    if (repository?.enabled == true) {
+                        if (blockedPeople.isEmpty()) Text("Engellediğin sporcu yok.", color = MColors.Ink500, style = MaterialTheme.typography.bodySmall)
+                        blockedPeople.forEach { player -> Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(player.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            TextButton(onClick = { command("user.block", apiPayload("userId" to player.userId, "blocked" to false)) }) { Text("Engeli kaldır") }
+                        } }
+                    } else {
+                        if (blockedChats.isEmpty()) Text("Engellediğin sohbet yok.", color = MColors.Ink500, style = MaterialTheme.typography.bodySmall)
+                        blockedChats.forEach { thread -> Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(thread.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            TextButton(onClick = { onUnblock(thread.id) }) { Text("Engeli kaldır") }
+                        } }
+                    }
                 }
             }
             1 -> SettingsGroup("Bildirim tercihlerin") {
+                NotificationPermissionButton()
                 PreferenceRow("Maç hatırlatmaları", "Yaklaşan maçlar ve kadro güncellemeleri", notifications.upcomingMatch) { onNotifications(notifications.copy(upcomingMatch = it)) }
                 PreferenceRow("Acil oyuncu çağrıları", "Yakınındaki eksik kadrolar", notifications.emergencyFill) { onNotifications(notifications.copy(emergencyFill = it)) }
                 PreferenceRow("Meydan okumalar", "Takımın için gelen teklifler", notifications.challenges) { onNotifications(notifications.copy(challenges = it)) }
                 PreferenceRow("Bekleme listesi", "Açılan kontenjanlar", notifications.waitlist) { onNotifications(notifications.copy(waitlist = it)) }
                 PreferenceRow("Sosyal bildirimler", "Mesajlar ve saha anıları", notifications.social) { onNotifications(notifications.copy(social = it)) }
                 PreferenceRow("Sessiz saatler", "${notifications.quietFrom} – ${notifications.quietTo}", notifications.quietHours) { onNotifications(notifications.copy(quietHours = it)) }
+                PreferenceRow("Haftalık spor özeti", "Doğrulanmış maçların ve MMR değişimin", notifications.weeklyDigest) { onNotifications(notifications.copy(weeklyDigest = it)) }
+                PreferenceRow("Yeniden maç önerileri", "İkinizin de tekrar oynamak istediği sporcular", notifications.rematch) { onNotifications(notifications.copy(rematch = it)) }
+                NotificationDeliveryControls(notifications, onNotifications)
                 PreferenceRow("Kampanyalar", "İsteğe bağlı duyuru ve teklifler", notifications.marketing) { onNotifications(notifications.copy(marketing = it)) }
             }
             2 -> {
@@ -84,19 +110,61 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
                 MButton("Destek talebini kaydet", { onSupport(subject.trim(), message.trim(), category); subject = ""; message = "" }, enabled = subject.trim().length >= 3 && message.trim().length >= 10)
                 SettingsGroup("Taleplerin") {
                     if (supportRequests.isEmpty() && reports.isEmpty()) Text("Henüz bir talep yok.", color = MColors.Ink500)
-                    supportRequests.forEach { Text("${it.subject}\n${it.category} · Bu oturumda kaydedildi", style = MaterialTheme.typography.bodySmall) }
-                    reports.forEach { Text("${it.target}\n${it.reason} · Bildirim kaydı", style = MaterialTheme.typography.bodySmall) }
+                    supportRequests.forEach { request ->
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            val state = when (request.status) { "resolved" -> "Yanıtlandı"; "rejected" -> "Kapandı"; else -> "İnceleniyor" }
+                            Text("${request.subject}\n${request.category} · $state", style = MaterialTheme.typography.bodySmall)
+                            request.response?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MColors.Ink700) }
+                        }
+                    }
+                    reports.forEach { Text("${it.target}\n${it.reason} · ${when (it.status) { "resolved" -> "İşlendi"; "dismissed" -> "Kapandı"; else -> "İnceleniyor" }}", style = MaterialTheme.typography.bodySmall) }
                 }
             }
         }
         HorizontalDivider(color = MColors.Line)
+        SettingsGroup("Bilgiler ve bağlantılar") {
+            AppLegalLinks()
+            LegalReviewButton()
+            AppLinkButton(AppLink.GUIDELINES)
+            AppLinkButton(AppLink.DELETION)
+            AppLinkButton(AppLink.SUPPORT)
+        }
+        if (snapshot?.s("role") == "admin") TextButton(onClick = { showModeration = true }) { Text("Operasyon merkezi") }
+        if (snapshot?.s("role") in listOf("admin", "venue_owner")) TextButton(onClick = { showVenueOperator = true }) { Text("Tesis yönetimi") }
         OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) { Text("Oturumu kapat") }
-        TextButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth(), enabled = !deletionRequested) { Text(if (deletionRequested) "Hesap silme talebi kaydedildi" else "Hesabımı silmek istiyorum", color = MColors.Rose) }
+        if (repository?.enabled == true) {
+            TextButton(onClick = { deletionScope.launch {
+                exporting = true
+                try { shareAccountExport(repository.exportAccount().toString()) }
+                catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                catch (error: Exception) { deletionError = error.message }
+                finally { exporting = false }
+            } }, enabled = !exporting) { Text(if (exporting) "Verilerin hazırlanıyor…" else "Verilerimi dışa aktar") }
+            TextButton(onClick = { deletionScope.launch {
+                runCatching { repository.activeSessions().a("items") }.onSuccess { sessions = it }.onFailure { deletionError = it.message }
+            } }) { Text("Açık oturumlarımı yönet") }
+        }
+        TextButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth(), enabled = if (repository?.enabled == true) !pendingDeletion else !deletionRequested) { Text(if (pendingDeletion || deletionRequested) "Hesap silme talebi kaydedildi" else "Hesabımı silmek istiyorum", color = MColors.Rose) }
+        if (pendingDeletion) TextButton(onClick = { deletionScope.launch {
+            runCatching { repository?.command("account.delete.cancel", com.matchora.app.data.apiPayload(), repository.requestKey("cancel-deletion")) }
+                .onFailure { deletionError = it.message }
+        } }) { Text("Silme talebini geri çek") }
     }
+    if (showModeration) ModerationSheet { showModeration = false }
+    if (showVenueOperator) VenueOperatorSheet { showVenueOperator = false }
     if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false }, title = { Text("Hesap silme talebi") },
-        text = { Text("Hesap ve kişisel verilerinin silinmesi için talep oluşturulur. Mevcut önizlemede yalnızca talep kaydı tutulur.") },
+        text = { Text(if (repository?.enabled == true) "Hesabın ve kişisel verilerin sunucuda silinmek üzere sıraya alınır. İşlem tamamlanmadan bu ekrandan talebini geri çekebilirsin. Saklanması gereken işlem kayıtları anonim hesap kimliğiyle tutulur." else "Önizlemede yalnızca talep kaydı oluşturulur.") },
         confirmButton = { TextButton(onClick = { onRequestDeletion(); deletionRequested = true; confirmDelete = false }) { Text("Talep oluştur", color = MColors.Rose) } },
         dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Vazgeç") } })
+    deletionError?.let { error -> AlertDialog(onDismissRequest = { deletionError = null }, title = { Text("İşlem tamamlanamadı") }, text = { Text(error) }, confirmButton = { TextButton(onClick = { deletionError = null }) { Text("Tamam") } }) }
+    sessions?.let { items -> AlertDialog(onDismissRequest = { sessions = null }, title = { Text("Açık oturumlar") },
+        text = { Column { items.forEach { session -> Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(if (session.b("current")) "Bu cihaz" else "Diğer oturum", Modifier.weight(1f))
+            if (!session.b("current")) TextButton(onClick = { deletionScope.launch {
+                runCatching { repository?.command("account.session.revoke", apiPayload("sessionId" to session.s("id")), repository.requestKey("revoke")) }
+                    .onSuccess { sessions = items.filter { it.s("id") != session.s("id") } }.onFailure { deletionError = it.message }
+            } }) { Text("Kapat") }
+        } } } }, confirmButton = { TextButton(onClick = { sessions = null }) { Text("Tamam") } }) }
 }
 
 @Composable
@@ -116,7 +184,9 @@ private fun PreferenceRow(title: String, detail: String, checked: Boolean, onCha
 @Composable
 fun MyActivitySheet(events: List<SportEvent>, joinedIds: Set<String>, waitlistedIds: Set<String>,
     pendingRequests: List<JoinRequest>, reservations: List<VenuePayment>, onOpenEvent: (SportEvent) -> Unit,
-    onCancelReservation: (VenuePayment) -> Unit, onDismiss: () -> Unit) {
+    onCancelReservation: (VenuePayment) -> Unit, onDismiss: () -> Unit,
+    onCreateListingForReservation: ((VenuePayment) -> Unit)? = null) {
+    var review by remember { mutableStateOf<VenuePayment?>(null) }
     var section by remember { mutableIntStateOf(0) }
     var cancel by remember { mutableStateOf<VenuePayment?>(null) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = MColors.Canvas, dragHandle = { MPremiumSheetHandle() }) {
@@ -138,31 +208,57 @@ fun MyActivitySheet(events: List<SportEvent>, joinedIds: Set<String>, waitlisted
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(payment.venue, style = MaterialTheme.typography.titleMedium)
                         Text(payment.description, style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
-                        Text("₺${payment.amountTry} · ${payment.method} · ${payment.status.label}", color = MColors.BrandDeep, style = MaterialTheme.typography.labelMedium)
-                        if (payment.status == PaymentStatus.PENDING) TextButton(onClick = { cancel = payment }) { Text("Rezervasyonu iptal et", color = MColors.Rose) }
+                        Text("₺${payment.amountLabel} · ${payment.method} · ${payment.status.label}", color = MColors.BrandDeep, style = MaterialTheme.typography.labelMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (payment.bookingStatus == "completed" && payment.status == PaymentStatus.PAID) TextButton(onClick = { review = payment }) { Text("Tesisi değerlendir") }
+                            if (payment.status != PaymentStatus.CANCELLED && payment.bookingStatus != "completed" && onCreateListingForReservation != null) {
+                                TextButton(onClick = { onCreateListingForReservation(payment) }) { Text("Bu saat için maç ilanı aç") }
+                            }
+                            if (payment.status == PaymentStatus.PENDING) TextButton(onClick = { cancel = payment }) { Text("Rezervasyonu iptal et", color = MColors.Rose) }
+                        }
                     }
                 } }
             }
         }
     }
+    review?.let { VenueReviewEditorSheet(it) { review = null } }
     cancel?.let { payment -> AlertDialog(onDismissRequest = { cancel = null }, title = { Text("Rezervasyon iptal edilsin mi?") }, text = { Text("${payment.venue} rezervasyonunu iptal edeceksin.") }, confirmButton = { TextButton(onClick = { onCancelReservation(payment); cancel = null }) { Text("İptal et") } }, dismissButton = { TextButton(onClick = { cancel = null }) { Text("Vazgeç") } }) }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MatchResultSheet(event: SportEvent, result: MatchResultDraft?, canSubmit: Boolean,
-    onSubmit: (MatchResultDraft) -> Unit, onDispute: (String) -> Unit, onDismiss: () -> Unit) {
-    var home by remember { mutableStateOf(result?.homeScore?.toString().orEmpty()) }
-    var away by remember { mutableStateOf(result?.awayScore?.toString().orEmpty()) }
-    var note by remember { mutableStateOf(result?.note.orEmpty()) }
-    var fairPlay by remember { mutableIntStateOf(result?.fairPlay ?: 5) }
+    onSubmit: (MatchResultDraft) -> Unit, onDispute: (String) -> Unit, onDismiss: () -> Unit,
+    onConfirm: (() -> Unit)? = null, onOpenFeedback: (() -> Unit)? = null, players: List<Player> = emptyList()) {
+    var home by remember(result) { mutableStateOf(result?.homeScore?.toString().orEmpty()) }
+    var away by remember(result) { mutableStateOf(result?.awayScore?.toString().orEmpty()) }
+    var note by remember(result) { mutableStateOf(result?.note.orEmpty()) }
+    var fairPlay by remember(result) { mutableIntStateOf(result?.fairPlay ?: 5) }
     var reason by remember { mutableStateOf("") }
+    var editingPending by remember(result) { mutableStateOf(false) }
+    val backendMode = LocalBackendRepository.current?.enabled == true
+    var homeIds by remember(event.id, result) { mutableStateOf((result?.homeParticipantIds?.takeIf { it.isNotEmpty() } ?: event.homeParticipantIds).toSet()) }
+    var awayIds by remember(event.id, result) { mutableStateOf((result?.awayParticipantIds?.takeIf { it.isNotEmpty() } ?: event.awayParticipantIds).toSet()) }
+    val sidesReady = homeIds.isNotEmpty() && awayIds.isNotEmpty() && homeIds.size + awayIds.size == event.participantIds.distinct().size
+    val submitterOnHome = result?.submittedBy in result?.homeParticipantIds.orEmpty()
+    val submitterOnAway = result?.submittedBy in result?.awayParticipantIds.orEmpty()
+    val meOnOpposingSide = when {
+        submitterOnHome -> DemoData.ME in result?.awayParticipantIds.orEmpty()
+        submitterOnAway -> DemoData.ME in result?.homeParticipantIds.orEmpty()
+        else -> result?.submittedBy != DemoData.ME
+    }
     ActivitySheet("Maç sonucu", event.title, onDismiss, Icons.Rounded.Scoreboard) {
-        if (result != null) {
-            MFeatureHeader("${result.homeScore} – ${result.awayScore}", if (result.disputed) "İtiraz kaydı var · inceleme bekleniyor" else "Sonuç bildirildi · doğrulama bekleniyor", Icons.Rounded.Scoreboard)
+        RatingStatusCard(event.id)
+        if (result != null && !editingPending) {
+            MFeatureHeader("${result.homeScore} – ${result.awayScore}", when { result.status == "verified" -> "Sonuç doğrulandı"; result.disputed -> "İtiraz kaydı var · inceleme bekleniyor"; else -> "Sonuç bildirildi · doğrulama bekleniyor" }, Icons.Rounded.Scoreboard)
+            if (onConfirm != null && result.status == "pending" && result.submittedBy != DemoData.ME && meOnOpposingSide) MButton("Skoru onaylıyorum", onConfirm, icon = Icons.Rounded.Verified)
+            if (result.status == "pending" && result.submittedBy == DemoData.ME && canSubmit) {
+                TextButton(onClick = { editingPending = true }) { Text("Skoru düzenle") }
+            }
+            onOpenFeedback?.let { action -> MButton("Saha deneyimini değerlendir", action, isPrimary = false, icon = Icons.Rounded.StarOutline) }
             Text(result.note.ifBlank { "Sonuç notu eklenmedi." }, color = MColors.Ink500)
-            Text("Fair play değerlendirmen: ${result.fairPlay}/5", style = MaterialTheme.typography.bodySmall)
-            if (!result.disputed) {
+            if (!backendMode) Text("Fair play değerlendirmen: ${result.fairPlay}/5", style = MaterialTheme.typography.bodySmall)
+            if (!result.disputed && result.status == "pending" && (result.disputeUntil == null || kotlinx.datetime.Clock.System.now().toEpochMilliseconds() < result.disputeUntil)) {
                 OutlinedTextField(reason, { reason = it.take(500) }, label = { Text("İtiraz gerekçen") }, modifier = Modifier.fillMaxWidth(), minLines = 2, shape = RoundedCornerShape(16.dp), colors = premiumTextFieldColors())
                 MButton("Sonuca itiraz et", { onDispute(reason.trim()) }, enabled = reason.trim().length >= 10, isPrimary = false)
             }
@@ -172,16 +268,31 @@ fun MatchResultSheet(event: SportEvent, result: MatchResultDraft?, canSubmit: Bo
                 OutlinedTextField(home, { home = it.filter(Char::isDigit).take(3) }, label = { Text("Ev sahibi") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, shape = RoundedCornerShape(16.dp), colors = premiumTextFieldColors())
                 OutlinedTextField(away, { away = it.filter(Char::isDigit).take(3) }, label = { Text("Rakip") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, shape = RoundedCornerShape(16.dp), colors = premiumTextFieldColors())
             }
-            Text("Fair play", style = MaterialTheme.typography.titleSmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { (1..5).forEach { score -> FilterChip(fairPlay == score, { fairPlay = score }, label = { Text("$score ★") }, colors = premiumChoiceChipColors()) } }
+            if (backendMode) {
+                Text("Maç tarafları", style = MaterialTheme.typography.titleSmall)
+                event.participantIds.distinct().forEach { id -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(players.firstOrNull { it.id == id }?.name ?: if (id == DemoData.ME) "Sen" else "Sporcu", Modifier.weight(1f))
+                    FilterChip(id in homeIds, { homeIds = homeIds + id; awayIds = awayIds - id }, enabled = !event.isTeamEvent, label = { Text("Ev") })
+                    Spacer(Modifier.width(6.dp))
+                    FilterChip(id in awayIds, { awayIds = awayIds + id; homeIds = homeIds - id }, enabled = !event.isTeamEvent, label = { Text("Rakip") })
+                } }
+            } else {
+                Text("Fair play", style = MaterialTheme.typography.titleSmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { (1..5).forEach { score -> FilterChip(fairPlay == score, { fairPlay = score }, label = { Text("$score ★") }, colors = premiumChoiceChipColors()) } }
+            }
             OutlinedTextField(note, { note = it.take(500) }, label = { Text("Maç notu · isteğe bağlı") }, minLines = 2, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = premiumTextFieldColors())
-            MButton("Sonucu bildir", { onSubmit(MatchResultDraft(event.id, home.toInt(), away.toInt(), note.trim(), fairPlay)) }, enabled = home.toIntOrNull() != null && away.toIntOrNull() != null)
+            MButton(if (editingPending) "Skoru güncelle" else "Sonucu bildir", { editingPending = false; onSubmit(MatchResultDraft(event.id, home.toInt(), away.toInt(), note.trim(), fairPlay, homeParticipantIds = homeIds.toList(), awayParticipantIds = awayIds.toList())) }, enabled = home.toIntOrNull() != null && away.toIntOrNull() != null && (!backendMode || sidesReady))
+            if (editingPending) TextButton(onClick = { editingPending = false }) { Text("Vazgeç") }
         } else Text("Sonuç kaydı tamamlanan veya devam eden maçlarda açılır.", color = MColors.Ink500)
     }
 }
 
 @Composable
-fun ContactVerificationSheet(initialPhone: String, onRecordRequest: (String) -> Unit, onDismiss: () -> Unit) {
+fun ContactVerificationSheet(initialPhone: String, onRecordRequest: (String) -> Unit, onDismiss: () -> Unit, backend: BackendRepository? = null) {
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var challengeId by remember { mutableStateOf("") }
+    var previewCode by remember { mutableStateOf<String?>(if (backend == null) "2026" else null) }
     var phone by remember { mutableStateOf(initialPhone.removePrefix("+90")) }
     var step by remember { mutableIntStateOf(0) }
     var code by remember { mutableStateOf("") }
@@ -191,20 +302,35 @@ fun ContactVerificationSheet(initialPhone: String, onRecordRequest: (String) -> 
             0 -> {
                 Text("Cep telefonu numaranı doğrulama akışına ekle. Numaran sporcu kartında herkese açık gösterilmez.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
                 OutlinedTextField(phone, { phone = it.filter(Char::isDigit).take(10) }, prefix = { Text("+90 ") }, label = { Text("Cep telefonu") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(16.dp), colors = premiumTextFieldColors())
-                MButton("Doğrulama koduna geç", { step = 1 }, enabled = normalizeTurkishPhone(phone) != null)
+                MButton("Doğrulama koduna geç", {
+                    if (backend == null) step = 1 else scope.launch {
+                        busy = true
+                        try { val response = backend.startContactOtp(phone); challengeId = response.getValue("challengeId").jsonPrimitive.content; previewCode = response["developmentCode"]?.jsonPrimitive?.contentOrNull; step = 1 }
+                        catch (e: Exception) { error = e.message }
+                        finally { busy = false }
+                    }
+                }, enabled = normalizeTurkishPhone(phone) != null && !busy)
+                error?.let { Text(it, color = MColors.Rose) }
             }
             1 -> {
-                Text("Önizleme kodu: 2026. Bu akış SMS göndermez; hesabına doğrulama rozeti eklemez.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
-                OutlinedTextField(code, { code = it.filter(Char::isDigit).take(4); error = null }, label = { Text("Doğrulama kodu") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth(), singleLine = true, isError = error != null, shape = RoundedCornerShape(16.dp), colors = premiumTextFieldColors())
+                Text(if (previewCode != null) "Geliştirme kodu: $previewCode" else "Telefonuna gönderilen 6 haneli kodu gir.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+                OutlinedTextField(code, { code = it.filter(Char::isDigit).take(if (backend == null) 4 else 6); error = null }, label = { Text("Doğrulama kodu") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth(), singleLine = true, isError = error != null, shape = RoundedCornerShape(16.dp), colors = premiumTextFieldColors())
                 error?.let { Text(it, color = MColors.Rose) }
                 MButton("Doğrulama talebini kaydet", {
-                    if (code != "2026") error = "Kod eşleşmedi. Tekrar dene."
-                    else { onRecordRequest(normalizeTurkishPhone(phone).orEmpty()); step = 2 }
-                }, enabled = code.length == 4)
+                    if (backend == null) {
+                        if (code != "2026") error = "Kod eşleşmedi. Tekrar dene."
+                        else { onRecordRequest(normalizeTurkishPhone(phone).orEmpty()); step = 2 }
+                    } else scope.launch {
+                        busy = true
+                        try { backend.verifyContactOtp(challengeId, code); step = 2 }
+                        catch (e: Exception) { error = e.message }
+                        finally { busy = false }
+                    }
+                }, enabled = code.length == (if (backend == null) 4 else 6) && !busy)
                 TextButton(onClick = { step = 0 }) { Text("Numarayı değiştir") }
             }
             else -> {
-                MFeatureHeader("Talebin kaydedildi", "Hesap → Destek bölümünden ulaşabilirsin", Icons.Rounded.VerifiedUser)
+                MFeatureHeader(if (backend == null) "Talebin kaydedildi" else "Telefonun doğrulandı", if (backend == null) "Hesap → Destek bölümünden ulaşabilirsin" else "İletişim bilgin hesabına bağlandı", Icons.Rounded.VerifiedUser)
                 MButton("Tamam", onDismiss)
             }
         }
@@ -212,14 +338,33 @@ fun ContactVerificationSheet(initialPhone: String, onRecordRequest: (String) -> 
 }
 
 @Composable
-fun PhotoVerificationSheet(profile: UserProfile, onPhotoRequest: (androidx.compose.ui.graphics.ImageBitmap) -> Unit, onDismiss: () -> Unit) {
+fun PhotoVerificationSheet(profile: UserProfile, onPhotoRequest: (androidx.compose.ui.graphics.ImageBitmap, (Boolean) -> Unit) -> Unit, onDismiss: () -> Unit) {
     var photo by remember { mutableStateOf(profile.avatar) }
     var submitted by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
     val pick = rememberGalleryPhotoPicker { photo = it; submitted = false }
     ActivitySheet("Fotoğraf doğrulaması", "Sporcu kartını güvenle tamamla", onDismiss, Icons.Rounded.VerifiedUser) {
-        Text("Yüzünün net göründüğü, tek başına olduğun bir fotoğraf seç. İnceleme tamamlanmadan doğrulama rozeti verilmez.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+        Text("Yüzünün net göründüğü, tek başına olduğun bir fotoğraf seç. Seçimin profil fotoğrafın olarak kaydedilir. İnceleme tamamlanmadan doğrulama rozeti verilmez.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
         photo?.let { androidx.compose.foundation.Image(it, "İncelemeye eklenecek fotoğraf", Modifier.fillMaxWidth().height(200.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit) }
-        OutlinedButton(onClick = pick, modifier = Modifier.fillMaxWidth()) { Text(if (photo == null) "Fotoğraf seç" else "Fotoğrafı değiştir") }
-        MButton(if (submitted) "İnceleme talebi kaydedildi" else "İnceleme talebi oluştur", { photo?.let { onPhotoRequest(it); submitted = true } }, enabled = photo != null && !submitted)
+        OutlinedButton(onClick = pick, modifier = Modifier.fillMaxWidth(), enabled = !busy) { Text(if (photo == null) "Fotoğraf seç" else "Fotoğrafı değiştir") }
+        MButton(if (busy) "Gönderiliyor…" else if (submitted) "İnceleme talebi kaydedildi" else "İnceleme talebi oluştur", { photo?.let { image -> busy = true; onPhotoRequest(image) { success -> submitted = success; busy = false } } }, enabled = photo != null && !submitted && !busy)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun PlayerFeedbackSheet(players: List<Player>, onSubmit: (String, Int, Boolean) -> Unit, onDismiss: () -> Unit) {
+    var targetId by remember(players) { mutableStateOf(players.firstOrNull()?.id) }
+    var rating by remember(targetId) { mutableIntStateOf(5) }
+    var again by remember(targetId) { mutableStateOf(true) }
+    ActivitySheet("Saha deneyimin", "Ortak maçtaki sporcuları değerlendir", onDismiss, Icons.Rounded.StarOutline) {
+        if (players.isEmpty()) Text("Değerlendirilebilecek başka katılımcı yok.", color = MColors.Ink500)
+        else {
+            MFloatingDropdownBox("Sporcu", targetId, players.map { it.id }, { userId -> players.firstOrNull { it.id == userId }?.name.orEmpty() }, { targetId = it })
+            Text("Fair play", style = MaterialTheme.typography.titleMedium)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { (1..5).forEach { score -> FilterChip(rating == score, { rating = score }, label = { Text("$score ★") }, colors = premiumChoiceChipColors()) } }
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(again, { again = it }); Text("Tekrar birlikte oynamak isterim") }
+            MButton("Değerlendirmeyi kaydet", { targetId?.let { onSubmit(it, rating, again) } }, enabled = targetId != null)
+        }
     }
 }

@@ -1,0 +1,106 @@
+{
+  "serverConfigurationReady": false,
+  "scope": "Yalnız yapılandırma varlığı ve sunucu doğrulaması. Canlı bağlantı, mobil SDK, mağaza kabulü veya güvenlik denetimi yerine geçmez.",
+  "checks": [
+    {
+      "id": "DATABASE_URL",
+      "status": "missing",
+      "detail": "DATABASE_URL sunucu ortamında tanımlanmalı."
+    },
+    {
+      "id": "AUTH_USERINFO_URL",
+      "status": "missing",
+      "detail": "AUTH_USERINFO_URL sunucu ortamında tanımlanmalı."
+    },
+    {
+      "id": "CHECKIN_SECRET",
+      "status": "missing",
+      "detail": "CHECKIN_SECRET sunucu ortamında tanımlanmalı."
+    },
+    {
+      "id": "BILLING_WEBHOOK_SECRET",
+      "status": "missing",
+      "detail": "BILLING_WEBHOOK_SECRET sunucu ortamında tanımlanmalı."
+    },
+    {
+      "id": "PUBLIC_API_URL",
+      "status": "missing",
+      "detail": "PUBLIC_API_URL sunucu ortamında tanımlanmalı."
+    },
+    {
+      "id": "PRIVACY_URL",
+      "status": "missing",
+      "detail": "PRIVACY_URL sunucu ortamında tanımlanmalı."
+    },
+    {
+      "id": "TERMS_URL",
+      "status": "missing",
+      "detail": "TERMS_URL sunucu ortamında tanımlanmalı."
+    },
+    {
+      "id": "PRIVACY_VERSION",
+      "status": "missing",
+      "detail": "PRIVACY_VERSION sunucu ortamında tanımlanmalı."
+    },
+    {
+      "id": "TERMS_VERSION",
+      "status": "missing",
+      "detail": "TERMS_VERSION sunucu ortamında tanımlanmalı."
+    },
+    {
+      "id": "SUPPORT_EMAIL",
+      "status": "missing",
+      "detail": "SUPPORT_EMAIL sunucu ortamında tanımlanmalı."
+    },
+    {
+      "id": "production-config",
+      "status": "missing",
+      "detail": "DATABASE_URL yapılandırılmalı."
+    },
+    {
+      "id": "sms",
+      "status": "missing",
+      "detail": "Twilio Messaging Service veya SMS köprüsünün kimlik bilgileri gerekiyor."
+    },
+    {
+      "id": "oauth",
+      "status": "missing",
+      "detail": "Supabase Auth /auth/v1/user ve public auth anahtarı gerekiyor."
+    },
+    {
+      "id": "private-storage",
+      "status": "missing",
+      "detail": "Özel Supabase Storage URL ve yalnız sunucuda tutulan service-role anahtarı gerekiyor."
+    },
+    {
+      "id": "store-sdk-keys",
+      "status": "missing",
+      "detail": "Apple ve Android RevenueCat public SDK anahtarları gerekiyor."
+    },
+    {
+      "id": "store-product-ids",
+      "status": "missing",
+      "detail": "Dört token paketi ve iki Plus ürününün platform ID eşlemeleri gerekiyor."
+    },
+    {
+      "id": "store-sync",
+      "status": "missing",
+      "detail": "Sunucu RevenueCat secret API anahtarı gerekiyor."
+    },
+    {
+      "id": "billing-webhook",
+      "status": "missing",
+      "detail": "RevenueCat webhook özel yetkisi ve mağaza ürün eşlemesi gerekiyor."
+    },
+    {
+      "id": "ios-push",
+      "status": "missing",
+      "detail": "APNs sunucu anahtarı veya push köprüsü gerekiyor."
+    },
+    {
+      "id": "android-push",
+      "status": "missing",
+      "detail": "FCM sunucu anahtarı veya push köprüsü gerekiyor."
+    }
+  ]
+}

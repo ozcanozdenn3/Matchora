@@ -1,0 +1,112 @@
+{
+  "apkSha256": "fc3bb9f64d97d4bc58d64aa3ee23f806753d7a11a3aa990fb354f9b6c09236fe",
+  "libraries": [
+    {
+      "file": "lib/arm64-v8a/libandroidx.graphics.path.so",
+      "loadAlignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "allLoads16KB": true
+    },
+    {
+      "file": "lib/arm64-v8a/libdatastore_shared_counter.so",
+      "loadAlignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "allLoads16KB": true
+    },
+    {
+      "file": "lib/arm64-v8a/libmaplibre.so",
+      "loadAlignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "allLoads16KB": true
+    },
+    {
+      "file": "lib/armeabi-v7a/libandroidx.graphics.path.so",
+      "loadAlignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "allLoads16KB": true
+    },
+    {
+      "file": "lib/armeabi-v7a/libdatastore_shared_counter.so",
+      "loadAlignments": [
+        16384,
+        16384
+      ],
+      "allLoads16KB": true
+    },
+    {
+      "file": "lib/armeabi-v7a/libmaplibre.so",
+      "loadAlignments": [
+        4096,
+        4096,
+        4096
+      ],
+      "allLoads16KB": false
+    },
+    {
+      "file": "lib/x86/libandroidx.graphics.path.so",
+      "loadAlignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "allLoads16KB": true
+    },
+    {
+      "file": "lib/x86/libdatastore_shared_counter.so",
+      "loadAlignments": [
+        16384,
+        16384
+      ],
+      "allLoads16KB": true
+    },
+    {
+      "file": "lib/x86/libmaplibre.so",
+      "loadAlignments": [
+        4096,
+        4096,
+        4096
+      ],
+      "allLoads16KB": false
+    },
+    {
+      "file": "lib/x86_64/libandroidx.graphics.path.so",
+      "loadAlignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "allLoads16KB": true
+    },
+    {
+      "file": "lib/x86_64/libdatastore_shared_counter.so",
+      "loadAlignments": [
+        16384,
+        16384
+      ],
+      "allLoads16KB": true
+    },
+    {
+      "file": "lib/x86_64/libmaplibre.so",
+      "loadAlignments": [
+        16384,
+        16384,
+        16384
+      ],
+      "allLoads16KB": true
+    }
+  ],
+  "pass64Bit": true,
+  "scope": "Debug APK static inspection; not release AAB or physical device test"
+}

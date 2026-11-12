@@ -1,0 +1,12 @@
+7 Kasım 2026 — ilan/kadro ve işlev düzeltmeleri
+149 backend; 32 KMP/istemci testi; hata/atlanan yok.
+Android assembleDebug, iOS linkDebugFrameworkIosSimulatorArm64 ve testDebugUnitTest başarılı.
+54 ortak UI dosyası; 236 fonksiyon; 84 pencere/menü çağrısı; 21 native Kotlin dosyası; 93 komut; 59 tablo.
+319 benzersiz envanter satırı; önceki 253 ID korunuyor.
+23 yeni backend regresyonu: event/team/community yönetimi, iade/yeniden katılım, zaman/check-in, resmi kadro, KO beraberlik, eski katalog ve bildirim yetkisi.
+İlk mobil derlemede nullable bildirim hedefi ve eksik Alignment importu yakalanıp düzeltildi; son derleme başarılı.
+Komutlar alt form kapansa bile ana komut yürütücüsünde sürer.
+DemoData.kt değiştirilmedi. Varsayılan mod preview; geçici test profili/form taslağı resetlendi.
+Canlı Supabase/sağlayıcı/mağaza veya fiziksel cihaz uçtan uca testi yapılmadı.
+Preview ilan adımları görüldü; CUA kaydırması form altına ilerlemediği için ilan yayını ve katılımcı çıkarma bu tur cihazda uçtan uca doğrulanmış sayılmıyor. Backend akışı gerçek komut testlerinde doğrulandı.
+Son preview paketinin kurulumu/başlatılması başarılı, PID74213. CUA ile girişsiz ana ekran, 65 mock oyun, Challenge ve sıralama kartları görüldü.

@@ -4,6 +4,8 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,6 +19,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonArray
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.matchora.app.domain.Sport
+import com.matchora.app.data.*
 import com.matchora.app.state.*
 import com.matchora.app.ui.components.*
 import com.matchora.app.ui.components.MSegmentedControl
@@ -45,6 +52,12 @@ import com.matchora.app.ui.theme.MColors
 fun CompetitionScreen(
     paddingValues: PaddingValues,
     initialTab: Int = 0,
+    focusedId: String? = null,
+    onFocusConsumed: () -> Unit = {},
+    onOpenFixture: (String) -> Unit = {},
+    remotePlayers: List<Player>? = null,
+    remoteRankings: List<com.matchora.app.data.ApiRanking>? = null,
+    backendMode: Boolean = false,
     currentPlayer: Player = DemoData.mePlayer,
     user: UserProfile = DemoData.me,
     tournaments: List<TournamentInfo> = DemoData.tournaments,
@@ -64,7 +77,9 @@ fun CompetitionScreen(
     onApproveTeamJoinRequest: (TeamJoinRequest) -> Unit = {},
     onRejectTeamJoinRequest: (TeamJoinRequest) -> Unit = {},
     onOpenDirectChat: (Player) -> Unit = {},
-    onInvitePlayerToTeam: (Player) -> Unit = {},
+    onInvitePlayerToTeam: (Player, TeamProfile) -> Unit = { _, _ -> },
+    onShareTeam: ((TeamProfile) -> Unit)? = null,
+    onShareTournament: ((TournamentInfo) -> Unit)? = null,
     onCreateTournament: (TournamentInfo) -> Unit = {},
     onTournamentRegistered: (TournamentInfo) -> Unit = {},
     onWithdrawTournamentRegistration: (TournamentInfo) -> Unit = {},
@@ -77,6 +92,24 @@ fun CompetitionScreen(
     var rankingDistrict by remember { mutableStateOf(user.area) }
     var showRankingLocation by remember { mutableStateOf(false) }
     var showRankingSports by remember { mutableStateOf(false) }
+    val requireAccount = LocalRequireAccount.current
+    val rankingBackend = LocalBackendRepository.current
+    val rankingActions = rememberCoroutineScope()
+    var rankingWire by remember(selectedSport, selectedScope, rankingCity, rankingDistrict) { mutableStateOf<JsonObject?>(null) }
+    var rankingBusy by remember { mutableStateOf(false) }
+    var rankingError by remember { mutableStateOf<String?>(null) }
+    var rankingRetry by remember { mutableIntStateOf(0) }
+    val rankingScopeCode = when (selectedScope) { "Ulusal" -> "national"; "Şehir" -> "city"; else -> "district" }
+    LaunchedEffect(rankingBackend, selectedSport, selectedScope, rankingCity, rankingDistrict, selectedTab, rankingRetry) {
+        if (rankingBackend != null && selectedTab == 0) {
+            rankingBusy = true; rankingError = null
+            try { rankingWire = rankingBackend.rankings(selectedSport.name, rankingScopeCode, rankingCity, rankingDistrict) }
+            catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { rankingError = error.message }
+            finally { rankingBusy = false }
+        }
+    }
+    val rankingValues = if (rankingBackend != null) com.matchora.app.data.BackendSnapshot(com.matchora.app.data.apiPayload("userId" to rankingBackend.userId, "rankings" to rankingWire?.a("items").orEmpty())).rankings else remoteRankings
     var selectedPlayerForProfile by remember { mutableStateOf<LeaderboardRow?>(null) }
     var selectedTournamentForDetail by remember { mutableStateOf<TournamentInfo?>(null) }
     var showCreateTournamentSheet by remember { mutableStateOf(false) }
@@ -85,12 +118,31 @@ fun CompetitionScreen(
     var showCreateTeamSheet by remember { mutableStateOf(false) }
     var selectedTeamForDetail by remember { mutableStateOf<TeamProfile?>(null) }
     var showManageTeamRequestsSheet by remember { mutableStateOf(false) }
+    var managedTeamId by remember { mutableStateOf<String?>(null) }
+    var challengeTarget by remember { mutableStateOf<TeamProfile?>(null) }
+    var inviteTarget by remember { mutableStateOf<Player?>(null) }
+    var challengeNotice by remember { mutableStateOf<String?>(null) }
     var teamToApply by remember { mutableStateOf<TeamProfile?>(null) }
     var selectedChallengeForDetail by remember { mutableStateOf<ChallengeOffer?>(null) }
     var showAiMatchScouterSheet by remember { mutableStateOf(false) }
+    var selectedTournamentSport by remember { mutableStateOf<Sport?>(null) }
+    var selectedTeamSport by remember { mutableStateOf<Sport?>(null) }
 
-    val leaderboard = remember(selectedSport, selectedScope, rankingCity, rankingDistrict, user) {
-        DemoData.leaderboard(selectedSport, selectedScope, if (selectedScope == "Ulusal") "" else if (selectedScope == "Şehir") rankingCity else "$rankingCity/$rankingDistrict").map { row ->
+    LaunchedEffect(tournaments, teams) {
+        selectedTournamentForDetail?.let { selected -> selectedTournamentForDetail = tournaments.firstOrNull { it.id == selected.id } }
+        selectedTeamForDetail?.let { selected -> selectedTeamForDetail = teams.firstOrNull { it.id == selected.id } }
+    }
+    LaunchedEffect(focusedId, tournaments, teams) {
+        if (focusedId != null) {
+            tournaments.firstOrNull { it.id == focusedId }?.let { selectedTournamentForDetail = it }
+            teams.firstOrNull { it.id == focusedId }?.let { selectedTeamForDetail = it }
+            if (tournaments.any { it.id == focusedId } || teams.any { it.id == focusedId }) onFocusConsumed()
+        }
+    }
+
+    val leaderboard = remember(selectedSport, selectedScope, rankingCity, rankingDistrict, user, remotePlayers, rankingValues) {
+        (rankingValues?.filter { it.sport == selectedSport && (selectedScope == "Ulusal" || it.city == rankingCity) && (selectedScope != "İlçe" || it.area == rankingDistrict) }?.map { it.row } ?: remotePlayers?.filter { selectedSport in it.sports }?.filter { selectedScope != "İlçe" || it.area == rankingDistrict }?.map { p -> LeaderboardRow(0, p.id, p.name, p.rating, 0, p.verifiedMatches, p.id == DemoData.ME) }
+            ?: DemoData.leaderboard(selectedSport, selectedScope, if (selectedScope == "Ulusal") "" else if (selectedScope == "Şehir") rankingCity else "$rankingCity/$rankingDistrict")).map { row ->
             if (row.isMe) {
                 val skill = user.skills.firstOrNull { it.sport == selectedSport }
                 row.copy(
@@ -99,13 +151,12 @@ fun CompetitionScreen(
                     verifiedMatches = skill?.verifiedMatches ?: row.verifiedMatches
                 )
             } else row
-        }.sortedByDescending { it.rating }.mapIndexed { index, row -> row.copy(rank = index + 1) }
+        }.sortedByDescending { it.rating }.mapIndexed { index, row -> row.copy(rank = if (rankingBackend != null) row.rank else index + 1) }
     }
-    val displayTournamentList = remember(tournaments, user.name, registeredTournamentIds) {
-        tournaments.map { tournament ->
+    val displayTournamentList = remember(tournaments, user.name, registeredTournamentIds, selectedTournamentSport) {
+        tournaments.filter { selectedTournamentSport == null || it.sport == selectedTournamentSport }.map { tournament ->
             tournament.copy(
-                participants = (tournament.participants + if (tournament.id in registeredTournamentIds) 1 else 0)
-                    .coerceAtMost(tournament.capacity),
+                participants = tournament.participants.coerceAtMost(tournament.capacity),
                 standings = tournament.standings.map { row ->
                     if (row.team == DemoData.me.name) row.copy(team = user.name) else row
                 }
@@ -113,10 +164,19 @@ fun CompetitionScreen(
         }
     }
 
-    val myTeam = remember(teams) { teams.firstOrNull { it.isMine } ?: teams.first() }
-    val opponents = remember(teams) { teams.filter { !it.isMine } }
-    val myTeamRequests = remember(teamJoinRequests, myTeam) {
-        teamJoinRequests.filter { it.teamId == myTeam.id && it.status == JoinRequestStatus.PENDING }
+    val myTeams = remember(teams, backendMode) { teams.filter { it.isMine }.ifEmpty { if (backendMode) emptyList() else teams.take(1) } }
+    val captainedTeams = myTeams.filter { it.captainId == DemoData.ME }
+    val myTeam = captainedTeams.firstOrNull() ?: myTeams.firstOrNull()
+    val opponents = remember(teams, selectedTeamSport) { teams.filter { !it.isMine && (selectedTeamSport == null || it.sport == selectedTeamSport) } }
+    val managedTeam = myTeams.firstOrNull { it.id == managedTeamId && it.captainId == DemoData.ME }
+    val managedRequests = teamJoinRequests.filter { it.teamId == managedTeam?.id && it.status == JoinRequestStatus.PENDING }
+    fun requestChallenge(target: TeamProfile) {
+        val candidates = captainedTeams.filter { it.sport == target.sport && it.id != target.id }
+        when (candidates.size) {
+            0 -> challengeNotice = "${target.sport.label} karşılaşması için kaptanı olduğun bir takım gerekiyor."
+            1 -> onOpenChallengeSheet(candidates.first(), target)
+            else -> challengeTarget = target
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -168,8 +228,8 @@ fun CompetitionScreen(
                         ) {
                             // King of Kadıköy Kartı
                             item {
-                                val athlete = leaderboard.first()
-                                AthleteAwardCard(athlete) { selectedPlayerForProfile = athlete }
+                                leaderboard.firstOrNull()?.let { athlete -> AthleteAwardCard(athlete) { requireAccount { selectedPlayerForProfile = athlete } } }
+                                    ?: MSubCard { Text("Bu filtrede henüz sıralamaya giren sporcu yok.", Modifier.padding(12.dp), color = MColors.Ink500) }
                             }
 
                             item {
@@ -214,8 +274,33 @@ fun CompetitionScreen(
                             }
 
                             // Sıralama Listesi
+                            if (rankingBackend != null) item {
+                                Column {
+                                    Text("${rankingWire?.i("total") ?: 0} sporcu", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+                                    TextButton(onClick = { rankingRetry++ }, enabled = !rankingBusy) { Text(if (rankingBusy) "Sıralama yükleniyor…" else "Sıralamayı yenile") }
+                                    rankingError?.let { Text(it, color = MColors.Rose, style = MaterialTheme.typography.bodySmall) }
+                                }
+                            }
                             items(leaderboard, key = { it.playerId }) { row ->
-                                RankingSpotlightCard(row) { selectedPlayerForProfile = row }
+                                RankingSpotlightCard(row) { requireAccount { selectedPlayerForProfile = row } }
+                            }
+                            if (rankingBackend != null && rankingWire?.s("nextCursor")?.isNotBlank() == true) item {
+                                TextButton(enabled = !rankingBusy, onClick = { rankingActions.launch {
+                                    val cursor = rankingWire?.s("nextCursor") ?: return@launch
+                                    val requestFilters = listOf(selectedSport.name, rankingScopeCode, rankingCity, rankingDistrict)
+                                    rankingBusy = true; rankingError = null
+                                    try {
+                                        val next = rankingBackend.rankings(requestFilters[0], requestFilters[1], requestFilters[2], requestFilters[3], cursor)
+                                        if (requestFilters == listOf(selectedSport.name, rankingScopeCode, rankingCity, rankingDistrict)) rankingWire = JsonObject(next + ("items" to JsonArray((rankingWire?.a("items").orEmpty() + next.a("items")).distinctBy { it.s("userId") })))
+                                    } catch (cancel: CancellationException) { throw cancel }
+                                    catch (error: Exception) { rankingError = error.message }
+                                    finally { rankingBusy = false }
+                                } }) { Text("Sıradaki sporcuları yükle") }
+                            }
+                            val ownRanking = rankingWire?.o("own")
+                            if (rankingBackend != null && ownRanking?.isNotEmpty() == true && leaderboard.none { it.isMe }) item {
+                                val own = com.matchora.app.data.BackendSnapshot(com.matchora.app.data.apiPayload("userId" to rankingBackend.userId, "rankings" to listOf(ownRanking))).rankings.single().row
+                                RankingSpotlightCard(own) { requireAccount { selectedPlayerForProfile = own } }
                             }
                         }
                     }
@@ -230,13 +315,17 @@ fun CompetitionScreen(
                         ) {
                             // Turnuva / E-Spor Kupası Aç Kapsülü
                             item {
-                                CreateCupCard { showCreateTournamentSheet = true }
+                                CreateCupCard { requireAccount { showCreateTournamentSheet = true } }
+                            }
+                            item {
+                                SportPickerField(selectedTournamentSport, { selectedTournamentSport = it })
                             }
 
                             // Turnuva Listesi
                             items(displayTournamentList, key = { it.id }) { tournament ->
-                                TournamentSpotlightCard(tournament) { selectedTournamentForDetail = tournament }
+                                TournamentSpotlightCard(tournament) { requireAccount { selectedTournamentForDetail = tournament } }
                             }
+                            item { BackendMoreCatalogButton("tournaments") }
                         }
                     }
 
@@ -248,17 +337,33 @@ fun CompetitionScreen(
                             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = paddingValues.calculateBottomPadding() + 28.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
+                            item { BackendIncomingTeamInvites(teams) { requireAccount { selectedTeamForDetail = it } } }
                             // Yeni Takım Kur Kapsülü
                             item {
-                                CreateClubCard { showCreateTeamSheet = true }
+                                CreateClubCard { requireAccount { showCreateTeamSheet = true } }
+                            }
+                            if (myTeam != null) {
+                                item {
+                                    MButton(
+                                        text = "Match Scouter & Kemer Analizi",
+                                        onClick = { requireAccount { showAiMatchScouterSheet = true } },
+                                        icon = Icons.Rounded.AutoAwesome,
+                                        isPrimary = false
+                                    )
+                                }
+                            }
+                            item {
+                                SportPickerField(selectedTeamSport, { selectedTeamSport = it })
                             }
 
                             // Kendi Takımım Kartı
-                            item {
-                                TeamSpotlightCard(myTeam,
-                                    if (myTeamRequests.isNotEmpty()) "Başvurular (${myTeamRequests.size})" else "Başvurular",
-                                    onPrimary = { showManageTeamRequestsSheet = true },
-                                    onDetails = { selectedTeamForDetail = myTeam })
+                            items(myTeams, key = { "mine-${it.id}" }) { ownTeam ->
+                                val canManage = ownTeam.captainId == DemoData.ME
+                                val requestCount = teamJoinRequests.count { it.teamId == ownTeam.id && it.status == JoinRequestStatus.PENDING }
+                                TeamSpotlightCard(ownTeam,
+                                    if (!canManage) "Takımı incele" else if (requestCount > 0) "Başvurular ($requestCount)" else "Başvurular",
+                                    onPrimary = { requireAccount { if (canManage) { managedTeamId = ownTeam.id; showManageTeamRequestsSheet = true } else selectedTeamForDetail = ownTeam } },
+                                    onDetails = { requireAccount { selectedTeamForDetail = ownTeam } })
                             }
 
                             // ═══════════════════════════════════════════════════════════
@@ -288,11 +393,12 @@ fun CompetitionScreen(
 
                             items(challenges, key = { it.id }) { challenge ->
                                 val opponentTeam = teams.firstOrNull { it.id == if (challenge.incoming) challenge.fromTeamId else challenge.toTeamId } ?: myTeam
-                                ChallengeSpotlightCard(challenge, opponentTeam,
-                                    onDetails = { selectedChallengeForDetail = challenge },
-                                    onAccept = { onAcceptChallenge(challenge) },
-                                    onDecline = { onDeclineChallenge(challenge) },
-                                    onChat = { onOpenDirectChat(DemoData.player(opponentTeam.captainId) ?: DemoData.players.first()) })
+                                if (opponentTeam != null) ChallengeSpotlightCard(challenge, opponentTeam,
+                                    onDetails = { requireAccount { selectedChallengeForDetail = challenge } },
+                                    onAccept = { requireAccount { onAcceptChallenge(challenge) } },
+                                    onDecline = { requireAccount { onDeclineChallenge(challenge) } },
+                                    onChat = { requireAccount { (remotePlayers ?: DemoData.players).firstOrNull { it.id == opponentTeam.captainId }?.let(onOpenDirectChat) } },
+                                    canRespond = !backendMode || teams.firstOrNull { it.id == challenge.toTeamId }?.captainId == DemoData.ME)
                             }
 
                             // ═══════════════════════════════════════════════════════════
@@ -310,10 +416,12 @@ fun CompetitionScreen(
                             }
 
                             items(opponents, key = { it.id }) { opponent ->
-                                TeamSpotlightCard(opponent, "Meydan oku",
-                                    onPrimary = { onOpenChallengeSheet(myTeam, opponent) },
-                                    onDetails = { selectedTeamForDetail = opponent }, compact = true)
+                                val canChallenge = captainedTeams.any { it.sport == opponent.sport }
+                                TeamSpotlightCard(opponent, if (!canChallenge) "Takımı incele" else "Meydan oku",
+                                    onPrimary = { requireAccount { if (canChallenge) requestChallenge(opponent) else selectedTeamForDetail = opponent } },
+                                    onDetails = { requireAccount { selectedTeamForDetail = opponent } }, compact = true)
                             }
+                            item { BackendMoreCatalogButton("teams") }
                         }
                     }
                 }
@@ -335,22 +443,23 @@ fun CompetitionScreen(
     // Oyuncu Profil Modalı
     val playerProf = selectedPlayerForProfile
     if (playerProf != null) {
-        val targetPlayer = if (playerProf.playerId == DemoData.ME) currentPlayer else DemoData.players.firstOrNull { it.id == playerProf.playerId } ?: Player(
+        val targetPlayer = if (playerProf.playerId == DemoData.ME) currentPlayer else (remotePlayers ?: DemoData.players).firstOrNull { it.id == playerProf.playerId } ?: Player(
             id = playerProf.playerId,
             name = playerProf.name,
-            area = "Kadıköy",
-            sports = listOf(Sport.FOOTBALL),
-            level = SkillLevel.ADVANCED,
-            reliability = 95,
+            area = if (remotePlayers == null) "Kadıköy" else "",
+            sports = listOf(selectedSport),
+            level = if (remotePlayers == null) SkillLevel.ADVANCED else SkillLevel.INTERMEDIATE,
+            reliability = if (remotePlayers == null) 95 else 0,
             verifiedMatches = playerProf.verifiedMatches,
             rating = playerProf.rating,
-            chemistry = 92,
-            verified = true,
+            chemistry = if (remotePlayers == null) 92 else null,
+            verified = remotePlayers == null,
             position = "Oyuncu",
-            distanceKm = 1.2f,
-            playedTogether = 3,
-            availableNow = true,
-            color = MColors.Brand
+            distanceKm = if (remotePlayers == null) 1.2f else null,
+            playedTogether = if (remotePlayers == null) 3 else 0,
+            availableNow = remotePlayers == null,
+            color = MColors.Brand,
+            reliabilityVisible = remotePlayers == null
         )
 
         PlayerProfileSheet(
@@ -359,7 +468,7 @@ fun CompetitionScreen(
             rating = playerProf.rating,
             rank = playerProf.rank,
             player = targetPlayer,
-            isInvitedToTeam = targetPlayer.id in invitedPlayerIds,
+            isInvitedToTeam = !backendMode && targetPlayer.id in invitedPlayerIds,
             sport = selectedSport,
             onDismiss = { selectedPlayerForProfile = null },
             onChallenge = {
@@ -367,13 +476,22 @@ fun CompetitionScreen(
                 selectedTab = 2
             },
             onInviteTeam = {
-                onInvitePlayerToTeam(targetPlayer)
+                inviteTarget = targetPlayer
             },
             onDirectMessage = {
                 selectedPlayerForProfile = null
                 onOpenDirectChat(targetPlayer)
             }
         )
+    }
+    inviteTarget?.let { player ->
+        val options = captainedTeams.filter { it.sport == selectedSport && player.id !in it.memberIds }
+        AlertDialog(onDismissRequest = { inviteTarget = null }, title = { Text("Davet göndereceğin takımı seç") }, text = {
+            Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                if (options.isEmpty()) Text("Bu branşta kaptanı olduğun ve sporcunun henüz katılmadığı bir takım gerekiyor.")
+                options.forEach { team -> TextButton(onClick = { onInvitePlayerToTeam(player, team); inviteTarget = null }) { Text("${team.badge} ${team.name}") } }
+            }
+        }, confirmButton = { TextButton(onClick = { inviteTarget = null }) { Text("Kapat") } })
     }
 
     // Turnuva Detay & Fikstür Modalı
@@ -382,6 +500,7 @@ fun CompetitionScreen(
             tournament = selectedTournamentForDetail!!,
             isRegistered = selectedTournamentForDetail!!.id in registeredTournamentIds,
             isOrganizer = selectedTournamentForDetail!!.creatorId == DemoData.ME,
+            onOpenFixture = { id -> selectedTournamentForDetail = null; onOpenFixture(id) },
             onDismiss = { selectedTournamentForDetail = null },
             onRegisterTeam = {
                 selectedTournamentForDetail?.let { tournament ->
@@ -393,6 +512,9 @@ fun CompetitionScreen(
             },
             onCancelTournament = {
                 selectedTournamentForDetail?.let(onCancelTournament)
+            },
+            onShareTournament = {
+                selectedTournamentForDetail?.let { tourney -> onShareTournament?.invoke(tourney) }
             }
         )
     }
@@ -400,6 +522,7 @@ fun CompetitionScreen(
     // Yeni Turnuva / E-Spor Kupası Oluşturma Modalı
     if (showCreateTournamentSheet) {
         CreateTournamentSheet(
+            currentCity = user.city, currentArea = user.area, primarySport = user.skills.firstOrNull()?.sport ?: Sport.FOOTBALL,
             onDismiss = { showCreateTournamentSheet = false },
             tokenBalance = tokenBalance,
             organizerName = user.name,
@@ -407,7 +530,7 @@ fun CompetitionScreen(
             onRequestTokens = onRequestTokens,
             onCreateTournament = { newTourney ->
                 onCreateTournament(newTourney)
-                selectedTournamentForDetail = newTourney
+                if (!backendMode) selectedTournamentForDetail = newTourney
             }
         )
     }
@@ -415,10 +538,12 @@ fun CompetitionScreen(
     // Yeni Takım Kur Modalı
     if (showCreateTeamSheet) {
         CreateTeamSheet(
+            currentCity = user.city,
+            currentArea = user.area,
             onDismiss = { showCreateTeamSheet = false },
             onCreateTeam = { newTeam ->
                 onCreateTeam(newTeam)
-                selectedTeamForDetail = newTeam
+                if (!backendMode) selectedTeamForDetail = newTeam
             }
         )
     }
@@ -427,25 +552,34 @@ fun CompetitionScreen(
     if (selectedTeamForDetail != null) {
         val detailTeam = selectedTeamForDetail!!
         TeamDetailSheet(
-            team = detailTeam,
+            players = remotePlayers ?: DemoData.players,            team = detailTeam,
             currentPlayer = currentPlayer,
-            myTeam = myTeam,
-            pendingRequestsCount = myTeamRequests.size,
+            myTeam = captainedTeams.firstOrNull { it.sport == detailTeam.sport && it.id != detailTeam.id },
+            pendingRequestsCount = teamJoinRequests.count { it.teamId == detailTeam.id && it.status == JoinRequestStatus.PENDING },
             onDismiss = { selectedTeamForDetail = null },
             onOpenChallenge = {
                 selectedTeamForDetail = null
-                onOpenChallengeSheet(myTeam, detailTeam)
+                requestChallenge(detailTeam)
             },
             onApplyToTeam = {
                 teamToApply = detailTeam
             },
             onManageRequests = {
                 selectedTeamForDetail = null
+                managedTeamId = detailTeam.id
                 showManageTeamRequestsSheet = true
             },
             onOpenCaptainChat = { captain ->
                 selectedTeamForDetail = null
                 onOpenDirectChat(captain)
+            },
+            onShareTeam = { onShareTeam?.invoke(detailTeam) },
+            onChallengePlayer = { player ->
+                selectedTeamForDetail = null
+                selectedTab = 2
+            },
+            onInvitePlayerToTeam = { player ->
+                inviteTarget = player
             }
         )
     }
@@ -463,10 +597,10 @@ fun CompetitionScreen(
     }
 
     // Takım Kadro Başvuruları Yönetim Modalı (Kaptan)
-    if (showManageTeamRequestsSheet) {
+    if (showManageTeamRequestsSheet && managedTeam != null) {
         ManageTeamRequestsSheet(
-            team = myTeam,
-            requests = myTeamRequests,
+            team = managedTeam,
+            requests = managedRequests,
             onDismiss = { showManageTeamRequestsSheet = false },
             onApprove = { req ->
                 onApproveTeamJoinRequest(req)
@@ -485,11 +619,12 @@ fun CompetitionScreen(
     if (selectedChallengeForDetail != null) {
         val ch = selectedChallengeForDetail!!
         val fromT = teams.firstOrNull { it.id == ch.fromTeamId } ?: myTeam
-        val toT = teams.firstOrNull { it.id == ch.toTeamId } ?: opponents.first()
-        MatchChallengeDetailSheet(
-            challenge = ch,
+        val toT = teams.firstOrNull { it.id == ch.toTeamId } ?: teams.firstOrNull()
+        if (fromT != null && toT != null) MatchChallengeDetailSheet(
+            players = remotePlayers ?: DemoData.players,            challenge = ch,
             fromTeam = fromT,
             toTeam = toT,
+            canRespond = !backendMode || toT.captainId == DemoData.ME,
             onAccept = {
                 onAcceptChallenge(ch)
                 selectedChallengeForDetail = null
@@ -507,15 +642,25 @@ fun CompetitionScreen(
     }
 
     // AI Match Scouter & Şehir Şampiyonluğu Kemeri Modalı
-    if (showAiMatchScouterSheet) {
+    if (showAiMatchScouterSheet && myTeam != null) {
         AiMatchScouterSheet(
             myTeam = myTeam,
             opponents = opponents,
             onDismiss = { showAiMatchScouterSheet = false },
             onIssueBeltChallenge = { targetTeam ->
                 showAiMatchScouterSheet = false
-                onOpenChallengeSheet(myTeam, targetTeam)
+                requestChallenge(targetTeam)
             }
         )
     }
+    challengeTarget?.let { target ->
+        val currentTarget = teams.firstOrNull { it.id == target.id }
+        AlertDialog(onDismissRequest = { challengeTarget = null }, title = { Text("Kaynak takımını seç") },
+            text = { Column { captainedTeams.filter { it.sport == target.sport && it.id != target.id }.forEach { source ->
+                TextButton(onClick = { challengeTarget = null; currentTarget?.let { onOpenChallengeSheet(source, it) } }) { Text("${source.badge} ${source.name} · ${source.sport.label}") }
+            } } }, confirmButton = { TextButton(onClick = { challengeTarget = null }) { Text("Vazgeç") } })
+    }
+    challengeNotice?.let { message -> AlertDialog(onDismissRequest = { challengeNotice = null }, title = { Text("Takım kaptanlığı gerekiyor") }, text = { Text(message) },
+        confirmButton = { TextButton(onClick = { challengeNotice = null; showCreateTeamSheet = true }) { Text("Takım oluştur") } },
+        dismissButton = { TextButton(onClick = { challengeNotice = null }) { Text("Kapat") } }) }
 }

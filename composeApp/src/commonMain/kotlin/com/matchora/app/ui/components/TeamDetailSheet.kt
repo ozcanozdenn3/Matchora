@@ -41,20 +41,27 @@ import com.matchora.app.ui.theme.MColors
 fun TeamDetailSheet(
     team: TeamProfile,
     currentPlayer: Player = DemoData.mePlayer,
+    players: List<Player> = DemoData.players,
     myTeam: TeamProfile?,
     pendingRequestsCount: Int = 0,
     onDismiss: () -> Unit,
     onOpenChallenge: () -> Unit,
     onApplyToTeam: () -> Unit,
     onManageRequests: () -> Unit,
-    onOpenCaptainChat: (Player) -> Unit
+    onOpenCaptainChat: (Player) -> Unit,
+    onChallengePlayer: ((Player) -> Unit)? = null,
+    onInvitePlayerToTeam: ((Player) -> Unit)? = null,
+    onShareTeam: (() -> Unit)? = null
 ) {
-    val captainPlayer = remember(team.captainId, currentPlayer) {
-        if (team.captainId == DemoData.ME) currentPlayer else DemoData.player(team.captainId) ?: currentPlayer
+    val backendMode = LocalBackendRepository.current?.enabled == true
+    var selectedPlayerProfile by remember { mutableStateOf<Player?>(null) }
+    val captainPlayer = remember(team.captainId, currentPlayer, players) {
+        if (team.captainId == DemoData.ME) currentPlayer else players.firstOrNull { it.id == team.captainId } ?: currentPlayer.copy(id = team.captainId, name = "Takım kaptanı", verified = false, rating = 0, verifiedMatches = 0, reliabilityVisible = false, profileAvailable = false)
     }
 
-    val rosterPlayers = remember(team.memberIds, currentPlayer) {
-        team.memberIds.mapNotNull { id -> if (id == DemoData.ME) currentPlayer else DemoData.player(id) }
+    val rosterPlayers = remember(team.memberIds, currentPlayer, players) {
+        team.memberIds.map { id -> if (id == DemoData.ME) currentPlayer else players.firstOrNull { it.id == id }
+            ?: currentPlayer.copy(id = id, name = "Takım sporcusu", verified = false, rating = 0, verifiedMatches = 0, reliability = 0, position = null, reliabilityVisible = false, profileAvailable = false) }
     }
     val matchCount = team.wins + team.draws + team.losses
     val winRate = if (matchCount > 0) team.wins * 100 / matchCount else 0
@@ -153,7 +160,7 @@ fun TeamDetailSheet(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = "KULÜP ID: TR-FC-${team.id.takeLast(3).uppercase()} · ${team.memberIds.size} Lisanslı Sporcu",
+                                        text = "KULÜP ID: ${teamDisplayId(team.id)} · ${team.memberIds.size} Lisanslı Sporcu",
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 0.5.sp,
@@ -229,7 +236,7 @@ fun TeamDetailSheet(
                             modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("${team.fairPlay}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF59E0B))
+                                Text(if (team.fairPlay > 0) "${team.fairPlay}" else "—", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF59E0B))
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Icon(Icons.Rounded.Star, null, tint = Color(0xFFF59E0B), modifier = Modifier.size(12.dp))
                             }
@@ -269,7 +276,7 @@ fun TeamDetailSheet(
                             Text("🏆", fontSize = 16.sp)
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "KUPA DOLABI · DEMO",
+                                text = if (backendMode) "KUPA DOLABI" else "KUPA DOLABI · DEMO",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.5.sp,
@@ -319,7 +326,7 @@ fun TeamDetailSheet(
                                 Text("🤖", fontSize = 16.sp)
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "DEMO · TAKIM ÖZETİ",
+                                    text = if (backendMode) "TAKIM ÖZETİ" else "DEMO · TAKIM ÖZETİ",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 0.5.sp,
@@ -392,7 +399,10 @@ fun TeamDetailSheet(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "🗓️ Maç Saatleri: ${team.availability} · Min Aranan: ${team.requiredMmr} MMR",
+                            text = buildString {
+                                append("🗓️ Maç Saatleri: ${team.availability} · Min Aranan: ${team.requiredMmr} MMR")
+                                if (!team.homeVenue.isNullOrBlank()) append(" · 🏟️ ${team.homeVenue}")
+                            },
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MColors.Ink500
@@ -428,11 +438,17 @@ fun TeamDetailSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     rosterPlayers.forEach { player ->
                         val isCaptain = player.id == team.captainId
+                        val isCoCaptain = player.id == team.coCaptainId
+                        val isSub = player.id in team.substituteIds
                         Surface(
                             shape = RoundedCornerShape(16.dp),
                             color = Color.White,
                             border = BorderStroke(1.dp, if (isCaptain) MColors.Brand.copy(alpha = .35f) else MColors.Line),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = player.profileAvailable && player.id != DemoData.ME) {
+                                    selectedPlayerProfile = player
+                                }
                         ) {
                             Row(
                                 modifier = Modifier
@@ -449,7 +465,9 @@ fun TeamDetailSheet(
                                             .background(player.color.copy(alpha = 0.2f)),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text(
+                                        val avatar = playerAvatarUploadId(player)
+                                        if (avatar != null) BackendPhoto(avatar, player.name, Modifier.fillMaxSize())
+                                        else Text(
                                             text = player.name.take(1),
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
@@ -470,10 +488,16 @@ fun TeamDetailSheet(
                                             if (isCaptain) {
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text("👑 Kaptan", fontSize = 10.sp, color = MColors.Brand, fontWeight = FontWeight.Bold)
+                                            } else if (isCoCaptain) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("⭐ Yardımcı Kaptan", fontSize = 10.sp, color = MColors.BrandDeep, fontWeight = FontWeight.Bold)
+                                            } else if (isSub) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("Yedek", fontSize = 10.sp, color = MColors.Ink500, fontWeight = FontWeight.Bold)
                                             }
                                         }
                                         Text(
-                                            text = "${player.position} · ${player.rating} MMR",
+                                            text = if (player.profileAvailable) "${player.position ?: "Sporcu"} · ${player.rating} MMR" else "Profil bilgisi bu listede bulunmuyor",
                                             fontSize = 11.sp,
                                             color = MColors.Ink500,
                                             maxLines = 1,
@@ -489,7 +513,7 @@ fun TeamDetailSheet(
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = "%${player.reliability} Güvenilirlik",
+                                        text = "${player.reliabilityLabel} Güvenilirlik",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MColors.Mint
@@ -502,8 +526,59 @@ fun TeamDetailSheet(
             }
 
             // 7. Aksiyon Butonları
+            item { BackendTeamActions(team, players); BackendTeamEditing(team) }
+
+            // Benzersiz Kulüp ID Kartı ve Paylaşım
             item {
-                if (team.isMine) {
+                var copiedClubId by remember { mutableStateOf(false) }
+                val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFFF8FAFC),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("BENZERSİZ KULÜP ID", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.Ink400, letterSpacing = 0.5.sp)
+                            Text(teamDisplayId(team.id), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = MColors.BrandDeep)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FilledTonalButton(
+                                onClick = {
+                                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(team.id))
+                                    copiedClubId = true
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(13.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(if (copiedClubId) "Kopyalandı" else "Kopyala", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                            if (onShareTeam != null) {
+                                Button(
+                                    onClick = onShareTeam,
+                                    colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Share, null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                if (team.isMine && team.captainId == DemoData.ME) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         MButton(
                             text = if (pendingRequestsCount > 0) "Başvuruları İncele ($pendingRequestsCount) 👥" else "Başvuruları Yönet 👥",
@@ -511,7 +586,7 @@ fun TeamDetailSheet(
                             icon = Icons.Rounded.Groups
                         )
                     }
-                } else {
+                } else if (!team.isMine) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         MButton("Meydan Oku", onOpenChallenge, icon = Icons.Rounded.SportsKabaddi)
 
@@ -529,5 +604,28 @@ fun TeamDetailSheet(
                 }
             }
         }
+    }
+    selectedPlayerProfile?.let { player ->
+        PlayerProfileSheet(
+            name = player.name,
+            initials = player.initials,
+            rating = player.rating,
+            rank = 1,
+            player = player,
+            isInvitedToTeam = false,
+            sport = team.sport,
+            onDismiss = { selectedPlayerProfile = null },
+            onChallenge = {
+                val target = player
+                selectedPlayerProfile = null
+                onChallengePlayer?.invoke(target)
+            },
+            onInviteTeam = {
+                val target = player
+                selectedPlayerProfile = null
+                onInvitePlayerToTeam?.invoke(target)
+            },
+            onDirectMessage = { selectedPlayerProfile = null; onOpenCaptainChat(player) }
+        )
     }
 }

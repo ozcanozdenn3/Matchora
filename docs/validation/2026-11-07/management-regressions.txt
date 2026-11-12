@@ -1,0 +1,28 @@
+✔ captain removes an athlete, closes chat access and explicitly invites them back (110.198334ms)
+✔ captain transfer requires another active member and voluntary leave requires membership (29.317791ms)
+✔ closing a team cancels pending offers and refunds their original owner (25.995292ms)
+✔ registered tournament rosters prevent removal or leave until their exact registration is withdrawn (40.958541ms)
+✔ future scheduled fixtures can be cancelled together but begun tournaments cannot be silently erased (45.842041ms)
+✔ knockout draws cannot consume the result record and block tournament progress (42.88525ms)
+✔ leaving a private community releases participation and leaving cannot undo moderator removal (47.657583ms)
+✔ community invitations explicitly approve membership and closing refunds future private events (32.445042ms)
+✔ direct admission consumes a pending application without letting cancellation or rejection release the roster hold (102.601291ms)
+✔ a second join at full capacity is idempotent for the already admitted athlete and keeps a single hold (30.153333ms)
+✔ voluntary leave and readmission create fresh commitment generations without duplicate refunds (40.811584ms)
+✔ scheduled start closes leave even before the host or worker changes the event status (26.845ms)
+✔ an elapsed event cannot be restarted or have its roster removed before lifecycle cleanup runs (19.478667ms)
+✔ a no-show cannot consume the only score report and never gains attendance after operator settlement (46.175333ms)
+✔ organizer removal refunds a late commitment, revokes chat and participation, and offers the freed place (32.898125ms)
+✔ removal and restoration require the organizer role, current version and a non-host participant (34.567959ms)
+✔ removed athletes cannot bypass readmission via join, application or waitlist; restore never autojoins or charges (36.262416ms)
+✔ removal cancels legacy pending applications and waitlist entries without refunding another event hold (34.913041ms)
+✔ organizer removal cannot alter a frozen challenge fixture roster (20.1925ms)
+✔ organizer removal cannot alter a frozen tournament fixture roster (23.47725ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 676.857416

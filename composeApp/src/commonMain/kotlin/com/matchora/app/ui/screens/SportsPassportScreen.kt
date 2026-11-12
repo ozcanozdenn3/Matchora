@@ -15,11 +15,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.matchora.app.ui.components.LocalBackendRepository
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +51,10 @@ fun SportsPassportScreen(
     paddingValues: PaddingValues,
     user: UserProfile,
     activeProPlan: ProPlan? = null,
+    historyOverride: List<MatchHistoryItem>? = null,
+    reliabilityOverride: List<ReliabilityRecord>? = null,
+    badgesOverride: List<BadgeInfo>? = null,
+    missionsOverride: List<Mission>? = null,
     isLoggedIn: Boolean = true,
     onOpenAuth: () -> Unit = {},
     onLogout: () -> Unit = {},
@@ -68,10 +74,17 @@ fun SportsPassportScreen(
     var showProfileEditor by remember { mutableStateOf(false) }
     var showAllSkills by remember { mutableStateOf(false) }
     var showAllMatches by remember { mutableStateOf(false) }
+    var showMissions by remember { mutableStateOf(false) }
 
-    val history = if (user.verifiedMatches > 0) DemoData.history else emptyList()
-    val badges = DemoData.badges.map { if (user.verifiedMatches > 0) it else it.copy(earned = false, progress = 0f) }
-    val weeklyMission = DemoData.missions.firstOrNull()?.let { if (user.verifiedMatches > 0) it else it.copy(progress = 0) }
+    val effectiveUser = if (isLoggedIn) user else DemoData.me.copy(
+        name = user.name.ifBlank { "Özcan Özden" },
+        city = "İstanbul",
+        area = "Kadıköy"
+    )
+    val history = if (isLoggedIn) (historyOverride ?: if (user.verifiedMatches > 0) DemoData.history else emptyList()) else DemoData.history
+    val badges = if (isLoggedIn) (badgesOverride ?: DemoData.badges.map { if (user.verifiedMatches > 0) it else it.copy(earned = false, progress = 0f) }) else DemoData.badges
+    val allMissions = if (isLoggedIn) (missionsOverride ?: DemoData.missions.map { if (user.verifiedMatches > 0) it else it.copy(progress = 0) }) else DemoData.missions
+    val weeklyMission = allMissions.firstOrNull()
     val earnedBadges = badges.count { it.earned }
     val listState = rememberLazyListState()
     val scrollToTopTrigger = LocalScrollToTopTrigger.current
@@ -81,14 +94,7 @@ fun SportsPassportScreen(
         }
     }
 
-    if (!isLoggedIn) {
-        GuestPassportView(
-            paddingValues = paddingValues,
-            onOpenAuth = onOpenAuth,
-            sampleUser = user
-        )
-    } else {
-        Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -103,7 +109,7 @@ fun SportsPassportScreen(
             ) {
                 item {
                     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(21.dp), color = MColors.Ink900,
-                        border = BorderStroke(1.dp, Color(0xFF40505B)), shadowElevation = 3.dp) {
+                        border = BorderStroke(if (activeProPlan != null) 1.5.dp else 1.dp, if (activeProPlan != null) MColors.Gold else Color(0xFF40505B)), shadowElevation = 3.dp) {
                     Column(Modifier.background(Brush.linearGradient(listOf(Color(0xFF293D46), MColors.Ink900))).padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -111,7 +117,7 @@ fun SportsPassportScreen(
                                 fontWeight = FontWeight.Bold, color = Color(0xFFE1C49D))
                             if (activeProPlan != null) MBadge("PRO", Color(0xFFE1C49D), Color(0xFF3E423E))
                             TextButton(
-                                onClick = onOpenWallet,
+                                onClick = { if (!isLoggedIn) onOpenAuth() else onOpenWallet() },
                                 modifier = Modifier.height(26.dp),
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                             ) {
@@ -125,24 +131,38 @@ fun SportsPassportScreen(
                                     modifier = Modifier.height(26.dp),
                                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                                 ) {
-                                    Icon(Icons.Rounded.Logout, null, Modifier.size(13.dp), tint = Color(0xFFB8C7CE))
+                                    Icon(Icons.AutoMirrored.Rounded.Logout, null, Modifier.size(13.dp), tint = Color(0xFFB8C7CE))
                                     Spacer(Modifier.width(3.dp))
                                     Text("Çıkış", fontSize = 10.sp, color = Color(0xFFB8C7CE))
+                                }
+                            } else {
+                                TextButton(
+                                    onClick = onOpenAuth,
+                                    modifier = Modifier.height(26.dp),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                ) {
+                                    Icon(Icons.AutoMirrored.Rounded.Login, null, Modifier.size(13.dp), tint = Color(0xFFE1C49D))
+                                    Spacer(Modifier.width(3.dp))
+                                    Text("Giriş Yap", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE1C49D))
                                 }
                             }
                         }
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Box(Modifier.size(40.dp).background(Brush.linearGradient(listOf(Color(0xFFE1BE87), Color(0xFF96704D))), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
-                                if (user.avatar != null) androidx.compose.foundation.Image(user.avatar, "Profil fotoğrafı", Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-                                else Text(user.initials, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
+                                if (effectiveUser.avatar != null) androidx.compose.foundation.Image(effectiveUser.avatar, "Profil fotoğrafı", Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                                else {
+                                    val avatarUploadId = userAvatarUploadId(if (isLoggedIn) DemoData.ME else effectiveUser.name)
+                                    if (avatarUploadId != null) BackendPhoto(avatarUploadId, "Profil fotoğrafı", Modifier.fillMaxSize())
+                                    else Text(effectiveUser.initials, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
+                                }
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                                Text(user.name, fontSize = 16.5.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                                Text(effectiveUser.name, fontSize = 16.5.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold, color = Color.White,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${user.city} · ${user.area}", fontSize = 11.sp, color = Color(0xFFB8C7CE), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${effectiveUser.city} · ${effectiveUser.area}", fontSize = 11.sp, color = Color(0xFFB8C7CE), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             Surface(
-                                onClick = { showQrPassSheet = true },
+                                onClick = { if (!isLoggedIn) onOpenAuth() else showQrPassSheet = true },
                                 shape = RoundedCornerShape(11.dp),
                                 color = Color(0xFF2B3B45),
                                 shadowElevation = 4.dp,
@@ -156,7 +176,7 @@ fun SportsPassportScreen(
                                 }
                             }
                             Surface(
-                                onClick = { showProfileEditor = true },
+                                onClick = { if (!isLoggedIn) onOpenAuth() else showProfileEditor = true },
                                 shape = RoundedCornerShape(11.dp),
                                 color = Color(0xFF2B3B45),
                                 shadowElevation = 4.dp,
@@ -170,53 +190,59 @@ fun SportsPassportScreen(
                                 }
                             }
                         }
-                        if (user.bio.isNotBlank()) Text(user.bio, fontSize = 11.5.sp, lineHeight = 15.sp, color = Color(0xFFD0DADF), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (effectiveUser.bio.isNotBlank()) Text(effectiveUser.bio, fontSize = 11.5.sp, lineHeight = 15.sp, color = Color(0xFFD0DADF), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             VerificationChip(
-                                label = if (VerificationLevel.BASIC in user.verifications) "İletişim onaylı" else "İletişimi doğrula",
-                                verified = VerificationLevel.BASIC in user.verifications,
-                                onClick = if (VerificationLevel.BASIC in user.verifications) null else onVerifyContact)
+                                label = if (VerificationLevel.BASIC in effectiveUser.verifications) "İletişim onaylı" else "İletişimi doğrula",
+                                verified = VerificationLevel.BASIC in effectiveUser.verifications,
+                                onClick = if (!isLoggedIn) onOpenAuth else (if (VerificationLevel.BASIC in effectiveUser.verifications) null else onVerifyContact))
                             VerificationChip(
-                                label = if (VerificationLevel.PHOTO in user.verifications) "Fotoğraf onaylı" else "Fotoğrafı doğrula",
-                                verified = VerificationLevel.PHOTO in user.verifications,
-                                onClick = if (VerificationLevel.PHOTO in user.verifications) null else onVerifyPhoto)
+                                label = if (VerificationLevel.PHOTO in effectiveUser.verifications) "Fotoğraf onaylı" else "Fotoğrafı doğrula",
+                                verified = VerificationLevel.PHOTO in effectiveUser.verifications,
+                                onClick = if (!isLoggedIn) onOpenAuth else (if (VerificationLevel.PHOTO in effectiveUser.verifications) null else onVerifyPhoto))
                         }
-                        val profileContext = listOfNotNull(user.dominantSide.takeIf { it.isNotBlank() }, user.campus, user.company).joinToString(" · ")
+                        val profileContext = listOfNotNull(effectiveUser.dominantSide.takeIf { it.isNotBlank() }, effectiveUser.campus, effectiveUser.company).joinToString(" · ")
                         if (profileContext.isNotBlank()) Text(profileContext, fontSize = 11.sp, color = Color(0xFF9EAFBB), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (user.availability.isNotEmpty()) {
+                        if (effectiveUser.availability.isNotEmpty()) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Icon(Icons.Rounded.Schedule, null, Modifier.size(12.dp), tint = Color(0xFF9EAFBB))
-                                Text(user.availability.joinToString(" · "), fontSize = 11.sp, lineHeight = 14.sp, color = Color(0xFFB8C7CE), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(effectiveUser.availability.joinToString(" · "), fontSize = 11.sp, lineHeight = 14.sp, color = Color(0xFFB8C7CE), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            PassportMetric("GÜVEN", "%${user.reliability}", Modifier.weight(1f).fillMaxHeight())
-                            PassportMetric("MAÇ", "${user.verifiedMatches}", Modifier.weight(1f).fillMaxHeight())
-                            PassportMetric("FAIR PLAY", "${user.fairPlay}/5", Modifier.weight(1f).fillMaxHeight())
-                            PassportMetric("SERİ", "${user.streakWeeks} hf", Modifier.weight(1f).fillMaxHeight())
+                            PassportMetric("GÜVEN", "%${effectiveUser.reliability}", Modifier.weight(1f).fillMaxHeight())
+                            PassportMetric("MAÇ", "${effectiveUser.verifiedMatches}", Modifier.weight(1f).fillMaxHeight())
+                            PassportMetric("FAIR PLAY", if (effectiveUser.fairPlay > 0) "${effectiveUser.fairPlay}/5" else "—", Modifier.weight(1f).fillMaxHeight())
+                            PassportMetric("SERİ", "${effectiveUser.streakWeeks} hf", Modifier.weight(1f).fillMaxHeight())
                         }
                     }
                 }
             }
 
+            if (!isLoggedIn) {
+                item {
+                    PassportHighlightsCard(onOpenAuth = onOpenAuth)
+                }
+            }
+
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(onClick = onOpenActivity, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Rounded.CalendarMonth, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("Oyun takvimim", fontSize = 12.sp) }
-                    OutlinedButton(onClick = onOpenSettings, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Rounded.Tune, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("Hesap ayarları", fontSize = 12.sp, maxLines = 1) }
+                    OutlinedButton(onClick = { if (!isLoggedIn) onOpenAuth() else onOpenActivity() }, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Rounded.CalendarMonth, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("Oyun takvimim", fontSize = 12.sp) }
+                    OutlinedButton(onClick = { if (!isLoggedIn) onOpenAuth() else onOpenSettings() }, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Rounded.Tune, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("Hesap ayarları", fontSize = 12.sp, maxLines = 1) }
                 }
             }
 
             item {
                 PassportSectionCard(
                     title = "Branş dereceleri",
-                    detail = "${user.skills.size} branş · MMR"
+                    detail = "${effectiveUser.skills.size} branş · MMR"
                 ) {
-                    MButton("Branş ekle", { showAddSport = true }, icon = Icons.Rounded.Add, isPrimary = false, height = 40.dp)
+                    MButton("Branş ekle", { if (!isLoggedIn) onOpenAuth() else showAddSport = true }, icon = Icons.Rounded.Add, isPrimary = false, height = 40.dp)
                     Spacer(Modifier.height(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        user.skills.take(if (showAllSkills) Int.MAX_VALUE else 3).forEach { skill ->
+                        effectiveUser.skills.take(if (showAllSkills) Int.MAX_VALUE else 3).forEach { skill ->
                             Surface(
-                                onClick = { selectedSkillForDetail = skill },
+                                onClick = { if (!isLoggedIn) onOpenAuth() else selectedSkillForDetail = skill },
                                 shape = RoundedCornerShape(15.dp),
                                 color = Color.White,
                                 shadowElevation = 6.dp,
@@ -273,7 +299,7 @@ fun SportsPassportScreen(
                                     ) {
                                         Text("${skill.rating} MMR", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = MColors.Brand, maxLines = 1)
                                         Text(
-                                            skill.localRank?.let { "#$it · ${user.area}" } ?: "Yerel sıra —",
+                                            skill.localRank?.let { "#$it · ${effectiveUser.area}" } ?: "Yerel sıra —",
                                             fontSize = 11.sp,
                                             color = MColors.Ink500,
                                             maxLines = 1
@@ -281,7 +307,7 @@ fun SportsPassportScreen(
                                     }
                                     Spacer(Modifier.width(10.dp))
                                     Surface(
-                                        onClick = { selectedSkillForEdit = skill },
+                                        onClick = { if (!isLoggedIn) onOpenAuth() else selectedSkillForEdit = skill },
                                         shape = RoundedCornerShape(9.dp),
                                         color = Color.White,
                                         shadowElevation = 3.dp,
@@ -303,11 +329,11 @@ fun SportsPassportScreen(
                             }
                         }
                     }
-                    if (user.skills.size > 3) {
+                    if (effectiveUser.skills.size > 3) {
                         Spacer(Modifier.height(10.dp))
                         ExpandPassportRows(
                             expanded = showAllSkills,
-                            label = if (showAllSkills) "Daha az göster" else "Diğer ${user.skills.size - 3} branşı göster",
+                            label = if (showAllSkills) "Daha az göster" else "Diğer ${effectiveUser.skills.size - 3} branşı göster",
                             onClick = { showAllSkills = !showAllSkills }
                         )
                     }
@@ -326,7 +352,7 @@ fun SportsPassportScreen(
                         items(badges.size) { index ->
                             val badge = badges[index]
                             Surface(
-                                onClick = { selectedBadgeForDetail = badge },
+                                onClick = { if (!isLoggedIn) onOpenAuth() else selectedBadgeForDetail = badge },
                                 shape = RoundedCornerShape(15.dp),
                                 color = Color.White,
                                 shadowElevation = 6.dp,
@@ -436,7 +462,7 @@ fun SportsPassportScreen(
                                     modifier = Modifier.shadow(6.dp, RoundedCornerShape(10.dp), ambientColor = Color(0x280B1220), spotColor = Color(0x380B1220))
                                 ) {
                                     Text(
-                                        "+${weeklyMission.rewardPoints} puan",
+                                        "+${weeklyMission.rewardPoints} TKN",
                                         modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                                         fontSize = 12.sp,
                                         color = MColors.Brand,
@@ -485,10 +511,12 @@ fun SportsPassportScreen(
                 }
             }
 
+            if (allMissions.isNotEmpty()) item { TextButton(onClick = { if (!isLoggedIn) onOpenAuth() else showMissions = true }) { Text("Tüm haftalık görevler (${allMissions.size})") } }
+
             item {
-                PassportSectionCard(title = "Güvenilirlik geçmişi", detail = "%${user.reliability}") {
+                PassportSectionCard(title = "Güvenilirlik geçmişi", detail = "%${effectiveUser.reliability}") {
                     Surface(
-                        onClick = { showReliabilityDetail = !showReliabilityDetail },
+                        onClick = { if (!isLoggedIn) onOpenAuth() else showReliabilityDetail = !showReliabilityDetail },
                         shape = RoundedCornerShape(13.dp),
                         color = Color.White,
                         shadowElevation = 5.dp,
@@ -521,7 +549,7 @@ fun SportsPassportScreen(
                     }
                     AnimatedVisibility(visible = showReliabilityDetail) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 9.dp)) {
-                            (if (user.verifiedMatches > 0) DemoData.reliabilityRecords else emptyList()).forEach { record ->
+                            (reliabilityOverride ?: if (effectiveUser.verifiedMatches > 0) DemoData.reliabilityRecords else emptyList()).forEach { record ->
                                 Surface(
                                     shape = RoundedCornerShape(13.dp),
                                     color = Color.White,
@@ -680,6 +708,7 @@ fun SportsPassportScreen(
             SkillBreakdownDialog(skill = skill, area = user.area, onDismiss = { selectedSkillForDetail = null })
         }
         selectedSkillForEdit?.let { skill ->
+            val canRemove = user.skills.size > 1 && user.skills.any { it.sport == skill.sport }
             SkillProfileEditorSheet(
                 skill = skill,
                 onDismiss = { selectedSkillForEdit = null },
@@ -689,7 +718,11 @@ fun SportsPassportScreen(
                     } else user.skills + updatedSkill
                     onUpdateProfile(user.copy(skills = updated))
                     selectedSkillForEdit = null
-                }
+                },
+                onRemove = if (canRemove) ({
+                    onUpdateProfile(user.copy(skills = user.skills.filterNot { it.sport == skill.sport }))
+                    selectedSkillForEdit = null
+                }) else null
             )
         }
         selectedBadgeForDetail?.let { badge ->
@@ -702,6 +735,8 @@ fun SportsPassportScreen(
                 onDismiss = { selectedBadgeForDetail = null }
             )
         }
+        if (showMissions) MissionsSheet(allMissions) { showMissions = false }
+
         if (showQrPassSheet) {
             AthleteQrPassSheet(user = user, onDismiss = { showQrPassSheet = false })
         }
@@ -712,11 +747,11 @@ fun SportsPassportScreen(
                 onSave = { updated ->
                     onUpdateProfile(updated)
                     showProfileEditor = false
-                }
+                },
+                onVerifyContact = { showProfileEditor = false; onVerifyContact() }
             )
         }
     }
-}
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -724,7 +759,8 @@ fun SportsPassportScreen(
 private fun SkillProfileEditorSheet(
     skill: SportSkill,
     onDismiss: () -> Unit,
-    onSave: (SportSkill) -> Unit
+    onSave: (SportSkill) -> Unit,
+    onRemove: (() -> Unit)? = null
 ) {
     var level by remember(skill) { mutableStateOf(skill.level) }
     var position by remember(skill) { mutableStateOf(skill.position.orEmpty()) }
@@ -812,6 +848,14 @@ private fun SkillProfileEditorSheet(
                 Spacer(Modifier.width(7.dp))
                 Text("Branş profilini kaydet", fontWeight = FontWeight.Bold)
             }
+            if (onRemove != null) {
+                TextButton(
+                    onClick = onRemove,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Branşı kaldır", color = MColors.Rose, fontWeight = FontWeight.SemiBold)
+                }
+            }
         }
     }
 }
@@ -821,22 +865,30 @@ private fun SkillProfileEditorSheet(
 private fun ProfileEditorSheet(
     user: UserProfile,
     onDismiss: () -> Unit,
-    onSave: (UserProfile) -> Unit
+    onSave: (UserProfile) -> Unit,
+    onVerifyContact: () -> Unit
 ) {
-    var avatar by remember(user) { mutableStateOf(user.avatar) }
-    val pickAvatar = rememberGalleryPhotoPicker { avatar = it }
-    var jerseyNumber by remember(user) { mutableStateOf(user.jerseyNumber?.toString().orEmpty()) }
-    var name by remember(user) { mutableStateOf(user.name) }
-    var bio by remember(user) { mutableStateOf(user.bio) }
-    var city by remember(user) { mutableStateOf(user.city) }
-    var area by remember(user) { mutableStateOf(user.area) }
-    var birthYear by remember(user) { mutableStateOf(user.birthYear.toString()) }
-    var phone by remember(user) { mutableStateOf(user.phone) }
-    var email by remember(user) { mutableStateOf(user.email) }
-    var campus by remember(user) { mutableStateOf(user.campus.orEmpty()) }
-    var company by remember(user) { mutableStateOf(user.company.orEmpty()) }
-    var dominantSide by remember(user) { mutableStateOf(user.dominantSide) }
-    var availability by remember(user) { mutableStateOf(user.availability.joinToString(", ")) }
+    val backend = com.matchora.app.ui.components.LocalBackendRepository.current
+    val phoneLocked = backend?.enabled == true
+    val backendWire = if (backend != null) backend.snapshots.collectAsState().value else null
+    val avatarUploadId = backendWire?.get("profile")?.let { it as? kotlinx.serialization.json.JsonObject }?.get("avatarUploadId")?.let { it as? kotlinx.serialization.json.JsonPrimitive }?.content?.takeIf { it.isNotBlank() && it != "null" }
+    val original = remember { user }
+    var avatar by remember(original) { mutableStateOf(original.avatar) }
+    var avatarRemovalRequested by remember(original) { mutableStateOf(original.avatarRemovalRequested) }
+    var confirmAvatarRemoval by remember { mutableStateOf(false) }
+    val pickAvatar = rememberGalleryPhotoPicker { avatar = it; avatarRemovalRequested = false }
+    var jerseyNumber by remember(original) { mutableStateOf(original.jerseyNumber?.toString().orEmpty()) }
+    var name by remember(original) { mutableStateOf(original.name) }
+    var bio by remember(original) { mutableStateOf(original.bio) }
+    var city by remember(original) { mutableStateOf(original.city) }
+    var area by remember(original) { mutableStateOf(original.area) }
+    var birthYear by remember(original) { mutableStateOf(original.birthYear.toString()) }
+    var phone by remember(original) { mutableStateOf(original.phone) }
+    var email by remember(original) { mutableStateOf(original.email) }
+    var campus by remember(original) { mutableStateOf(original.campus.orEmpty()) }
+    var company by remember(original) { mutableStateOf(original.company.orEmpty()) }
+    var dominantSide by remember(original) { mutableStateOf(original.dominantSide) }
+    var availability by remember(original) { mutableStateOf(original.availability.joinToString(", ")) }
 
     val parsedBirthYear = birthYear.toIntOrNull()
     val emailIsValid = email.contains('@') && email.substringAfter('@').contains('.')
@@ -871,8 +923,10 @@ private fun ProfileEditorSheet(
             Column(Modifier.weight(1f).verticalScroll(scrollState).padding(horizontal = 22.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 Spacer(Modifier.height(2.dp))
                 Row(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFFFFEBD9), Color(0xFFF5EFE6))), RoundedCornerShape(24.dp)).padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Box(Modifier.size(52.dp).background(Color.White.copy(alpha = .8f), CircleShape).border(1.dp, Color.White, CircleShape), contentAlignment = Alignment.Center) {
-                        Text(name.trim().split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1) }.uppercase().ifBlank { "M" }, fontSize = 23.sp, fontWeight = FontWeight.Bold, color = MColors.BrandDeep)
+                    Box(Modifier.size(52.dp).clip(CircleShape).background(Color.White.copy(alpha = .8f), CircleShape).border(1.dp, Color.White, CircleShape), contentAlignment = Alignment.Center) {
+                        if (avatar != null) androidx.compose.foundation.Image(requireNotNull(avatar), "Profil fotoğrafı", Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                        else if (!avatarRemovalRequested && avatarUploadId != null) BackendPhoto(avatarUploadId, "Profil fotoğrafı", Modifier.fillMaxSize())
+                        else Text(name.trim().split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1) }.uppercase().ifBlank { "M" }, fontSize = 23.sp, fontWeight = FontWeight.Bold, color = MColors.BrandDeep)
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(name.ifBlank { "Sporcu profilin" }, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -891,7 +945,9 @@ private fun ProfileEditorSheet(
                 when (section) {
                     0 -> {
                         ProfileEditorSectionTitle("Sahada seni tanısınlar")
-                        OutlinedButton(onClick = pickAvatar, modifier = Modifier.fillMaxWidth()) { Text(if (avatar == null) "Profil fotoğrafı ekle" else "Profil fotoğrafını değiştir") }
+                        OutlinedButton(onClick = pickAvatar, modifier = Modifier.fillMaxWidth()) { Text(if (avatar == null && (avatarUploadId == null || avatarRemovalRequested)) "Profil fotoğrafı ekle" else "Profil fotoğrafını değiştir") }
+                        if (!avatarRemovalRequested && (avatar != null || avatarUploadId != null)) TextButton(onClick = { confirmAvatarRemoval = true }) { Text("Fotoğrafı kaldır", color = MColors.Rose) }
+                        if (avatarRemovalRequested) Text("Fotoğrafın değişiklikleri kaydettiğinde kaldırılacak.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
                         ProfileEditField("Ad soyad", name, { name = it }, isError = name.isBlank())
                         ProfileEditField("Forma numarası · isteğe bağlı", jerseyNumber, { jerseyNumber = it.filter(Char::isDigit).take(2) })
                         Surface(onClick = { showLocationPicker = true }, shape = RoundedCornerShape(16.dp), color = Color.White, border = BorderStroke(1.dp, MColors.Line)) {
@@ -945,7 +1001,11 @@ private fun ProfileEditorSheet(
                     }
                     else -> {
                         ProfileEditorSectionTitle("İletişim bilgilerin")
-                        ProfileEditField("Telefon", phone, { phone = it }, isError = phone.isNotBlank() && !phoneIsValid)
+                        ProfileEditField("Telefon", phone, { phone = it }, isError = phone.isNotBlank() && !phoneIsValid, readOnly = phoneLocked)
+                        if (phoneLocked) {
+                            Text("Telefon numaran doğrulama akışıyla hesabına bağlanır.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+                            TextButton(onClick = onVerifyContact) { Text(if (phone.isBlank()) "Telefonumu doğrula" else "Telefon numaramı değiştir") }
+                        }
                         ProfileEditField("E-posta", email, { email = it }, isError = email.isNotBlank() && !emailIsValid)
                         HorizontalDivider(color = MColors.Line)
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -963,19 +1023,20 @@ private fun ProfileEditorSheet(
                     if (!isValid) Text("Kimlik ve iletişim alanlarındaki bilgileri kontrol et.", style = MaterialTheme.typography.bodySmall, color = MColors.Rose)
                     MButton("Değişiklikleri kaydet", onClick = {
                     onSave(
-                        user.copy(
+                        original.copy(
                             avatar = avatar,
+                            avatarRemovalRequested = avatarRemovalRequested,
                             jerseyNumber = jerseyNumber.toIntOrNull(),
                             name = name.trim(),
                             city = city.trim(),
                             area = area.trim(),
                             bio = bio.trim(),
-                            birthYear = parsedBirthYear ?: user.birthYear,
+                            birthYear = parsedBirthYear ?: original.birthYear,
                             phone = phone.trim(),
                             email = email.trim(),
-                            verifications = if (phone.trim() != user.phone || email.trim() != user.email) {
-                                user.verifications - VerificationLevel.BASIC
-                            } else user.verifications,
+                            verifications = (if (phone.trim() != original.phone || email.trim() != original.email) {
+                                original.verifications - VerificationLevel.BASIC
+                            } else original.verifications).let { if (avatarRemovalRequested) it - VerificationLevel.PHOTO else it },
                             campus = campus.trim().ifBlank { null },
                             company = company.trim().ifBlank { null },
                             dominantSide = dominantSide.trim(),
@@ -987,6 +1048,10 @@ private fun ProfileEditorSheet(
             }
         }
     }
+    if (confirmAvatarRemoval) AlertDialog(onDismissRequest = { confirmAvatarRemoval = false }, title = { Text("Profil fotoğrafı kaldırılsın mı?") },
+        text = { Text("Fotoğrafın ve varsa fotoğraf doğrulama rozetin değişiklikleri kaydettiğinde kaldırılır.") },
+        confirmButton = { TextButton(onClick = { avatar = null; avatarRemovalRequested = true; confirmAvatarRemoval = false }) { Text("Fotoğrafı kaldır") } },
+        dismissButton = { TextButton(onClick = { confirmAvatarRemoval = false }) { Text("Vazgeç") } })
     if (showLocationPicker) {
         CityAndLocationSelectorSheet(city, area, false, onDismiss = { showLocationPicker = false }, onSelectLocation = { selectedCity, district, _ ->
             city = selectedCity
@@ -1017,13 +1082,15 @@ private fun ProfileEditField(
     singleLine: Boolean = true,
     minLines: Int = 1,
     maxLines: Int = 1,
-    isError: Boolean = false
+    isError: Boolean = false,
+    readOnly: Boolean = false
 ) {
     OutlinedTextField(
                     textStyle = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
 
         value = value,
         onValueChange = onValueChange,
+        readOnly = readOnly,
         modifier = modifier,
         label = { Text(label) },
         singleLine = singleLine,
@@ -1172,6 +1239,128 @@ private fun PassportSectionCard(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// MİSAFİR MODU CAN ALICI AYRICALIKLAR BÖLÜMÜ
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun PassportHighlightsCard(onOpenAuth: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFF131D28),
+        border = BorderStroke(1.2.dp, Brush.linearGradient(listOf(Color(0xFFE1C49D).copy(alpha = 0.55f), Color(0xFF334553)))),
+        shadowElevation = 5.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .background(Brush.verticalGradient(listOf(Color(0xFF1B2936), Color(0xFF0F1722))))
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("⚡", fontSize = 16.sp)
+                    Text(
+                        "MATCHARA AYRICALIKLARI",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.1.sp,
+                        color = Color(0xFFE1C49D)
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFFE1C49D).copy(alpha = 0.15f),
+                    border = BorderStroke(0.6.dp, Color(0xFFE1C49D).copy(alpha = 0.4f))
+                ) {
+                    Text(
+                        "ÖNİZLEME",
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE1C49D)
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                PassportHighlightBullet(
+                    emoji = "🎮",
+                    title = "Spor & E-Spor Portalı",
+                    desc = "Futbol, Basketbol, Tenis, Padel'den FC25 ve Satranca 10+ branşta resmi puanlama ve lisanslı sporcu profili."
+                )
+                PassportHighlightBullet(
+                    emoji = "🏆",
+                    title = "Hızlı Maç & Turnuva Kurma",
+                    desc = "Tek tıkla açık maç veya eleme usulü kupa/turnuva oluştur, eksik oyuncuları otomatik topla."
+                )
+                PassportHighlightBullet(
+                    emoji = "🏢",
+                    title = "Şirket, Kampüs & Mahalle Ligleri",
+                    desc = "İş yerin, üniversiten veya semt arkadaşların için kapalı ligler, kupa fikstürleri ve prestijli derbiler."
+                )
+                PassportHighlightBullet(
+                    emoji = "🤝",
+                    title = "Akıllı Takım Arkadaşı Bulma",
+                    desc = "Mevkisine, beceri seviyesine (MMR) ve konumuna göre eksik kadronu dakikalar içinde tamamla."
+                )
+                PassportHighlightBullet(
+                    emoji = "🎯",
+                    title = "Dinamik MMR & Seviye Eşleşmesi",
+                    desc = "Şişirilmiş puanlar yok; sadece gerçek saha ve maç performansına dayalı adil seviye eşleştirmesi."
+                )
+                PassportHighlightBullet(
+                    emoji = "🛡️",
+                    title = "Güvenilirlik & Fair Play Güvencesi",
+                    desc = "Maçı son dakika ekme riskini ortadan kaldıran katılım skoru ve centilmenlik güvencesi."
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            MButton(
+                text = "Hemen Katıl / Giriş Yap 🚀",
+                onClick = onOpenAuth,
+                modifier = Modifier.fillMaxWidth(),
+                height = 42.dp,
+                isPrimary = true
+            )
+        }
+    }
+}
+
+@Composable
+private fun PassportHighlightBullet(
+    emoji: String,
+    title: String,
+    desc: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Surface(
+            shape = RoundedCornerShape(9.dp),
+            color = Color(0xFF243442),
+            modifier = Modifier.size(28.dp)
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(emoji, fontSize = 13.sp)
+            }
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(desc, fontSize = 11.sp, lineHeight = 15.sp, color = Color(0xFFBAC7D0))
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MİSAFİR SPORCU PASAPORTU MERKEZİ (PRESTİJLİ & AYRICALIKLI GUEST HUB)
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1189,236 +1378,871 @@ private fun GuestPassportView(
             .padding(top = paddingValues.calculateTopPadding())
             .padding(horizontal = 16.dp)
             .verticalScroll(scrollState),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Spacer(Modifier.height(4.dp))
 
-        // 1. Hero Holographic Teaser Passport Card
+        // 1. HERO PRESTIGE PASSPORT CARD
         Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(22.dp),
-            color = MColors.Ink900,
-            border = BorderStroke(1.2.dp, Brush.linearGradient(listOf(Color(0xFFE1C49D), Color(0xFF40505B), Color(0xFFE1C49D)))),
-            shadowElevation = 8.dp
+            onClick = onOpenAuth,
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 14.dp,
+                    shape = RoundedCornerShape(26.dp),
+                    ambientColor = Color(0x660B1220),
+                    spotColor = Color(0x99000000)
+                ),
+            shape = RoundedCornerShape(26.dp),
+            color = Color(0xFF0F172A),
+            border = BorderStroke(
+                1.4.dp,
+                Brush.linearGradient(
+                    listOf(
+                        Color(0xFFF7DEB5),
+                        Color(0xFF88633F),
+                        Color(0xFFFFE8C8),
+                        Color(0xFF334553),
+                        Color(0xFFE2B774)
+                    )
+                )
+            )
         ) {
             Column(
                 modifier = Modifier
                     .background(
                         Brush.linearGradient(
                             listOf(
-                                Color(0xFF16222F),
-                                Color(0xFF0F172A),
-                                Color(0xFF1E293B)
+                                Color(0xFF15222E),
+                                Color(0xFF0B1220),
+                                Color(0xFF131D28)
                             )
                         )
                     )
-                    .padding(horizontal = 18.dp, vertical = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .padding(horizontal = 20.dp, vertical = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Top Foil Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(7.dp)
-                                .background(Color(0xFFFFA500), CircleShape)
+                                .size(8.dp)
+                                .background(Color(0xFF10B981), CircleShape)
                         )
                         Text(
-                            "SPORCU PASAPORTU",
+                            "RESMİ SPORCU PASAPORTU",
                             fontSize = 10.5.sp,
-                            letterSpacing = 1.4.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFE1C49D)
+                            letterSpacing = 1.6.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFFE2C49D)
                         )
                     }
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFE1C49D).copy(alpha = 0.15f),
-                        border = BorderStroke(0.8.dp, Color(0xFFE1C49D).copy(alpha = 0.4f))
+                        color = Color(0xFFE2C49D).copy(alpha = 0.14f),
+                        border = BorderStroke(0.8.dp, Color(0xFFE2C49D).copy(alpha = 0.45f))
                     ) {
-                        Text(
-                            "MİSAFİR MODU",
+                        Row(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                            fontSize = 9.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFE1C49D)
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .shadow(6.dp, RoundedCornerShape(18.dp))
-                            .background(
-                                Brush.linearGradient(listOf(Color(0xFFE1BE87), Color(0xFF88633F))),
-                                RoundedCornerShape(18.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Badge,
-                            contentDescription = null,
-                            tint = MColors.Ink900,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Matchora'ya Giriş Yap",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = "Giriş yaptığında sporcu pasaportun otomatik hazırlanır ve +20 TKN başlangıç hediyen tanımlanır.",
-                            fontSize = 11.5.sp,
-                            color = Color(0xFFB8C7CE),
-                            lineHeight = 16.sp
-                        )
-                    }
-                }
-
-                // Bonus Banner
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFFFA500).copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, Color(0xFFFFA500).copy(alpha = 0.35f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text("🎁", fontSize = 16.sp)
-                        Column {
-                            Text(
-                                "Girişte +20 TKN Hoş Geldin Bonusu Hediye",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFFFC078)
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Fingerprint,
+                                contentDescription = null,
+                                tint = Color(0xFFE2C49D),
+                                modifier = Modifier.size(12.dp)
                             )
                             Text(
-                                "Giriş yaptığın an sporcu cüzdanına ücretsiz aktarılır",
-                                fontSize = 10.sp,
-                                color = Color(0xFFE0D0BE)
+                                "DİJİTAL KİMLİK",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 0.8.sp,
+                                color = Color(0xFFE2C49D)
                             )
                         }
                     }
                 }
 
-                Spacer(Modifier.height(2.dp))
+                // Middle: EMV Chip & Value Proposition
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFE4BA73),
+                        border = BorderStroke(1.dp, Color(0xFF9E7032)),
+                        shadowElevation = 5.dp
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Memory,
+                                contentDescription = "EMV Çip",
+                                tint = Color(0xFF4A3010),
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    }
 
-                // Tek ve Net Giriş Butonu
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Sahaların Resmi Pasaportu",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color.White
+                        )
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            text = "Saha geçmişin, doğrulanmış güvenilirlik skorun ve lig derecen tek bir resmi kimlikte birleşir.",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFCBD5E1),
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+
+                // Welcome Bonus Vault
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFFFFA500).copy(alpha = 0.10f),
+                    border = BorderStroke(1.dp, Color(0xFFFFA500).copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(Color(0xFFFFDF9E), Color(0xFFD69A45))
+                                    ),
+                                    RoundedCornerShape(10.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Toll,
+                                contentDescription = null,
+                                tint = Color(0xFF4A3010),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Girişte +20 TKN Hoş Geldin Hediyesi",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFFC078)
+                            )
+                            Text(
+                                "Pasaportunu açtığın an cüzdanına ücretsiz olarak aktarılır.",
+                                fontSize = 10.5.sp,
+                                color = Color(0xFFE2D4C3)
+                            )
+                        }
+                    }
+                }
+
+                // Action CTA
                 Surface(
                     onClick = onOpenAuth,
                     shape = RoundedCornerShape(14.dp),
-                    color = Color.White,
-                    shadowElevation = 2.dp,
+                    shadowElevation = 4.dp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .height(50.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        Color(0xFFFFDF9E),
+                                        Color(0xFFF3C275),
+                                        Color(0xFFE2A84E)
+                                    )
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.AutoMirrored.Rounded.Login, contentDescription = null, tint = MColors.Ink900, modifier = Modifier.size(19.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Giriş Yap ve Pasaportunu Başlat",
-                            fontSize = 14.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MColors.Ink900
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.Login,
+                                contentDescription = null,
+                                tint = Color(0xFF0B1220),
+                                modifier = Modifier.size(19.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Giriş Yap ve Pasaportunu Başlat",
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF0B1220)
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // 2. Ayrıcalıklar Kartları (Neden Pasaport?)
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = Color.White,
-            border = BorderStroke(1.dp, MColors.Line),
-            shadowElevation = 2.dp,
-            modifier = Modifier.fillMaxWidth()
+        // 2. ÖRNEK SPORCU KARTI (SHOWCASE / PRESTIGE PREVIEW CARD)
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "PASAPORTUN SANA KAZANDIRACAKLARI",
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.8.sp,
-                    color = MColors.Ink500
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.WorkspacePremium,
+                        contentDescription = null,
+                        tint = Color(0xFFD9A21B),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "ÖRNEK DİJİTAL SPORCU KARTI",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.sp,
+                        color = MColors.Ink800
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color(0xFFFFF6DC),
+                    border = BorderStroke(0.8.dp, Color(0xFFD9A21B).copy(alpha = 0.5f))
+                ) {
+                    Text(
+                        text = "CANLI ÖNİZLEME",
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF9E6B05),
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = "Profilini tamamladığında Matchora maçlarında diğer oyunculara ve organizasyonlara bu şekilde görüneceksin.",
+                fontSize = 11.5.sp,
+                color = MColors.Ink500,
+                lineHeight = 16.sp
+            )
+
+            // The Masterpiece Sports Card
+            Surface(
+                onClick = onOpenAuth,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(
+                        elevation = 16.dp,
+                        shape = RoundedCornerShape(26.dp),
+                        ambientColor = Color(0x660B1220),
+                        spotColor = Color(0x99000000)
+                    ),
+                shape = RoundedCornerShape(26.dp),
+                color = Color(0xFF0B1220),
+                border = BorderStroke(
+                    1.4.dp,
+                    Brush.linearGradient(
+                        listOf(
+                            Color(0xFFF7DEB5),
+                            Color(0xFF6E502B),
+                            Color(0xFFFFE6C4),
+                            Color(0xFF283643),
+                            Color(0xFFF0C27B)
+                        )
+                    )
                 )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    Color(0xFF1E2C38),
+                                    Color(0xFF0F172A),
+                                    Color(0xFF0A0F1D),
+                                    Color(0xFF162330)
+                                )
+                            )
+                        )
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // Card Top Bar: Crest & NFC
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.SportsSoccer,
+                                contentDescription = null,
+                                tint = Color(0xFFE2C49D),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                "MATCHORA ATHLETE PASSPORT",
+                                fontSize = 11.sp,
+                                letterSpacing = 1.4.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFFE2C49D)
+                            )
+                        }
 
-                GuestPerkRow(
-                    icon = Icons.Rounded.Speed,
-                    iconBg = Color(0xFFFFF4EC),
-                    iconTint = MColors.BrandDeep,
-                    title = "Akıllı Eşleşme & MMR Puanı",
-                    description = "Kendi mevkine ve tecrübene denk sporcularla maç yap, dengeyi yakala."
-                )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "TR-34 • 8841",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                                color = Color(0xFF94A3B8)
+                            )
+                            Icon(
+                                imageVector = Icons.Rounded.Contactless,
+                                contentDescription = "Temassız",
+                                tint = Color(0xFFE2C49D),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
 
-                HorizontalDivider(color = Color(0xFFF1F5F9))
+                    // Chip & Verified Status Bar
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(7.dp),
+                            color = Color(0xFFE2B774),
+                            border = BorderStroke(0.8.dp, Color(0xFF9E7032))
+                        ) {
+                            Box(Modifier.padding(horizontal = 8.dp, vertical = 5.dp)) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Memory,
+                                    contentDescription = null,
+                                    tint = Color(0xFF4A3010),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
 
-                GuestPerkRow(
-                    icon = Icons.Rounded.VerifiedUser,
-                    iconBg = Color(0xFFECFDF5),
-                    iconTint = Color(0xFF059669),
-                    title = "Güvenilirlik & Fair Play Puanı",
-                    description = "Maçlara katılım oranını kanıtla, güvenilir oyuncu rozetiyle davetler al."
-                )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF10B981).copy(alpha = 0.16f),
+                            border = BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Verified,
+                                    contentDescription = null,
+                                    tint = Color(0xFF34D399),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    "RESMİ ONAYLI SPORCU",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF34D399)
+                                )
+                            }
+                        }
+                    }
 
-                HorizontalDivider(color = Color(0xFFF1F5F9))
+                    // Athlete Profile Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(13.dp)
+                    ) {
+                        // Avatar Frame
+                        Box(
+                            modifier = Modifier
+                                .size(54.dp)
+                                .shadow(6.dp, RoundedCornerShape(18.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(Color(0xFF334756), Color(0xFF1C2731))
+                                    ),
+                                    RoundedCornerShape(18.dp)
+                                )
+                                .border(
+                                    1.6.dp,
+                                    Brush.linearGradient(
+                                        listOf(Color(0xFFFFDF9E), Color(0xFF9E7032))
+                                    ),
+                                    RoundedCornerShape(18.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "MK",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFFFFDF9E)
+                            )
+                        }
 
-                GuestPerkRow(
-                    icon = Icons.Rounded.Leaderboard,
-                    iconBg = Color(0xFFEFF6FF),
-                    iconTint = Color(0xFF2563EB),
-                    title = "Semt ve İlçe Sıralaması",
-                    description = "Kadıköy ve çevresinde maç kazandıkça puan topla, ligde yüksel."
-                )
+                        // Player Info
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = sampleUser.name.ifBlank { "Murat Korkmaz" },
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = "FUTBOL · OFANSİF ORTA SAHA",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFE2C49D)
+                            )
+                            Spacer(Modifier.height(1.dp))
+                            Text(
+                                text = "${sampleUser.city.ifBlank { "Kadıköy" }} · Moda · 8 Yıl Tecrübe",
+                                fontSize = 10.5.sp,
+                                color = Color(0xFF94A3B8)
+                            )
+                        }
 
-                HorizontalDivider(color = Color(0xFFF1F5F9))
+                        // Elite MMR Shield
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF261D10),
+                            border = BorderStroke(1.2.dp, Color(0xFFE2B774).copy(alpha = 0.7f)),
+                            shadowElevation = 4.dp
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.EmojiEvents,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFFD188),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Text(
+                                        "1.680",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color(0xFFFFD188)
+                                    )
+                                }
+                                Text(
+                                    "MMR ELİT",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFE2B774)
+                                )
+                            }
+                        }
+                    }
 
-                GuestPerkRow(
-                    icon = Icons.Rounded.GroupAdd,
-                    iconBg = Color(0xFFFAF5FF),
-                    iconTint = Color(0xFF9333EA),
-                    title = "Eksik Oyuncu İlanlarına Katılım",
-                    description = "Son dakika oyuncu arayan halı saha ve basketbol kadrolarına tek tıkla gir."
-                )
+                    // Micro Verification Badges
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        PreviewCardTag("✓ Telefon Onaylı", Color(0xFF9EDDC8), Color(0xFF1D332C))
+                        PreviewCardTag("✓ Fotoğraf Doğrulandı", Color(0xFF9EDDC8), Color(0xFF1D332C))
+                        PreviewCardTag("★ Takım Kaptanı", Color(0xFFFFD28C), Color(0xFF332717))
+                    }
+
+                    // 4 Sculpted Glass Metric Tiles
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Min),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        PreviewCardMetricTile(
+                            icon = Icons.Rounded.VerifiedUser,
+                            accent = Color(0xFF34D399),
+                            label = "GÜVEN",
+                            value = "%98",
+                            sub = "0 İptal",
+                            modifier = Modifier.weight(1f)
+                        )
+                        PreviewCardMetricTile(
+                            icon = Icons.Rounded.SportsSoccer,
+                            accent = Color(0xFF60A5FA),
+                            label = "MAÇ",
+                            value = "54",
+                            sub = "Onaylı",
+                            modifier = Modifier.weight(1f)
+                        )
+                        PreviewCardMetricTile(
+                            icon = Icons.Rounded.EmojiEvents,
+                            accent = Color(0xFFFBBF24),
+                            label = "FAIR PLAY",
+                            value = "4.9/5",
+                            sub = "38 Oy",
+                            modifier = Modifier.weight(1f)
+                        )
+                        PreviewCardMetricTile(
+                            icon = Icons.Rounded.LocalFireDepartment,
+                            accent = Color(0xFFFB923C),
+                            label = "FORM",
+                            value = "6 hf",
+                            sub = "Seri",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // Card Bottom Holographic Security Strip
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Color(0xFF090E17).copy(alpha = 0.75f),
+                                RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "||| | ||||| || | |||| |||  VERIFIED IDENTITY",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 8.5.sp,
+                            color = Color(0xFF64748B)
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "Dokun ve Oluştur",
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFE2C49D)
+                            )
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowForward,
+                                contentDescription = null,
+                                tint = Color(0xFFE2C49D),
+                                modifier = Modifier.size(11.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
 
-        // 3. Örnek Pasaport Vitrini (Önizleme)
+        // 3. AYRICALIKLAR VE BİLGİLENDİRME KARTLARI
         Surface(
-            shape = RoundedCornerShape(20.dp),
+            onClick = onOpenAuth,
+            shape = RoundedCornerShape(24.dp),
             color = Color.White,
-            border = BorderStroke(1.dp, MColors.Line),
-            shadowElevation = 2.dp,
+            border = BorderStroke(1.2.dp, Color(0xFFE2E8F0)),
+            shadowElevation = 3.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(Color(0xFFFF7A33), MColors.BrandDeep)
+                                ),
+                                RoundedCornerShape(12.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.WorkspacePremium,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "MATCHARA'NIN CAN ALICI AYRICALIKLARI",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.9.sp,
+                            color = MColors.Ink900
+                        )
+                        Text(
+                            text = "Spor ve e-spor dünyasını tek çatıda toplayan yeni nesil ekosistem",
+                            fontSize = 11.sp,
+                            color = MColors.Ink500
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = Color(0xFFF1F5F9))
+
+                // 1. Spor & E-Spor Branşları
+                GuestPerkCard(
+                    icon = Icons.Rounded.SportsEsports,
+                    iconGradient = listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9)),
+                    tag = "GENİŞ BRANŞ YELPAZESİ",
+                    tagColor = Color(0xFFF3E8FF),
+                    tagText = Color(0xFF6B21A8),
+                    title = "Tüm Spor ve E-Spor Branşları",
+                    description = "Futbol, basketbol, voleybol, tenis ve padel gibi geleneksel sporların yanı sıra FC25, Valorant, CS2 gibi popüler e-spor branşlarında tek çatı altında resmi maçlara çık."
+                )
+
+                // 2. Maç & Turnuva Oluşturma
+                GuestPerkCard(
+                    icon = Icons.Rounded.EmojiEvents,
+                    iconGradient = listOf(Color(0xFFF59E0B), Color(0xFFD97706)),
+                    tag = "ORGANİZASYON",
+                    tagColor = Color(0xFFFEF3C7),
+                    tagText = Color(0xFF92400E),
+                    title = "Hızlı Maç & Turnuva Oluşturma",
+                    description = "Saniyeler içinde tekli maç veya çok turlu eleme ağaçlı dev turnuva organize et. Fikstür, skor kaydı, katılım onayları ve istatistikler otomatik yürütülür."
+                )
+
+                // 3. Şirket, Kampüs ve Mahalle Maçları
+                GuestPerkCard(
+                    icon = Icons.Rounded.Groups,
+                    iconGradient = listOf(Color(0xFF0EA5E9), Color(0xFF0284C7)),
+                    tag = "ÖZEL KATEGORİLER",
+                    tagColor = Color(0xFFE0F2FE),
+                    tagText = Color(0xFF0369A1),
+                    title = "Şirket, Kampüs ve Mahalle Ligleri",
+                    description = "İster iş arkadaşlarınla şirket maçları düzenle, ister üniversite kampüsünde fakülteler arası kapış, ister mahalle derbilerinde semtinin prestijini koru."
+                )
+
+                // 4. Takım Arkadaşı Bulma & Kadro Tamamlama
+                GuestPerkCard(
+                    icon = Icons.Rounded.PersonSearch,
+                    iconGradient = listOf(Color(0xFFEC4899), Color(0xFFDB2777)),
+                    tag = "0 EKSİK OYUNCU",
+                    tagColor = Color(0xFFFCE7F3),
+                    tagText = Color(0xFF9D174D),
+                    title = "Takım Arkadaşı Bulma & Kadro Tamamlama",
+                    description = "Son dakika maçı asan oyuncular yüzünden maçın asla iptal olmasın. Mevkisine ve seviyesine tam uyan yeni takım arkadaşlarını tek tıkla kadrona dahil et."
+                )
+
+                // 5. Akıllı Eşleşme & MMR Puanı
+                GuestPerkCard(
+                    icon = Icons.Rounded.Speed,
+                    iconGradient = listOf(Color(0xFFFF7A33), Color(0xFFC43800)),
+                    tag = "DENK REKABET",
+                    tagColor = Color(0xFFFFF0EA),
+                    tagText = Color(0xFFC43800),
+                    title = "Akıllı Eşleşme & Denk Seviye (MMR)",
+                    description = "Kendi yetenek ve kondisyon seviyene tam denk oyuncu ve takımlarla eşleş. Maçlarda ne fark yersin ne de temposuz, zevksiz oyun oynarsın."
+                )
+
+                // 6. Güvenilirlik & Katılım Skoru
+                GuestPerkCard(
+                    icon = Icons.Rounded.VerifiedUser,
+                    iconGradient = listOf(Color(0xFF34D399), Color(0xFF059669)),
+                    tag = "0 İPTAL DİSİPLİNİ",
+                    tagColor = Color(0xFFECFDF5),
+                    tagText = Color(0xFF047857),
+                    title = "Doğrulanmış Pasaport & Güvenilirlik",
+                    description = "Maçlara katılım oranını kanıtla, şeffaf güvenilirlik puanıyla saygılı ve disiplinli sporcularla sahaya çık, son dakika mağduriyeti yaşama."
+                )
+
+                HorizontalDivider(color = Color(0xFFF1F5F9))
+
+                // Social Proof & Trust Footer
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        "★★★★★",
+                        fontSize = 11.5.sp,
+                        color = Color(0xFFF59E0B),
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "İstanbul genelinde 2.400+ sporcu pasaportuyla sahaya çıkıyor",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MColors.Ink700
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(paddingValues.calculateBottomPadding() + 24.dp))
+    }
+}
+
+@Composable
+private fun PreviewCardTag(label: String, textColor: Color, bgColor: Color) {
+    Surface(
+        shape = RoundedCornerShape(7.dp),
+        color = bgColor,
+        border = BorderStroke(0.6.dp, textColor.copy(alpha = 0.35f))
+    ) {
+        Text(
+            text = label,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            color = textColor,
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+        )
+    }
+}
+
+@Composable
+private fun PreviewCardMetricTile(
+    icon: ImageVector,
+    accent: Color,
+    label: String,
+    value: String,
+    sub: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .shadow(
+                elevation = 6.dp,
+                shape = RoundedCornerShape(13.dp),
+                ambientColor = Color(0x66000000),
+                spotColor = Color(0x88000000)
+            )
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF243242), Color(0xFF141F2B))
+                ),
+                RoundedCornerShape(13.dp)
+            )
+            .border(0.8.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(13.dp))
+            .padding(horizontal = 4.dp, vertical = 7.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier.size(15.dp)
+        )
+        Text(
+            text = value,
+            fontSize = 14.5.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color.White,
+            maxLines = 1
+        )
+        Text(
+            text = label,
+            fontSize = 8.5.sp,
+            fontWeight = FontWeight.Bold,
+            color = accent,
+            maxLines = 1
+        )
+        Text(
+            text = sub,
+            fontSize = 8.sp,
+            color = Color(0xFF94A3B8),
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun GuestPerkCard(
+    icon: ImageVector,
+    iconGradient: List<Color>,
+    tag: String,
+    tagColor: Color,
+    tagText: Color,
+    title: String,
+    description: String
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFFF8FAFC),
+        border = BorderStroke(1.dp, Color(0xFFEEF2F6)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(13.dp),
+            horizontalArrangement = Arrangement.spacedBy(13.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .shadow(4.dp, RoundedCornerShape(13.dp))
+                    .background(
+                        Brush.linearGradient(iconGradient),
+                        RoundedCornerShape(13.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1426,102 +2250,33 @@ private fun GuestPassportView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "ÖRNEK SPORCU PASAPORTU",
-                        fontSize = 11.5.sp,
+                        text = title,
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.8.sp,
-                        color = MColors.Ink500
+                        color = MColors.Ink900,
+                        modifier = Modifier.weight(1f)
                     )
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = Color(0xFFF1F5F9)
+                        color = tagColor
                     ) {
                         Text(
-                            text = "Önizleme",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MColors.Ink600,
+                            text = tag,
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = tagText,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                 }
 
-                // Sample card mockup
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MColors.Ink900,
-                    border = BorderStroke(1.dp, Color(0xFF40505B)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .background(Brush.linearGradient(listOf(Color(0xFF293D46), MColors.Ink900)))
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .background(Brush.linearGradient(listOf(Color(0xFFE1BE87), Color(0xFF96704D))), RoundedCornerShape(12.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("MK", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
-                            }
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(sampleUser.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                Text("${sampleUser.city} · ${sampleUser.area} · Futbol (Orta Saha)", fontSize = 11.sp, color = Color(0xFFB8C7CE))
-                            }
-                            Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFFFA500).copy(alpha = 0.2f)) {
-                                Text("1.640 MMR", Modifier.padding(horizontal = 7.dp, vertical = 3.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFFC078))
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            PassportMetric("GÜVEN", "%96", Modifier.weight(1f))
-                            PassportMetric("MAÇ", "48", Modifier.weight(1f))
-                            PassportMetric("FAIR PLAY", "4.9/5", Modifier.weight(1f))
-                        }
-                    }
-                }
+                Text(
+                    text = description,
+                    fontSize = 11.5.sp,
+                    color = MColors.Ink600,
+                    lineHeight = 16.sp
+                )
             }
-        }
-
-        Spacer(Modifier.height(paddingValues.calculateBottomPadding() + 20.dp))
-    }
-}
-
-@Composable
-private fun GuestPerkRow(
-    icon: ImageVector,
-    iconBg: Color,
-    iconTint: Color,
-    title: String,
-    description: String
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .background(iconBg, RoundedCornerShape(11.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(20.dp))
-        }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
-            Text(description, fontSize = 11.5.sp, color = MColors.Ink600, lineHeight = 16.sp)
         }
     }
 }

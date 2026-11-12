@@ -1,6 +1,7 @@
 package com.matchora.app.ui.components
 
 import com.matchora.app.ui.components.premiumSurface
+import kotlinx.datetime.toLocalDateTime
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -20,12 +21,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.matchora.app.data.*
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
+import kotlinx.coroutines.CancellationException
 import com.matchora.app.domain.Sport
 import com.matchora.app.state.*
 import com.matchora.app.ui.theme.MColors
@@ -38,12 +45,13 @@ import com.matchora.app.ui.theme.MColors
 fun AutoSquadSheet(
     event: SportEvent?,
     currentPlayer: Player = DemoData.mePlayer,
+    players: List<Player> = DemoData.players,
     onDismiss: () -> Unit,
     onConfirmSquad: () -> Unit,
     onOpenChat: () -> Unit
 ) {
-    val participants = remember(event, currentPlayer) {
-        event?.participantIds?.distinct()?.mapNotNull { id -> if (id == DemoData.ME) currentPlayer else DemoData.player(id) }.orEmpty()
+    val participants = remember(event, currentPlayer, players) {
+        event?.participantIds?.distinct()?.mapNotNull { id -> if (id == DemoData.ME) currentPlayer else players.firstOrNull { it.id == id } }.orEmpty()
     }
 
     ModalBottomSheet(
@@ -114,7 +122,42 @@ fun AutoSquadSheet(
                     ) {
                         SquadSummaryTile("${participants.size}", "Katılımcı", Modifier.weight(1f))
                         SquadSummaryTile("${event.freeSpots}", "Boş yer", Modifier.weight(1f))
-                        SquadSummaryTile("TKN ${event.pricePerPersonTry}", "Kişi başı", Modifier.weight(1f))
+                        SquadSummaryTile("₺${event.pricePerPersonTry}", "Kişi başı", Modifier.weight(1f))
+                    }
+                }
+
+                if (participants.size >= 2) {
+                    val sorted = participants.sortedByDescending { it.rating }
+                    val teamA = mutableListOf<Player>()
+                    val teamB = mutableListOf<Player>()
+                    sorted.forEachIndexed { idx, p ->
+                        if (idx % 4 in listOf(0, 3)) teamA.add(p) else teamB.add(p)
+                    }
+                    val avgA = if (teamA.isEmpty()) 0 else teamA.sumOf { it.rating } / teamA.size
+                    val avgB = if (teamB.isEmpty()) 0 else teamB.sumOf { it.rating } / teamB.size
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color.White,
+                            border = BorderStroke(1.dp, MColors.Line)
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text("OTOMATİK DENGE ÖNERİSİ", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MColors.BrandDeep)
+                                    Text("Fark: ${kotlin.math.abs(avgA - avgB)} MMR", style = MaterialTheme.typography.labelSmall, color = MColors.Mint, fontWeight = FontWeight.Bold)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Takım A · Ort. $avgA MMR", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MColors.Ink900)
+                                        Text(teamA.joinToString(", ") { it.name }, style = MaterialTheme.typography.bodySmall, color = MColors.Ink600, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Takım B · Ort. $avgB MMR", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MColors.Ink900)
+                                        Text(teamB.joinToString(", ") { it.name }, style = MaterialTheme.typography.bodySmall, color = MColors.Ink600, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -143,7 +186,9 @@ fun AutoSquadSheet(
                                     modifier = Modifier.size(38.dp).clip(CircleShape).background(player.color),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(player.initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    val avatar = playerAvatarUploadId(player)
+                                    if (avatar != null) BackendPhoto(avatar, player.name, Modifier.fillMaxSize())
+                                    else Text(player.initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 }
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column(modifier = Modifier.weight(1f)) {
@@ -218,6 +263,34 @@ fun PlayerProfileSheet(
     onDirectMessage: () -> Unit = {}
 ) {
     val isCurrentUser = player.id == DemoData.ME
+    val backend = LocalBackendRepository.current
+    val isPreview = backend == null
+    var details by remember(player.id, sport, backend?.userId) { mutableStateOf<JsonObject?>(null) }
+    var detailsError by remember(player.id, sport, backend?.userId) { mutableStateOf<String?>(null) }
+    var detailsBusy by remember { mutableStateOf(false) }
+    var retryDetails by remember { mutableIntStateOf(0) }
+    LaunchedEffect(player.id, sport, backend?.userId, retryDetails) {
+        if (backend != null) {
+            detailsBusy = true; detailsError = null; details = null
+            try { details = backend.playerDetails(backend.serverUserId(player.id), sport.name) }
+            catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { detailsError = error.message ?: "Sporcu ayrıntıları alınamadı." }
+            finally { detailsBusy = false }
+        }
+    }
+    val chemistryScore = if (isPreview) player.chemistry else (details?.get("chemistry") as? JsonPrimitive)?.intOrNull
+    val sharedMatches = if (isPreview) player.playedTogether else (details?.get("playedTogether") as? JsonPrimitive)?.intOrNull
+    val selectedSkill = details?.o("player")?.a("skills")?.firstOrNull { it.s("sport") == sport.name }
+    val activeRole = if (isPreview) player.position ?: player.level.label else selectedSkill?.s("position")?.ifBlank { null }
+        ?: SkillLevel.entries.firstOrNull { it.name == selectedSkill?.s("level") }?.label ?: "Sporcu"
+    val reliabilityLabel = if (isPreview) player.reliabilityLabel else details?.o("player")?.takeIf { it.b("reliabilityVisible", false) }?.let { value -> (value["reliability"] as? JsonPrimitive)?.intOrNull?.let { "%$it" } } ?: "—"
+    val recentForm = if (isPreview) listOf("W" to "8.7", "W" to "8.2", "W" to "9.1", "L" to "7.3", "W" to "8.9")
+        else details?.a("recentForm").orEmpty().map { form ->
+            val delta = (form["ratingDelta"] as? JsonPrimitive)?.intOrNull
+            form.s("outcome").ifBlank { "•" } to (delta?.let { if (it > 0) "+$it" else "$it" } ?: "—")
+        }
+    val earnedBadges = if (isPreview) listOf("🏅 Sezon 3 MVP" to MColors.Gold, "🔥 12 Maç Namağlup" to MColors.Brand, "🤝 FairPlay Lideri" to MColors.Mint)
+        else details?.a("badges").orEmpty().take(3).map { "${it.s("emoji")} ${it.s("title")}" to MColors.Mint }
 
     ModalBottomSheet(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -260,7 +333,9 @@ fun PlayerProfileSheet(
                                         .background(Brush.linearGradient(listOf(Color(0xFFFFC078), MColors.Brand))),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                                    val avatar = details?.o("player")?.s("avatarUploadId")?.ifBlank { null } ?: playerAvatarUploadId(player)
+                                    if (avatar != null) BackendPhoto(avatar, name, Modifier.fillMaxSize())
+                                    else Text(initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
@@ -280,7 +355,7 @@ fun PlayerProfileSheet(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = "ATLET PASAPORTU: ${player.id.uppercase()} · ${player.position ?: player.level.label}",
+                                        text = "ATLET PASAPORTU: ${player.id.uppercase()} · ${activeRole}",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 0.5.sp,
@@ -350,7 +425,7 @@ fun PlayerProfileSheet(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp)
                         ) {
-                            Text("%${player.reliability}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MColors.Mint)
+                            Text(reliabilityLabel, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MColors.Mint)
                             Spacer(modifier = Modifier.height(2.dp))
                             Text("GÜVENİLİRLİK", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.Ink600, maxLines = 1)
                         }
@@ -367,9 +442,9 @@ fun PlayerProfileSheet(
                             modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(player.chemistry?.let { "%$it" } ?: "—", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF59E0B))
+                                Text(chemistryScore?.let { "%$it" } ?: "—", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF59E0B))
                                 Spacer(modifier = Modifier.width(2.dp))
-                                if (player.chemistry != null) Icon(Icons.Rounded.AutoAwesome, null, tint = Color(0xFFF59E0B), modifier = Modifier.size(12.dp))
+                                if (chemistryScore != null) Icon(Icons.Rounded.AutoAwesome, null, tint = Color(0xFFF59E0B), modifier = Modifier.size(12.dp))
                             }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text("UYUM", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.Ink600, maxLines = 1)
@@ -386,13 +461,15 @@ fun PlayerProfileSheet(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp)
                         ) {
-                            Text("${player.playedTogether}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MColors.Mint)
+                            Text(sharedMatches?.toString() ?: "—", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MColors.Mint)
                             Spacer(modifier = Modifier.height(2.dp))
                             Text("BİRLİKTE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.Ink600, maxLines = 1)
                         }
                     }
                 }
             }
+
+            item { RatingPolicyButton() }
 
             // 3. AI Maç & Taktik Keşif Raporu (Matchora AI Scouting)
             item {
@@ -429,12 +506,29 @@ fun PlayerProfileSheet(
                             }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
+                        val serverPlayer = details?.o("player")
+                        val bioText = serverPlayer?.s("bio")?.ifBlank { null } ?: player.bio.ifBlank { null }
+                        val sideText = serverPlayer?.s("dominantSide")?.ifBlank { null } ?: player.dominantSide.ifBlank { null }
+                        val availText = serverPlayer?.ss("availability")?.joinToString(", ")?.ifBlank { null } ?: serverPlayer?.s("availability")?.ifBlank { null } ?: player.availability.joinToString(", ").ifBlank { null }
+                        val campusText = serverPlayer?.s("campus")?.ifBlank { null } ?: player.campus?.ifBlank { null }
+                        val companyText = serverPlayer?.s("company")?.ifBlank { null } ?: player.company?.ifBlank { null }
+                        val jerseyNum = serverPlayer?.i("jerseyNumber", -1)?.takeIf { it >= 0 } ?: player.jerseyNumber
+                        val profileMeta = listOfNotNull(
+                            if (isPreview) player.sports.firstOrNull()?.label ?: sport.label else sport.label,
+                            activeRole,
+                            sideText?.let { "Baskın yön: $it" },
+                            jerseyNum?.let { "#$it" },
+                            "Reliability $reliabilityLabel",
+                            availText?.let { "Müsaitlik: $it" } ?: if (isPreview) (if (player.availableNow) "Şu an müsait" else "Planlı katılıma açık") else null,
+                            campusText?.let { "🎓 $it" },
+                            companyText?.let { "🏢 $it" }
+                        ).joinToString(" · ")
                         Text(
-                            text = "${player.sports.firstOrNull()?.label ?: sport.label} · ${player.position ?: player.level.label} · Reliability %${player.reliability}. ${if (player.availableNow) "Şu an müsait." else "Planlı katılıma açık."}",
+                            text = if (bioText != null) "$profileMeta\n$bioText" else profileMeta,
                             fontSize = 14.sp,
                             color = Color(0xFF244C33),
                             lineHeight = 20.sp,
-                            maxLines = 3,
+                            maxLines = 4,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
@@ -458,23 +552,24 @@ fun PlayerProfileSheet(
                     ) {
                         Column {
                             Text("Son maç formu", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MColors.Ink800)
-                            Text("Son karşılaşmalardaki puanların", fontSize = 11.sp, color = MColors.Ink500)
+                            Text(if (isPreview) "Son karşılaşmalardaki puanların" else when {
+                                detailsBusy -> "Yükleniyor…"
+                                detailsError != null -> "Ayrıntılar alınamadı"
+                                details?.b("historyVisible") == false -> "Geçmiş paylaşımı kapalı"
+                                recentForm.isEmpty() -> "Paylaşılan doğrulanmış maç yok"
+                                else -> "Doğrulanmış sonuç · MMR değişimi"
+                            }, fontSize = 11.sp, color = MColors.Ink500)
+                            if (detailsError != null) TextButton(onClick = { retryDetails++ }) { Text("Yeniden dene") }
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(
-                                Pair("W", "8.7"),
-                                Pair("W", "8.2"),
-                                Pair("W", "9.1"),
-                                Pair("L", "7.3"),
-                                Pair("W", "8.9")
-                            ).forEach { (res, ratingVal) ->
+                            recentForm.forEach { (res, ratingVal) ->
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Box(
                                         modifier = Modifier
                                             .size(24.dp)
                                             .clip(CircleShape)
-                                            .background(if (res == "W") MColors.Mint else MColors.Rose),
+                                            .background(if (res == "W") MColors.Mint else if (res == "L") MColors.Rose else MColors.Ink500),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(res, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
@@ -494,11 +589,8 @@ fun PlayerProfileSheet(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf(
-                        "🏅 Sezon 3 MVP" to MColors.Gold,
-                        "🔥 12 Maç Namağlup" to MColors.Brand,
-                        "🤝 FairPlay Lideri" to MColors.Mint
-                    ).forEach { (badgeTitle, color) ->
+                    if (!isPreview && earnedBadges.isEmpty()) Text(if (details?.b("historyVisible") == false) "Başarı paylaşımı kapalı." else "Paylaşılan kazanılmış rozet yok.", fontSize = 11.sp, color = MColors.Ink500)
+                    earnedBadges.forEach { (badgeTitle, color) ->
                         Surface(
                             shape = RoundedCornerShape(10.dp),
                             color = color.copy(alpha = 0.1f),
@@ -518,6 +610,8 @@ fun PlayerProfileSheet(
                     }
                 }
             }
+
+            item { BackendPlayerSafetyActions(player) }
 
             // 6. Aksiyon Butonları
             item {
@@ -595,7 +689,7 @@ fun VenueBookingSheet(
 ) {
     var splitPlayers by remember { mutableIntStateOf(1) } // 1, 2, 4, 10 kişi
     var selectedMethod by remember { mutableStateOf("Tesiste ödeme") }
-    val pricePerPlayer = bookingShare(slot.priceTry, splitPlayers)
+    val pricePerPlayer = formatTryMinor(splitTryMinor(slot.priceMinor, splitPlayers))
 
     ModalBottomSheet(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -618,6 +712,7 @@ fun VenueBookingSheet(
         ) {
             MSheetHeading("Rezervasyon", "Saatini ayır, ekibini hazırla", Icons.Rounded.EventAvailable, onDismiss)
             MFeatureHeader(venue.name, "${venue.area} · ${slot.court}", Icons.Rounded.Stadium, accent = Color(0xFF9EDDC8))
+            if (venue.address.isNotBlank()) Text(venue.address, style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
             MCard(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -626,7 +721,7 @@ fun VenueBookingSheet(
                     }
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("Toplam", style = MaterialTheme.typography.labelMedium, color = MColors.Ink500)
-                        Text("₺${slot.priceTry}", style = MaterialTheme.typography.headlineSmall, color = MColors.BrandDeep)
+                        Text("₺${slot.priceLabel}", style = MaterialTheme.typography.headlineSmall, color = MColors.BrandDeep)
                     }
                 }
             }
@@ -639,7 +734,7 @@ fun VenueBookingSheet(
                         selectedValue = splitPlayers,
                         options = listOf(1, 2, 4, 10),
                         optionLabel = { count ->
-                            val perPlayerPrice = bookingShare(slot.priceTry, count)
+                            val perPlayerPrice = formatTryMinor(splitTryMinor(slot.priceMinor, count))
                             if (count == 1) "Tek Kişi · ₺$perPlayerPrice" else "$count Kişi · Kişi Başı ₺$perPlayerPrice"
                         },
                         onSelect = { splitPlayers = it },
@@ -648,19 +743,19 @@ fun VenueBookingSheet(
                 }
             }
 
-            Text("Tesiste ödeme · dijital token bakiyen kullanılmaz", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+            Text("Tesiste ödeme · toplam ₺${slot.priceLabel}. Kişi başı hesap, paylaşım önerisidir; rezervasyon toplam ücret üzerinden yapılır.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
 
             // Onay Butonu
             Button(
                 onClick = {
-                    onConfirmBooking(splitPlayers, pricePerPlayer, selectedMethod)
+                    onConfirmBooking(splitPlayers, slot.priceTry, selectedMethod)
                     onDismiss()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth().height(48.dp)
             ) {
-                Text("₺$pricePerPlayer · Yerimi ayır", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Toplam ₺${slot.priceLabel} · Yerimi ayır", color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -678,14 +773,16 @@ fun TournamentDetailSheet(
     onDismiss: () -> Unit,
     onRegisterTeam: () -> Unit,
     onWithdrawRegistration: () -> Unit = {},
-    onCancelTournament: () -> Unit = {}
+    onCancelTournament: () -> Unit = {},
+    onOpenFixture: (String) -> Unit = {},
+    onShareTournament: (() -> Unit)? = null
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: Fikstür & Eşleşme, 1: Puan Durumu, 2: Kurallar, 3: AI Şampiyonluk Radarı
+    var selectedTab by remember { mutableIntStateOf(0) } // Fikstür, puanlar, kurallar ve kayıtlar
     var showCancelConfirmation by remember { mutableStateOf(false) }
     var showWithdrawConfirmation by remember { mutableStateOf(false) }
     val statusAllowsRegistration = tournament.status.contains("açık", ignoreCase = true) ||
         tournament.status.contains("son ", ignoreCase = true)
-    val canRegister = !isOrganizer && !isRegistered && statusAllowsRegistration && tournament.participants < tournament.capacity
+    val canRegister = statusAllowsRegistration && tournament.participants < tournament.capacity
     val canCancelTournament = isOrganizer && tournament.organizerLockTokens > 0 &&
         !tournament.status.contains("iptal", ignoreCase = true)
     val statusColor = when {
@@ -698,21 +795,13 @@ fun TournamentDetailSheet(
         statusAllowsRegistration -> MColors.MintTint
         else -> MColors.SurfaceMuted
     }
-    val aiEntries = remember(tournament) {
-        val standings = tournament.standings
-            .sortedByDescending { it.points }
-            .take(4)
-            .map { it.team to it.points.coerceAtLeast(1).toFloat() }
-        if (standings.isNotEmpty()) standings else {
-            tournament.bracket
-                .flatMap { listOf(it.teamA, it.teamB) }
-                .filter { it.isNotBlank() && it != "TBD" }
-                .distinct()
-                .take(4)
-                .mapIndexed { index, name -> name to (4 - index).coerceAtLeast(1).toFloat() }
-        }
+    val previewMode = LocalBackendRepository.current?.enabled != true
+    val previewParticipantNames = remember(tournament, previewMode) {
+        if (previewMode && tournament.registrations.isEmpty() && tournament.participants > 0)
+            (tournament.bracket.flatMap { listOf(it.teamA, it.teamB) } + tournament.standings.map { it.team })
+                .filter { it.isNotBlank() && it != "TBD" }.distinct().take(tournament.participants)
+        else emptyList()
     }
-    val aiWeightTotal = aiEntries.sumOf { it.second.toDouble() }.toFloat().coerceAtLeast(1f)
 
     ModalBottomSheet(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -806,6 +895,104 @@ fun TournamentDetailSheet(
                 }
             }
 
+            // 1.1 Benzersiz Turnuva ID Kartı & Paylaşım
+            item {
+                var copiedTourneyId by remember { mutableStateOf(false) }
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White,
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    shadowElevation = 3.dp,
+                    modifier = Modifier.fillMaxWidth().shadow(5.dp, RoundedCornerShape(16.dp), ambientColor = Color(0x180B1220))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(
+                                    modifier = Modifier.size(36.dp).background(MColors.BrandTint, RoundedCornerShape(10.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Rounded.Tag, null, tint = MColors.Brand, modifier = Modifier.size(18.dp))
+                                }
+                                Column {
+                                    Text("BENZERSİZ TURNUVA ID", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.Ink400, letterSpacing = 0.5.sp)
+                                    Text(tournamentDisplayId(tournament.id), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = MColors.BrandDeep)
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                                FilledTonalButton(
+                                    onClick = {
+                                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(tournament.id))
+                                        copiedTourneyId = true
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 9.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(13.dp))
+                                    Spacer(Modifier.width(3.dp))
+                                    Text(if (copiedTourneyId) "Kopyalandı" else "Kopyala", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Button(
+                                    onClick = {
+                                        shareText("Turnuva Daveti", tournamentInvitationText(tournament.name, tournament.id, tournament.dates, tournament.format, tournament.organizer))
+                                        onShareTournament?.invoke()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 9.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Share, null, modifier = Modifier.size(13.dp))
+                                    Spacer(Modifier.width(3.dp))
+                                    Text("Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(9.dp),
+                            color = Color(0xFFF1F5F9),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Rounded.Info, null, tint = MColors.Ink500, modifier = Modifier.size(13.dp))
+                                Text("Kulüp ve kaptanlar bu ID ile akıştan turnuvayı bulup takımlarını kaydettirebilir.", fontSize = 10.sp, color = MColors.Ink600)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (isOrganizer) {
+                item {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFFFFFBEB),
+                        border = BorderStroke(1.dp, Color(0xFFFDE68A)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text("👑", fontSize = 20.sp)
+                            Column {
+                                Text("Turnuva Yönetim Paneli", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF92400E))
+                                Text("Bu turnuvanın organizatörüsün · ${tournament.registrations.size} kayıtlı takım · 25 TKN güvence kilitli.", fontSize = 11.sp, color = Color(0xFFB45309))
+                            }
+                        }
+                    }
+                }
+            }
+
             // 2. Katılım ve kontenjan bilgisi
             item {
                 Surface(
@@ -822,7 +1009,7 @@ fun TournamentDetailSheet(
                         ) {
                             Text("ÜCRET / ÖDÜL BİLGİSİ", fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = MColors.Brand)
                             MBadge(
-                                text = "${tournament.participants}/${tournament.capacity} kişi",
+                                text = "${tournament.participants}/${tournament.capacity} takım",
                                 textColor = MColors.Ink700,
                                 backgroundColor = Color.White
                             )
@@ -851,7 +1038,7 @@ fun TournamentDetailSheet(
                             "Fikstür" to "⚔️",
                             "Puanlar" to "📊",
                             "Kurallar" to "📜",
-                            "AI Radar" to "🤖"
+                            "Kayıtlar" to "🛡️"
                         )
                         tabs.forEachIndexed { idx, (label, icon) ->
                             val isSel = selectedTab == idx
@@ -899,11 +1086,15 @@ fun TournamentDetailSheet(
                     // Fikstür & Eşleşmeler
                     if (tournament.bracket.isNotEmpty()) {
                         items(tournament.bracket) { match ->
+                            val kickoff = match.startsAtEpochMillis?.let { millis ->
+                                val time = kotlinx.datetime.Instant.fromEpochMilliseconds(millis).toLocalDateTime(kotlinx.datetime.TimeZone.of("Europe/Istanbul"))
+                                "${eventDateLabel(time.date)} · ${time.hour.toString().padStart(2, '0')}:${time.minute.toString().padStart(2, '0')}"
+                            }
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = Color(0xFFF8FAFC),
                                 border = BorderStroke(1.dp, Color(0x12000000)),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth().clickable(enabled = match.eventId != null) { match.eventId?.let(onOpenFixture) }
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -920,7 +1111,7 @@ fun TournamentDetailSheet(
                                             color = MColors.Ink900
                                         )
                                         Text(
-                                            text = "${tournament.organizer} · ${tournament.dates}",
+                                            text = if (match.eventId != null) "$kickoff · ${match.venue} · Maçı aç →" else "${tournament.organizer} · ${tournament.dates}",
                                             fontSize = 10.sp,
                                             color = MColors.Ink500,
                                             maxLines = 1,
@@ -1034,63 +1225,30 @@ fun TournamentDetailSheet(
                     }
                 }
                 3 -> {
-                    // Mock AI tournament analysis
-                    item {
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = Color(0xFFF0FDF4),
-                            border = BorderStroke(1.dp, MColors.Mint.copy(alpha = 0.4f)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("🤖 TURNUVA ANALİZİ", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF166534))
-                                    Text("DEMO", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D))
-                                }
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text("Örnek dağılım", fontSize = 10.sp, color = Color(0xFF15803D))
-                                if (aiEntries.isEmpty()) {
-                                    Text("Analiz için fikstür veya puan verisi bekleniyor.", fontSize = 11.sp, color = Color(0xFF166534))
-                                }
-                                aiEntries.forEach { (team, weight) ->
-                                    val fraction = (weight / aiWeightTotal).coerceIn(0f, 1f)
-                                    val percent = (fraction * 100).toInt()
-                                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(team, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF14532D), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                            Text("%$percent", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D))
-                                        }
-                                        Spacer(modifier = Modifier.height(3.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(6.dp)
-                                                .clip(RoundedCornerShape(3.dp))
-                                                .background(Color(0xFFDCFCE7))
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth(fraction)
-                                                    .fillMaxHeight()
-                                                    .background(MColors.Mint)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                    if (previewParticipantNames.isNotEmpty()) {
+                        item { Text("Örnek katılımcılar", style = MaterialTheme.typography.labelLarge, color = MColors.Ink600) }
+                        items(previewParticipantNames, key = { "preview-$it" }) { name ->
+                            MCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(name, fontWeight = FontWeight.Bold)
+                                Text("Önizleme kaydı", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+                            } }
                         }
+                    } else if (tournament.registrations.isEmpty()) item { Text("Henüz takım kaydı yok. Kaptanlar takımını ve maç kadrosunu seçerek kayıt olur.", fontSize = 12.sp, color = MColors.Ink600) }
+                    items(tournament.registrations, key = { it.teamId }) { registration ->
+                        MCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(registration.name, fontWeight = FontWeight.Bold)
+                            Text("${registration.rosterIds.size} sporcu · ${when (registration.status) { "removed" -> "Kaydı kaldırıldı"; "left" -> "Kaydı geri çekildi"; else -> if (registration.captainId == DemoData.ME) "Kaptanı sensin" else "Kayıtlı takım" }}", style = MaterialTheme.typography.bodySmall)
+                            BackendTournamentRegistrationActions(tournament, registration)
+                        } }
                     }
                 }
             }
 
             // 5. Kayıt durumu
+            if (tournament.championTeamId != null) item {
+                Text("🏆 Şampiyon: ${tournament.registrations.firstOrNull { it.teamId == tournament.championTeamId }?.name ?: "Turnuva tamamlandı"}", color = MColors.Brand, fontWeight = FontWeight.Bold)
+            }
+            item { BackendTournamentActions(tournament) }
             item {
                 Button(
                     onClick = {
@@ -1112,7 +1270,7 @@ fun TournamentDetailSheet(
                         Text(
                             when {
                                 tournament.status.contains("iptal", ignoreCase = true) -> "Turnuva iptal edildi"
-                                isOrganizer -> "Organizatör görünümü"
+                                isRegistered && canRegister -> "Başka takım / kadro kaydet"
                                 isRegistered -> "Kaydın alındı ✓"
                                 tournament.participants >= tournament.capacity -> "Kontenjan doldu"
                                 !statusAllowsRegistration -> "Kayıt süreci kapalı"
@@ -1161,7 +1319,7 @@ fun TournamentDetailSheet(
 
                 onDismissRequest = { showCancelConfirmation = false },
                 title = { Text("Turnuva iptal edilsin mi?") },
-                text = { Text("Demo turnuva yayından kaldırılacak ve ${tournament.organizerLockTokens} TKN kilidi bakiyene dönecek.") },
+                text = { Text("Turnuva yayından kaldırılacak ve ${tournament.organizerLockTokens} TKN kilidi bakiyene dönecek.") },
                 confirmButton = {
                     TextButton(onClick = {
                         showCancelConfirmation = false
@@ -1247,6 +1405,7 @@ fun SkillBreakdownDialog(
                         )
                     }
                 }
+                RatingPolicyButton()
                 if (nextTier != null && progress != null) {
                     Text("${nextTier.minRating - skill.rating} MMR sonra ${nextTier.label}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MColors.Ink700)
                     LinearProgressIndicator(

@@ -1,0 +1,9 @@
+5 Kasım 2026 — bölüm bölüm inceleme sonrası doğrulama
+Android assembleDebug, iOS linkDebugFrameworkIosSimulatorArm64 ve testDebugUnitTest başarılı (BUILD SUCCESSFUL in 1m 46s).
+80 backend testi ve 26 KMP testi geçti; hata/atlanan yok.
+Son düzeltmeler: atomic vitrin+sohbet, yanlış memory.create alanı, canlı sporcu örnek değerleri, maç düzenleme sürümü, eşleşme gizlilik tercihi.
+Kotlin 2.3.20, RevenueCat KMP 3.16.0.
+Varsayılan mod preview; DemoData.kt değiştirilmedi.
+Görsel tur kısmen tamamlandı; Ağ geçişinde CUA native pipe bağlantısı koptu; kalan ekranlar kaynak üzerinden incelendi.
+Canlı sağlayıcı, mağaza, push veya Supabase uçtan uca testi yapılmadı.
+Son preview paketinin simülatöre kurulumu ve başlatılması başarılı (PID 76978); CUA görsel kontrolü bağlantı hatası nedeniyle yenilenemedi.

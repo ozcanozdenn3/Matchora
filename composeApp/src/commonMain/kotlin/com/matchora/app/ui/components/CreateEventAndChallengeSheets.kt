@@ -36,6 +36,8 @@ import com.matchora.app.ui.theme.MColors
 fun CreateEventSheet(
     onDismiss: () -> Unit,
     newEventId: () -> String = { "legacy_${kotlin.random.Random.nextLong().toString(16)}" },
+    currentCity: String = "İstanbul",
+    currentDistrict: String = "Kadıköy",
     onCreateEvent: (SportEvent) -> Unit
 ) {
     var selectedSport by remember { mutableStateOf(Sport.FOOTBALL) }
@@ -43,7 +45,8 @@ fun CreateEventSheet(
     var customSportName by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
     var venue by remember { mutableStateOf("") }
-    var area by remember { mutableStateOf("Kadıköy") }
+    var area by remember(currentDistrict) { mutableStateOf(currentDistrict.ifBlank { "Kadıköy" }) }
+    var city by remember(currentCity) { mutableStateOf(currentCity.ifBlank { "İstanbul" }) }
     var time by remember { mutableStateOf("21:00") }
     var day by remember { mutableStateOf("Bugün") }
     var mode by remember { mutableStateOf(PlayMode.COMPETITIVE) }
@@ -251,6 +254,7 @@ fun CreateEventSheet(
                             sport = selectedSport,
                             venue = venue,
                             area = area,
+                            city = city,
                             day = day,
                             time = time,
                             startsInMin = 90,

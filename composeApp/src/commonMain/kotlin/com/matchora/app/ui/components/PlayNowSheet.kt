@@ -7,6 +7,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -75,12 +77,16 @@ fun PlayNowModalSheet(
     currentCity: String = "İstanbul",
     currentCampus: String? = null,
     currentCompany: String? = null,
+    eligibleCommunities: List<CommunityInfo>? = null,
+    initialNetworkScope: EventNetworkScope = EventNetworkScope.CITY,
+    initialVenue: String = "",
+    initialTime: String? = null,
     newEventId: () -> String = { "draft_${Random.nextLong().toString(16)}" },
     onRequestTokens: () -> Unit = {}
 ) {
-    var adStep by remember { mutableIntStateOf(0) }
+    var adStep by remember { mutableIntStateOf(if (initialVenue.isNotBlank()) 1 else 0) }
     var showSearchOptions by remember { mutableStateOf(false) }
-    var activeTab by remember { mutableIntStateOf(0) } // 0: Hızlı Eşleş, 1: İlan oluştur
+    var activeTab by remember { mutableIntStateOf(if (initialVenue.isNotBlank()) 1 else 0) } // 0: Hızlı Eşleş, 1: İlan oluştur
 
     // ── Hızlı Eşleş Durumları ──
     var selectedSport by remember { mutableStateOf<Sport?>(Sport.FOOTBALL) }
@@ -93,20 +99,21 @@ fun PlayNowModalSheet(
     var maxDistanceKm by remember { mutableStateOf<Int?>(null) }
 
     // ── İlan Verme Durumları ──
-    var adTitle by remember { mutableStateOf("") }
+    var adTitle by remember(initialVenue) { mutableStateOf(if (initialVenue.isNotBlank()) "$initialVenue Maçı" else "") }
     var adCategory by remember { mutableStateOf(SportCategory.PHYSICAL) }
     var adSport by remember { mutableStateOf(Sport.FOOTBALL) }
     var customSportName by remember { mutableStateOf("") }
     var customIsGaming by remember { mutableStateOf(false) }
     var adLocation by remember(currentArea) { mutableStateOf(currentArea.ifBlank { "Kadıköy" }) }
-    var adVenue by remember { mutableStateOf("") }
+    var adVenue by remember(initialVenue) { mutableStateOf(initialVenue) }
     var adPosition by remember { mutableStateOf("") }
     var adCostPerPlayer by remember { mutableStateOf("") }
     var adDescription by remember { mutableStateOf("") }
     var adFormat by remember { mutableStateOf("7v7") }
     var adLevelRange by remember { mutableStateOf("Orta – İleri") }
     var adDurationMin by remember { mutableIntStateOf(60) }
-    var adNetworkScope by remember { mutableStateOf(EventNetworkScope.CITY) }
+    var adNetworkScope by remember { mutableStateOf(initialNetworkScope) }
+    var adCommunityId by remember { mutableStateOf<String?>(null) }
     var adNetworkName by remember(currentCampus, currentCompany) {
         mutableStateOf("")
     }
@@ -115,12 +122,15 @@ fun PlayNowModalSheet(
     var adPoint by remember { mutableStateOf<EventGeoPoint?>(null) }
     var showAdMap by remember { mutableStateOf(false) }
     var showAdRegion by remember { mutableStateOf(false) }
-    var adHour by remember { mutableIntStateOf(20) }
-    var adMinute by remember { mutableIntStateOf(30) }
+    val parsedInitialHour = remember(initialTime) { initialTime?.substringBefore(':')?.trim()?.toIntOrNull() }
+    val parsedInitialMinute = remember(initialTime) { initialTime?.substringAfter(':')?.substringBefore(' ')?.trim()?.toIntOrNull() }
+    var adHour by remember(initialTime) { mutableIntStateOf(parsedInitialHour ?: 20) }
+    var adMinute by remember(initialTime) { mutableIntStateOf(parsedInitialMinute ?: 30) }
     var adMode by remember { mutableStateOf(PlayMode.SOCIAL) }
     var listingIntent by remember { mutableStateOf(ListingIntent.FIND_PLAYERS) }
     var adVerifiedOnly by remember { mutableStateOf(false) }
     var adMinReliability by remember { mutableIntStateOf(0) }
+    var adApprovalRequired by remember { mutableStateOf(true) }
     var adFormError by remember { mutableStateOf<String?>(null) }
 
     // E-Spor & Akıl Oyunları Özelleştirmeleri
@@ -132,9 +142,20 @@ fun PlayNowModalSheet(
     var esNeededRole by remember { mutableStateOf("") }
     var urgentPlayerFill by remember { mutableStateOf(false) }
 
-    val filteredEvents = remember(allEvents, searchCategory, selectedSport, selectedMode, verifiedOnly, maxDistanceKm, customDate, customHour, customMinute) {
+    val backendMode = LocalBackendRepository.current?.enabled == true
+    val deviceLocation by DeviceLocationState.current.collectAsState()
+    var locationError by remember { mutableStateOf<String?>(null) }
+    var locationSettings by remember { mutableStateOf(false) }
+    val requestSearchLocation = rememberLocationRequester { result ->
+        when (result) {
+            is LocationOutcome.Located -> { DeviceLocationState.current.value = result.value; locationError = null; locationSettings = false }
+            is LocationOutcome.Failed -> { DeviceLocationState.current.value = null; locationError = result.message; locationSettings = result.settingsAvailable }
+        }
+    }
+    val filteredEvents = remember(backendMode, currentCity, allEvents, searchCategory, selectedSport, selectedMode, verifiedOnly, maxDistanceKm, customDate, customHour, customMinute) {
         val selectedClock = customHour * 60 + customMinute
         allEvents.filter { event ->
+            (!backendMode || event.city.equals(currentCity, ignoreCase = true)) &&
             event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING) && event.freeSpots > 0 &&
             (searchCategory == null || event.sport.category == searchCategory) &&
             (selectedSport == null || event.sport == selectedSport) &&
@@ -243,6 +264,12 @@ fun PlayNowModalSheet(
                                     onSelect = { maxDistanceKm = it },
                                     icon = Icons.Rounded.NearMe
                                 )
+                                if (backendMode && maxDistanceKm != null && deviceLocation == null) {
+                                    Text("Uzaklığa göre eşleşmek için cihaz konumunu paylaş. Konumu olmayan ilanlar bu filtrede gösterilmez.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+                                    TextButton(onClick = requestSearchLocation) { Text("Konumumu kullan") }
+                                    locationError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MColors.Rose) }
+                                    if (locationSettings) TextButton(onClick = ::openApplicationSettings) { Text("Cihaz ayarlarını aç") }
+                                }
 
                                 MFloatingDropdownBox(
                                     label = "Oyun Modu",
@@ -539,6 +566,49 @@ fun PlayNowModalSheet(
                                 Text(adFormError!!, color = MColors.Rose, style = MaterialTheme.typography.bodySmall)
                             }
 
+                            Text("İlanın yayınlanacağı ağ", style = MaterialTheme.typography.labelLarge, color = MColors.Ink900)
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                EventNetworkScope.entries.forEach { scope ->
+                                    MChip(when (scope) {
+                                        EventNetworkScope.CITY -> "Saha"
+                                        EventNetworkScope.CAMPUS -> "Kampüs"
+                                        EventNetworkScope.COMPANY -> "Şirket"
+                                        EventNetworkScope.TRAVEL -> "Seyahat"
+                                    }, adNetworkScope == scope, { adNetworkScope = scope; adCommunityId = null; adNetworkName = ""; adFormError = null })
+                                }
+                            }
+                            Text(when (adNetworkScope) {
+                                EventNetworkScope.CITY -> "Seçtiğin şehirdeki sporculara açık tek buluşma ilanı."
+                                EventNetworkScope.CAMPUS, EventNetworkScope.COMPANY -> "Yeni topluluk oluşturmaz; üye olduğun topluluğa tek buluşma ilanı yayınlar."
+                                EventNetworkScope.TRAVEL -> "Gideceğin şehirde sporculara açık buluşma ilanı."
+                            }, style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+
+                            if (adNetworkScope != EventNetworkScope.CITY) {
+                                val restrictedNetwork = eligibleCommunities != null && adNetworkScope in listOf(EventNetworkScope.CAMPUS, EventNetworkScope.COMPANY)
+                                val approvedNetworks = eligibleCommunities.orEmpty().filter { if (adNetworkScope == EventNetworkScope.CAMPUS) it.type == CommunityType.CAMPUS else it.type == CommunityType.COMPANY }
+                                val networkFieldLabel = when (adNetworkScope) {
+                                    EventNetworkScope.CAMPUS -> "Kampüs / Okul Adı"
+                                    EventNetworkScope.COMPANY -> "Şirket / Kurum Adı"
+                                    EventNetworkScope.TRAVEL -> "Gidilecek Şehir"
+                                    EventNetworkScope.CITY -> "Ağ"
+                                }
+                                if (restrictedNetwork) {
+                                    if (approvedNetworks.isEmpty()) Text("Bu ağda ilan açmak için önce bir topluluğa katılıp onay almalısın.", color = MColors.Ink500, style = MaterialTheme.typography.bodySmall)
+                                    else MFloatingDropdownBox(label = networkFieldLabel, selectedValue = adCommunityId.orEmpty(),
+                                        options = approvedNetworks.map { it.id }, optionLabel = { id -> approvedNetworks.firstOrNull { it.id == id }?.name ?: "Ağ seç" },
+                                        onSelect = { id -> adCommunityId = id; adNetworkName = approvedNetworks.first { it.id == id }.name }, icon = Icons.Rounded.Hub)
+                                } else if (adNetworkScope == EventNetworkScope.TRAVEL) {
+                                    MFloatingActionRow(label = "Gidilecek şehir ve bölge", valueText = "$adCity · $adLocation", icon = Icons.Rounded.Flight, onClick = { showAdRegion = true })
+                                } else MFloatingInputBox(
+                                    label = networkFieldLabel,
+                                    value = adNetworkName,
+                                    onValueChange = { adNetworkName = it; adFormError = null },
+                                    placeholder = "Ağ adını gir",
+                                    icon = Icons.Rounded.Hub
+                                )
+                            }
+
+
                             // Kısa Açıklama Kutusu (Yüzen Premium Açıklama Kartı)
                             MFloatingInputBox(
                                 label = "Kısa Açıklama",
@@ -668,7 +738,10 @@ fun PlayNowModalSheet(
                                         selectedValue = customIsGaming,
                                         options = listOf(false, true),
                                         optionLabel = { if (it) "🎮 Online / Gaming" else "🏟️ Saha / Salon" },
-                                        onSelect = { customIsGaming = it },
+                                        onSelect = {
+                                            customIsGaming = it
+                                            if (it) esAdType = defaultFormatForSport(Sport.ESPORTS_FC) else adFormat = defaultFormatForSport(Sport.CUSTOM)
+                                        },
                                         icon = Icons.Rounded.Category
                                     )
                                 } else {
@@ -745,12 +818,21 @@ fun PlayNowModalSheet(
                                 )
 
                                 MFloatingInputBox(
-                                    label = "Sesli İletişim & GamerTag",
+                                    label = "Sesli İletişim",
                                     value = esVoiceComm,
                                     onValueChange = { esVoiceComm = it },
                                     placeholder = "Discord / oyun içi ses",
                                     icon = Icons.Rounded.HeadsetMic,
-                                    badgeText = esGamerTag.ifBlank { "Lobi" }
+                                    badgeText = "Lobi"
+                                )
+
+                                MFloatingInputBox(
+                                    label = "Oyun İçi ID / GamerTag",
+                                    value = esGamerTag,
+                                    onValueChange = { esGamerTag = it },
+                                    placeholder = "Örn: Oyuncu#TR1",
+                                    icon = Icons.Rounded.Badge,
+                                    badgeText = "ID"
                                 )
 
                                 if (listingIntent == ListingIntent.FIND_PLAYERS) {
@@ -848,38 +930,6 @@ fun PlayNowModalSheet(
                             )
 
                             MFloatingDropdownBox(
-                                label = "Paylaşım Ağı",
-                                selectedValue = adNetworkScope,
-                                options = EventNetworkScope.entries,
-                                optionLabel = { scope ->
-                                    when (scope) {
-                                        EventNetworkScope.CITY -> "Şehir"
-                                        EventNetworkScope.CAMPUS -> "Kampüs"
-                                        EventNetworkScope.COMPANY -> "Şirket"
-                                        EventNetworkScope.TRAVEL -> "Seyahat"
-                                    }
-                                },
-                                onSelect = { adNetworkScope = it },
-                                icon = Icons.Rounded.Public
-                            )
-
-                            if (adNetworkScope != EventNetworkScope.CITY) {
-                                val networkFieldLabel = when (adNetworkScope) {
-                                    EventNetworkScope.CAMPUS -> "Kampüs / Okul Adı"
-                                    EventNetworkScope.COMPANY -> "Şirket / Kurum Adı"
-                                    EventNetworkScope.TRAVEL -> "Gidilecek Şehir"
-                                    EventNetworkScope.CITY -> "Ağ"
-                                }
-                                MFloatingInputBox(
-                                    label = networkFieldLabel,
-                                    value = adNetworkName,
-                                    onValueChange = { adNetworkName = it; adFormError = null },
-                                    placeholder = "Ağ adını gir",
-                                    icon = Icons.Rounded.Hub
-                                )
-                            }
-
-                            MFloatingDropdownBox(
                                 label = "Oyun Modu",
                                 selectedValue = adMode,
                                 options = PlayMode.entries,
@@ -919,8 +969,10 @@ fun PlayNowModalSheet(
                                 icon = Icons.Rounded.VerifiedUser
                             )
 
+                            MFloatingDropdownBox("Katılım şekli", adApprovalRequired, listOf(true, false), { if (it) "Organizatör onayı ile" else "Doğrudan katılım" }, { adApprovalRequired = it }, icon = Icons.Rounded.HowToReg)
+
                             MFloatingInputBox(
-                                label = "Kişi Başı Ücret (TKN)",
+                                label = "Kişi Başı Ücret (₺)",
                                 value = adCostPerPlayer,
                                 onValueChange = { raw ->
                                     adCostPerPlayer = raw.filter(Char::isDigit).take(6)
@@ -928,7 +980,7 @@ fun PlayNowModalSheet(
                                 },
                                 placeholder = "0 ücretsiz",
                                 icon = Icons.Rounded.Toll,
-                                badgeText = if (adCostPerPlayer == "0" || adCostPerPlayer.isBlank()) "Ücretsiz" else "$adCostPerPlayer TKN",
+                                badgeText = if (adCostPerPlayer == "0" || adCostPerPlayer.isBlank()) "Ücretsiz" else "₺$adCostPerPlayer",
                                 suggestions = listOf("0", "120", "160", "200")
                             )
 
@@ -997,7 +1049,8 @@ fun PlayNowModalSheet(
                                 !isGaming && cleanVenue.isBlank() -> "Tesis veya saha bilgisini gir."
                                 !isGaming && adPoint == null -> "Buluşma noktasını haritadan seç."
                                 !isFutureEvent(adCalendarDate, adHour, adMinute) -> "Gelecekte bir tarih ve saat seç."
-                                    adNetworkScope != EventNetworkScope.CITY && adNetworkName.isBlank() -> "Seçtiğin ağın adını gir."
+                                eligibleCommunities != null && adNetworkScope in listOf(EventNetworkScope.CAMPUS, EventNetworkScope.COMPANY) && adCommunityId == null -> "İlanın yayınlanacağı onaylı topluluğunu seç. Üyeliğin yoksa Ağ bölümünden katılım isteği gönder."
+                                adNetworkScope in listOf(EventNetworkScope.CAMPUS, EventNetworkScope.COMPANY) && adNetworkName.isBlank() -> "Seçtiğin ağın adını gir."
                                 listingIntent == ListingIntent.FIND_PLAYERS && cleanRole.isBlank() -> "Aranan rolü veya formatı gir."
                                 fee == null -> "Kişi başı ücret için sayı gir; ücretsizse 0 yaz."
                                 else -> null
@@ -1008,7 +1061,7 @@ fun PlayNowModalSheet(
                                 onRequestTokens()
                             } else {
                                 val customName = if (adSport == Sport.CUSTOM) customSportName.trim() else null
-                                val cleanNetworkName = adNetworkName.trim()
+                                val cleanNetworkName = if (adNetworkScope == EventNetworkScope.TRAVEL) adCity.trim() else adNetworkName.trim()
                                 val newEvent = SportEvent(
                                     id = newEventId(),
                                     title = cleanTitle,
@@ -1039,12 +1092,14 @@ fun PlayNowModalSheet(
                                         com.matchora.app.domain.EventStatus.PUBLISHED
                                     },
                                     score = ScoreBreakdown(0, 0, 0, 0, 0, emptyList()),
-                                    neededRoles = if (listingIntent == ListingIntent.FIND_PLAYERS) listOf(cleanRole) else emptyList(),
+                                    neededRoles = cleanRole.split(',').map { it.trim() }.filter { it.isNotBlank() },
                                     emergency = listingIntent == ListingIntent.FIND_PLAYERS && urgentPlayerFill,
                                     description = adDescription.trim(),
                                     customSportName = customName,
                                     networkScope = adNetworkScope,
                                     networkName = cleanNetworkName.takeIf { adNetworkScope != EventNetworkScope.CITY },
+                                    communityId = adCommunityId,
+                                    approvalRequired = adApprovalRequired,
                                     listingType = if (listingIntent == ListingIntent.FIND_PLAYERS) EventListingType.SEEK_PLAYERS else EventListingType.OPEN_MATCH,
                                     format = cleanFormat,
                                     gamePlatform = esPlatform.takeIf { isGaming },
@@ -1080,8 +1135,8 @@ fun PlayNowModalSheet(
         }
     }
     if (showAdMap) EventLocationPicker(
-        initialPoint = adPoint ?: cityMapCenter(adCity), initialAddress = adVenue, city = adCity,
-        onDismiss = { showAdMap = false }, onConfirm = { point, address -> adPoint = point; adVenue = address; adFormError = null })
+        initialPoint = adPoint ?: if (backendMode) null else cityMapCenter(adCity), initialAddress = adVenue, city = adCity, district = adLocation,
+        onDismiss = { showAdMap = false }, onConfirm = { point, address -> adPoint = point; if (adVenue.isBlank()) adVenue = address; adFormError = null })
     if (showAdRegion) CityAndLocationSelectorSheet(adCity, adLocation, false,
         onDismiss = { showAdRegion = false }, onSelectLocation = { city, district, _ ->
             adCity = city; adLocation = district; adPoint = null; adVenue = ""; showAdRegion = false; adFormError = null

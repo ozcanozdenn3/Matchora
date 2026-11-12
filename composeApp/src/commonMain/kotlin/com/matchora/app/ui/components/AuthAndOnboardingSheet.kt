@@ -34,13 +34,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.matchora.app.data.*
+import kotlinx.serialization.json.*
+import kotlinx.coroutines.launch
 import com.matchora.app.domain.Sport
 import com.matchora.app.state.*
 import com.matchora.app.ui.theme.MColors
 import com.matchora.app.ui.theme.MGradients
 import kotlinx.coroutines.delay
 
-enum class AuthStage { LOGIN_OPTIONS, PHONE_INPUT, PHONE_OTP, PASSPORT_SETUP }
+enum class AuthStage { LOGIN_OPTIONS, EMAIL_INPUT, EMAIL_OTP, PASSPORT_SETUP, LEGAL_REVIEW }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,21 +53,107 @@ fun AuthAndOnboardingSheet(
     currentCity: String = "İstanbul",
     currentDistrict: String = "Kadıköy",
     existingProfile: UserProfile? = null,
+    backend: BackendRepository? = null,
+    externallyBusy: Boolean = false,
+    providerSignIn: (suspend (String) -> String)? = null,
     onCompletePassport: (UserProfile, String) -> Unit,
     onContinueAsGuest: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+    val backendConfig = if (backend != null) backend.configurations.collectAsState().value else null
+    val legalRequired = backendConfig?.b("requiresAcceptance") == true
+    var legalAccepted by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var authError by remember { mutableStateOf<String?>(null) }
     var stage by remember { mutableStateOf(initialStage) }
-    var provider by remember { mutableStateOf("Apple") }
-    var phone by remember { mutableStateOf("") }
+    var provider by remember { mutableStateOf(if (storePlatform == "ios") "Apple" else "Google") }
+    var email by remember { mutableStateOf("") }
+    var sentEmail by remember { mutableStateOf("") }
+    var resendSeconds by remember { mutableIntStateOf(0) }
+    LaunchedEffect(resendSeconds) { if (resendSeconds > 0) { delay(1000); resendSeconds-- } }
     var code by remember { mutableStateOf("") }
     var otpError by remember { mutableStateOf<String?>(null) }
     var draft by remember { mutableStateOf(PassportDraft(city = currentCity, district = currentDistrict)) }
     var photo by remember { mutableStateOf<ImageBitmap?>(null) }
+    var restoredProfile by remember { mutableStateOf(existingProfile) }
     var section by remember { mutableIntStateOf(0) }
+    fun continueToPassport() {
+        val restored = backend?.snapshots?.value?.let(::BackendSnapshot)?.profile ?: existingProfile
+        if (restored != null) {
+            restoredProfile = restored
+            if (backend?.snapshots?.value?.b("legalAcceptanceRequired") == true) stage = AuthStage.LEGAL_REVIEW
+            else onCompletePassport(restored, provider)
+        }
+        else {
+            backend?.profileHints?.let { hints -> draft = draft.copy(name = draft.name.ifBlank { hints.s("name") }, email = draft.email.ifBlank { hints.s("email") }, phone = draft.phone.ifBlank { hints.s("phone") }) }
+            stage = AuthStage.PASSPORT_SETUP
+        }
+    }
+    LaunchedEffect(initialStage) {
+        if (!busy) {
+            if (initialStage == AuthStage.PASSPORT_SETUP && backend?.authenticated == true) continueToPassport()
+            else if (initialStage == AuthStage.LEGAL_REVIEW) stage = initialStage
+        }
+    }
     fun enter(selected: String) {
+        if (busy || externallyBusy) return
         provider = selected
-        if (existingProfile != null) onCompletePassport(existingProfile, provider)
-        else stage = AuthStage.PASSPORT_SETUP
+        if (backend == null) { authError = "Giriş servisi henüz bağlanmadı."; return }
+        scope.launch {
+            busy = true; authError = null
+            try {
+                if (backend.configuration == null) backend.refreshConfiguration()
+                val providerLower = selected.lowercase()
+                if (providerLower == "apple" && isNativeAppleSignInSupported) {
+                    val nativeResult = performNativeAppleSignIn()
+                    if (nativeResult != null) {
+                        backend.exchangeIdToken("apple", nativeResult.idToken, nativeResult.fullName)
+                    } else {
+                        backend.socialLogin("apple")
+                    }
+                } else if (providerLower == "google" && isNativeGoogleSignInSupported) {
+                    val nativeResult = performNativeGoogleSignIn()
+                    if (nativeResult != null) {
+                        backend.exchangeIdToken("google", nativeResult.idToken, nativeResult.fullName)
+                    } else {
+                        backend.socialLogin("google")
+                    }
+                } else if (providerSignIn != null) backend.exchangeProviderToken(providerSignIn(selected))
+                else backend.socialLogin(selected)
+                continueToPassport()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (error: Exception) {
+                authError = when {
+                    error is BackendFailure && error.code == "AUTH_CANCELLED" -> null
+                    error is BackendFailure && error.code == "CONFIGURATION_REQUIRED" -> "Giriş servisi henüz bağlanmadı. Lütfen daha sonra tekrar dene."
+                    else -> error.message
+                }
+            }
+            finally { busy = false }
+        }
+    }
+    fun sendEmailCode() {
+        if (busy || externallyBusy) return
+        val address = normalizedAuthEmail(email) ?: return
+        if (sentEmail == address && resendSeconds > 0) return
+        if (backend == null) { authError = "E-posta giriş servisi henüz bağlanmadı."; return }
+        scope.launch {
+            busy = true; authError = null; otpError = null
+            try {
+                if (backend.configuration == null) backend.refreshConfiguration()
+                val response = backend.startEmailOtp(address)
+                sentEmail = address; resendSeconds = response.i("resendAfterSeconds", 60)
+                code = ""; provider = "E-posta"; stage = AuthStage.EMAIL_OTP
+            } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+            catch (error: Exception) {
+                authError = when {
+                    error is BackendFailure && error.code == "AUTH_CANCELLED" -> null
+                    error is BackendFailure && error.code == "CONFIGURATION_REQUIRED" -> "Giriş servisi henüz bağlanmadı. Lütfen daha sonra tekrar dene."
+                    else -> error.message
+                }
+            }
+            finally { busy = false }
+        }
     }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -75,64 +164,91 @@ fun AuthAndOnboardingSheet(
         dragHandle = { MPremiumSheetHandle() },
         modifier = Modifier.statusBarsPadding().padding(top = 12.dp)
     ) {
+        Column {
+        if (busy || externallyBusy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = MColors.Brand)
+        authError?.let { Text(it, Modifier.padding(horizontal = 22.dp, vertical = 10.dp), color = MColors.Rose, style = MaterialTheme.typography.bodySmall) }
         AnimatedContent(targetState = stage,
             transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "auth_stage") { current ->
             when (current) {
+                AuthStage.LEGAL_REVIEW -> Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp).padding(bottom = 24.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AuthHeader("Belgeleri gözden geçir", "Hesabınla devam etmeden önce güncel belgeleri incele.", onDismiss)
+                    AppLegalLinks()
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(legalAccepted, { legalAccepted = it })
+                        Text("Güncel kullanım koşullarını ve gizlilik politikasını okudum.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    MButton("Devam et", { if (!busy && !externallyBusy && backend != null) scope.launch {
+                        busy = true; authError = null
+                        try { backend.acceptCurrentLegal(); (restoredProfile ?: backend.snapshots.value?.let(::BackendSnapshot)?.profile)?.let { onCompletePassport(it, provider) } }
+                        catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                        catch (e: Exception) { authError = e.message }
+                        finally { busy = false }
+                    } }, enabled = legalAccepted && !busy && !externallyBusy)
+                }
                 AuthStage.LOGIN_OPTIONS -> LoginOptionsView(
-                    { enter("Apple") }, { enter("Google") }, { stage = AuthStage.PHONE_INPUT },
-                    { onContinueAsGuest(); onDismiss() }, onDismiss)
-                AuthStage.PHONE_INPUT -> PhoneInputView(phone, { phone = it }, { stage = AuthStage.LOGIN_OPTIONS }, {
-                    code = ""; otpError = null; stage = AuthStage.PHONE_OTP
-                })
-                AuthStage.PHONE_OTP -> PhoneOtpView(phone, code, otpError, { code = it; otpError = null },
-                    { stage = AuthStage.PHONE_INPUT }, {
-                        if (code != "2026") otpError = "Kod eşleşmedi. Önizleme kodu: 2026."
-                        else { draft = draft.copy(phone = normalizeTurkishPhone(phone).orEmpty()); enter("Telefon") }
-                    })
+                    { enter("Apple") }, { enter("Google") }, { authError = null; stage = AuthStage.EMAIL_INPUT },
+                    { onContinueAsGuest() }, onDismiss, busy = busy || externallyBusy)
+                AuthStage.EMAIL_INPUT -> EmailInputView(email, { email = it; authError = null },
+                    { stage = AuthStage.LOGIN_OPTIONS; authError = null }, ::sendEmailCode,
+                    busy = busy || externallyBusy, cooldown = if (normalizedAuthEmail(email) == sentEmail) resendSeconds else 0)
+                AuthStage.EMAIL_OTP -> EmailOtpView(sentEmail, code, otpError,
+                    { code = it; otpError = null }, { stage = AuthStage.EMAIL_INPUT; authError = null }, {
+                        if (!busy && !externallyBusy && backend != null) scope.launch {
+                            busy = true; authError = null
+                            try { backend.verifyEmailOtp(sentEmail, code); draft = draft.copy(email = sentEmail); continueToPassport() }
+                            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                            catch (error: Exception) { otpError = error.message }
+                            finally { busy = false }
+                        }
+                    }, busy = busy || externallyBusy, resendSeconds = resendSeconds, onResend = ::sendEmailCode)
                 AuthStage.PASSPORT_SETUP -> PassportSetupView(draft, { draft = it }, photo, { photo = it },
-                    section, { section = it }, provider, { stage = AuthStage.LOGIN_OPTIONS }, {
-                        onCompletePassport(draft.toProfile().copy(avatar = photo), provider)
+                    section, { section = it }, provider, { stage = AuthStage.LOGIN_OPTIONS },
+                    legalRequired = legalRequired, legalAccepted = legalAccepted, onLegalAccepted = { legalAccepted = it }, phoneLocked = backend != null, busy = busy || externallyBusy, onSave = {
+                        if (!busy && !externallyBusy && legalRequired && backend != null) scope.launch {
+                            busy = true; authError = null
+                            try { backend.acceptCurrentLegal(); onCompletePassport(draft.toProfile().copy(avatar = photo), provider) }
+                            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                            catch (e: Exception) { authError = e.message }
+                            finally { busy = false }
+                        } else if (!busy && !externallyBusy) onCompletePassport(draft.toProfile().copy(avatar = photo), provider)
                     })
             }
+        }
         }
     }
 }
 
 @Composable
 private fun LoginOptionsView(onSelectApple: () -> Unit, onSelectGoogle: () -> Unit,
-    onSelectPhone: () -> Unit, onContinueAsGuest: () -> Unit, onDismiss: () -> Unit) {
+    onSelectEmail: () -> Unit, onContinueAsGuest: () -> Unit, onDismiss: () -> Unit, busy: Boolean) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()
-        .padding(horizontal = 22.dp).padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        AuthHeader("Oyun burada başlar", "Takımını bul. Aynı tutkuda buluş.", onDismiss)
-        Surface(shape = RoundedCornerShape(20.dp), color = MColors.Ink900, border = BorderStroke(1.dp, Color(0xFF40505B))) {
-            Row(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF293D46), MColors.Ink900)))
-                .padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Surface(shape = RoundedCornerShape(15.dp), color = Color(0xFF3E423E)) {
-                    Icon(Icons.Rounded.Badge, null, Modifier.padding(12.dp).size(27.dp), tint = Color(0xFFE1C49D))
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("Bir hesap, tüm spor hayatın", color = Color.White, style = MaterialTheme.typography.titleMedium)
-                    Text("Sporcu pasaportun, maçların ve ekibin yanında.", color = Color(0xFFB8C7CE), style = MaterialTheme.typography.bodySmall)
-                }
+        .padding(horizontal = 22.dp).padding(bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        AuthHeader("Matchora’ya Giriş", "Sporcu pasaportunla sahadaki yerini al.", onDismiss)
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
+            if ("apple" in supportedSignInProviders(storePlatform)) ProviderButton("Apple ile devam et", onSelectApple, Color.Black, Color.White, enabled = !busy) { AppleLogoIcon(Modifier.size(20.dp)) }
+            ProviderButton("Google ile devam et", onSelectGoogle, Color.White, MColors.Ink900, enabled = !busy) { GoogleLogoIcon(Modifier.size(19.dp)) }
+            ProviderButton("E-posta ile devam et", onSelectEmail, Color.White, MColors.Ink900, enabled = !busy) {
+                Icon(Icons.Rounded.MailOutline, null, Modifier.size(20.dp), tint = MColors.BrandDeep)
             }
         }
-        Text("GİRİŞ YAP / KAYIT OL", Modifier.padding(top = 4.dp), style = MaterialTheme.typography.labelSmall, color = MColors.Ink500, letterSpacing = 1.sp)
-        ProviderButton("Apple ile devam et", onSelectApple, Color.Black, Color.White) { AppleLogoIcon(Modifier.size(22.dp)) }
-        ProviderButton("Google ile devam et", onSelectGoogle, Color.White, MColors.Ink900) { GoogleLogoIcon(Modifier.size(20.dp)) }
-        ProviderButton("Telefon numarasıyla devam et", onSelectPhone, MColors.SurfaceMuted, MColors.Ink900) {
-            Icon(Icons.Rounded.PhoneIphone, null, Modifier.size(21.dp), tint = MColors.BrandDeep)
+        OutlinedButton(
+            onClick = onContinueAsGuest,
+            enabled = !busy,
+            shape = RoundedCornerShape(14.dp),
+            border = BorderStroke(1.dp, MColors.Line),
+            colors = ButtonDefaults.outlinedButtonColors(containerColor = MColors.SurfaceMuted, contentColor = MColors.Ink700),
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) {
+            Text("Misafir olarak göz at", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
         }
-        Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(Icons.Rounded.Redeem, null, Modifier.size(18.dp), tint = MColors.BrandDeep)
-            Text("İlk pasaportuna 20 TKN hoş geldin hediyesi", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
-        }
-        TextButton(onClick = onContinueAsGuest, modifier = Modifier.fillMaxWidth()) { Text("Misafir olarak keşfet", color = MColors.Ink600) }
+        HorizontalDivider(color = MColors.Line.copy(alpha = 0.6f))
+        AppLegalLinks(prominent = true)
     }
 }
 
 @Composable
-private fun ProviderButton(title: String, action: () -> Unit, color: Color, ink: Color, logo: @Composable () -> Unit) {
-    Surface(onClick = action, shape = RoundedCornerShape(14.dp), color = color,
+private fun ProviderButton(title: String, action: () -> Unit, color: Color, ink: Color, enabled: Boolean = true, logo: @Composable () -> Unit) {
+    Surface(onClick = action, enabled = enabled, shape = RoundedCornerShape(14.dp), color = color,
         border = BorderStroke(1.dp, if (color == Color.Black) Color.Black else MColors.Line), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.width(24.dp), contentAlignment = Alignment.Center) { logo() }
@@ -160,7 +276,7 @@ private fun AuthHeader(title: String, subtitle: String, onDismiss: () -> Unit) {
 @Composable
 private fun PassportSetupView(draft: PassportDraft, onDraft: (PassportDraft) -> Unit,
     photo: ImageBitmap?, onPhoto: (ImageBitmap) -> Unit, section: Int, onSection: (Int) -> Unit,
-    provider: String, onBack: () -> Unit, onSave: () -> Unit) {
+    provider: String, onBack: () -> Unit, legalRequired: Boolean = false, legalAccepted: Boolean = false, onLegalAccepted: (Boolean) -> Unit = {}, phoneLocked: Boolean = false, busy: Boolean = false, onSave: () -> Unit) {
     val scroll = rememberScrollState()
     var showLocation by remember { mutableStateOf(false) }
     var showExtras by remember { mutableStateOf(false) }
@@ -231,11 +347,15 @@ private fun PassportSetupView(draft: PassportDraft, onDraft: (PassportDraft) -> 
                         TimePickerMenu("Bitiş", draft.endTime, { onDraft(draft.copy(endTime = it)) }, Modifier.weight(1f))
                     }
                     MCard(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("${draft.sport.emoji} ${draft.sport.label} · ${draft.position}", style = MaterialTheme.typography.titleMedium)
                             Text("${draft.level.label} · ${draft.city} / ${draft.district}", color = MColors.Ink500, style = MaterialTheme.typography.bodySmall)
-                            Text("🎁 İlk pasaportuna 20 TKN hediye", color = MColors.BrandDeep, style = MaterialTheme.typography.labelMedium)
                         }
+                    }
+                    AppLegalLinks()
+                    if (legalRequired) Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = legalAccepted, onCheckedChange = onLegalAccepted)
+                        Text("Kullanım koşullarını ve gizlilik politikasını inceledim, kabul ediyorum.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
                     }
                     TextButton(onClick = { showExtras = !showExtras }) { Text(if (showExtras) "Ek bilgileri kapat" else "Ek bilgiler · isteğe bağlı", color = MColors.Ink600); Icon(if (showExtras) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null) }
                     AnimatedVisibility(showExtras) {
@@ -246,7 +366,8 @@ private fun PassportSetupView(draft: PassportDraft, onDraft: (PassportDraft) -> 
                                 MFloatingDropdownBox("Baskın ayak", draft.dominantFoot, listOf("Sağ ayak", "Sol ayak", "Her ikisi"), { it }, { onDraft(draft.copy(dominantFoot = it)) }, modifier = Modifier.weight(1f))
                             }
                             ProfileEditField("Forma numarası", draft.jerseyNumber, { onDraft(draft.copy(jerseyNumber = it.filter(Char::isDigit).take(2))) }, keyboardType = KeyboardType.Number)
-                            ProfileEditField("Telefon", draft.phone, { onDraft(draft.copy(phone = it.take(20))) }, keyboardType = KeyboardType.Phone)
+                            ProfileEditField("Telefon", draft.phone, { onDraft(draft.copy(phone = it.take(20))) }, keyboardType = KeyboardType.Phone, readOnly = phoneLocked)
+                            if (phoneLocked) Text("Telefonunu pasaportunu oluşturduktan sonra İletişimi doğrula bölümünden ekleyebilir veya değiştirebilirsin.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
                             ProfileEditField("E-posta", draft.email, { onDraft(draft.copy(email = it.take(100))) }, keyboardType = KeyboardType.Email)
                             ProfileEditField("Kampüs / üniversite", draft.campus, { onDraft(draft.copy(campus = it.take(80))) })
                             ProfileEditField("Şirket / kurum", draft.company, { onDraft(draft.copy(company = it.take(80))) })
@@ -263,7 +384,7 @@ private fun PassportSetupView(draft: PassportDraft, onDraft: (PassportDraft) -> 
                     MButton(if (section < 2) "Devam et · ${titles[section + 1]}" else "Pasaportumu oluştur", {
                         val validation = if (section == 0) draft.identityError() else if (section == 2) draft.identityError() ?: draft.preferencesError() else null
                         if (validation != null) error = validation else if (section < 2) onSection(section + 1) else onSave()
-                    }, Modifier.weight(1f), icon = if (section == 2) Icons.Rounded.Check else null)
+                    }, Modifier.weight(1f), icon = if (section == 2) Icons.Rounded.Check else null, enabled = !busy && (section < 2 || !legalRequired || legalAccepted))
                 }
             }
         }
@@ -272,25 +393,30 @@ private fun PassportSetupView(draft: PassportDraft, onDraft: (PassportDraft) -> 
 }
 
 @Composable
-private fun PhoneInputView(phone: String, onChange: (String) -> Unit, onBack: () -> Unit, onSend: () -> Unit) {
+private fun EmailInputView(email: String, onChange: (String) -> Unit, onBack: () -> Unit, onSend: () -> Unit, busy: Boolean, cooldown: Int) {
     Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(22.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        AuthHeader("Telefonla devam et", "Numaran profilinde herkese gösterilmez.", onBack)
-        OutlinedTextField(phone, { onChange(it.filter(Char::isDigit).take(10)) }, label = { Text("Telefon numarası") }, prefix = { Text("+90 ") }, placeholder = { Text("5XX XXX XX XX") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), singleLine = true, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
-        MButton("Doğrulama koduna geç", onSend, enabled = normalizeTurkishPhone(phone) != null)
+        AuthHeader("E-posta ile devam et", "Şifresiz giriş veya ücretsiz hesap oluşturma.", onBack)
+        OutlinedTextField(email, { onChange(it.take(254)) }, label = { Text("E-posta adresin") }, placeholder = { Text("ornek@eposta.com") },
+            leadingIcon = { Icon(Icons.Rounded.MailOutline, null, tint = MColors.BrandDeep) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), singleLine = true, enabled = !busy,
+            colors = premiumTextFieldColors(), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+        Text("Adresine tek kullanımlık bir kod göndereceğiz. Hesabın varsa giriş yaparsın; yoksa doğruladıktan sonra sporcu pasaportunu oluşturursun.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
+        MButton(if (cooldown > 0) "Yeni kod için $cooldown sn bekle" else "Giriş kodu gönder", onSend, enabled = !busy && cooldown == 0 && normalizedAuthEmail(email) != null, icon = Icons.Rounded.MarkEmailRead)
     }
 }
 
 @Composable
-private fun PhoneOtpView(phone: String, code: String, error: String?, onCode: (String) -> Unit, onBack: () -> Unit, onVerify: () -> Unit) {
-    var resendSeconds by remember { mutableIntStateOf(50) }
-    LaunchedEffect(resendSeconds) { if (resendSeconds > 0) { delay(1000); resendSeconds-- } }
+private fun EmailOtpView(email: String, code: String, error: String?, onCode: (String) -> Unit, onBack: () -> Unit,
+    onVerify: () -> Unit, busy: Boolean, resendSeconds: Int, onResend: () -> Unit) {
     Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(22.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        AuthHeader("Kodunu doğrula", "+90 $phone", onBack)
-        Text("Önizleme akışını denemek için 2026 kodunu kullan.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
-        OutlinedTextField(code, { onCode(it.filter(Char::isDigit).take(4)) }, label = { Text("4 haneli kod") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), isError = error != null, singleLine = true, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+        AuthHeader("E-postanı doğrula", email, onBack)
+        Text("Gelen kutuna gönderilen altı haneli kodu gir. İleti görünmüyorsa spam klasörüne de bak.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
+        OutlinedTextField(code, { onCode(it.filter(Char::isDigit).take(6)) }, label = { Text("6 haneli giriş kodu") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), isError = error != null,
+            enabled = !busy, singleLine = true, colors = premiumTextFieldColors(), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
         error?.let { Text(it, color = MColors.Rose, style = MaterialTheme.typography.bodySmall) }
-        TextButton(onClick = { resendSeconds = 50; onCode("") }, enabled = resendSeconds == 0) { Text(if (resendSeconds > 0) "Tekrar kod iste · $resendSeconds sn" else "Tekrar kod iste") }
-        MButton("Doğrula ve devam et", onVerify, enabled = code.length == 4)
+        TextButton(onClick = onResend, enabled = !busy && resendSeconds == 0) { Text(if (resendSeconds > 0) "Tekrar kod iste · $resendSeconds sn" else "Tekrar kod iste") }
+        MButton("Doğrula ve devam et", onVerify, enabled = !busy && code.length == 6)
     }
 }
 
@@ -304,12 +430,14 @@ private fun ProfileEditField(
     minLines: Int = 1,
     maxLines: Int = 1,
     isError: Boolean = false,
-    keyboardType: KeyboardType = KeyboardType.Text
+    keyboardType: KeyboardType = KeyboardType.Text,
+    readOnly: Boolean = false
 ) {
     OutlinedTextField(
         textStyle = MaterialTheme.typography.bodyMedium,
         value = value,
         onValueChange = onValueChange,
+        readOnly = readOnly,
         modifier = modifier,
         label = { Text(label) },
         singleLine = singleLine,

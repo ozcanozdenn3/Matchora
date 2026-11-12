@@ -7,12 +7,15 @@ import com.matchora.app.state.EventGeoPoint
 import kotlinx.cinterop.*
 import platform.CoreLocation.CLLocationCoordinate2DMake
 import platform.MapKit.*
+import platform.UIKit.UIUserInterfaceStyle
 import platform.darwin.NSObject
 
 @OptIn(ExperimentalForeignApi::class)
 private class LocationSelectionCoordinator(var onCenterChanged: (EventGeoPoint) -> Unit) : NSObject(), MKMapViewDelegateProtocol {
     override fun mapView(mapView: MKMapView, regionDidChangeAnimated: Boolean) {
-        mapView.centerCoordinate.useContents { onCenterChanged(EventGeoPoint(latitude, longitude)) }
+        mapView.centerCoordinate.useContents {
+            if (validMapCoordinate(latitude, longitude)) onCenterChanged(EventGeoPoint(latitude, longitude))
+        }
     }
 }
 
@@ -25,6 +28,7 @@ actual fun LocationSelectionMap(modifier: Modifier, initialPoint: EventGeoPoint,
         MKMapView().apply {
             setRegion(MKCoordinateRegionMakeWithDistance(CLLocationCoordinate2DMake(initialPoint.latitude, initialPoint.longitude), 2200.0, 2200.0), false)
             delegate = coordinator
+            overrideUserInterfaceStyle = UIUserInterfaceStyle.UIUserInterfaceStyleLight
             showsUserLocation = false
             rotateEnabled = false
             pitchEnabled = false

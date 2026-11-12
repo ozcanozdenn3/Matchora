@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.matchora.app.data.*
 import com.matchora.app.domain.Sport
 import com.matchora.app.state.*
 import com.matchora.app.ui.theme.MColors
@@ -40,23 +41,42 @@ fun CreateTournamentSheet(
     tokenBalance: Int = Int.MAX_VALUE,
     organizerName: String = "Matchora Topluluk",
     newTournamentId: () -> String = { "tr_${(1000..9999).random()}" },
-    onRequestTokens: () -> Unit = {}
+    onRequestTokens: () -> Unit = {},
+    currentCity: String = "İstanbul", currentArea: String = "Kadıköy",
+    primarySport: Sport = Sport.FOOTBALL
 ) {
-    var tournamentCategory by remember { mutableStateOf(SportCategory.ESPORTS) }
-    var selectedSport by remember { mutableStateOf(Sport.ESPORTS_FC) }
+    val backend = LocalBackendRepository.current
+    val liveMode = backend?.enabled == true
+    val config = backend?.configurations?.collectAsState()?.value
+    val lockAmount = if (liveMode) config?.o("fees")?.i("tournament", 20) ?: 20 else 20
+    var formatCode by remember { mutableStateOf("KNOCKOUT") }
+    var liveCapacity by remember { mutableIntStateOf(16) }
+    var minRating by remember { mutableIntStateOf(0) }
+    var verifiedOnly by remember { mutableStateOf(false) }
+    val supportedFormats = listOf(2, 4, 8, 16, 32).map { "KNOCKOUT" to it } + listOf(2, 4, 6, 8, 10, 12, 16).map { "ROUND_ROBIN" to it }
+    fun formatLabel(option: Pair<String, Int>) = "${option.second} takım · ${if (option.first == "ROUND_ROBIN") "Lig" else "Tek eleme"}"
+    var tournamentCategory by remember { mutableStateOf(primarySport.category) }
+    var selectedSport by remember { mutableStateOf(primarySport) }
+    var rosterSize by remember(selectedSport) { mutableIntStateOf(when (selectedSport) { Sport.FOOTBALL, Sport.BASKETBALL -> 5; Sport.VOLLEYBALL -> 6; Sport.PADEL -> 2; else -> 1 }) }
     var customSportName by remember { mutableStateOf("") }
     var customIsGaming by remember { mutableStateOf(false) }
     var title by remember { mutableStateOf("") }
-    var dates by remember { mutableStateOf("25 - 28 Eki") }
+    var dates by remember { mutableStateOf("") }
     var organizer by remember { mutableStateOf(organizerName) }
-    var prizeToken by remember { mutableStateOf("500 TKN") }
-    var prizeCash by remember { mutableStateOf("TKN 10.000") }
-    var requirement by remember { mutableStateOf("1.500+ MMR & Doğrulanmış Sporcu") }
+    var prizeToken by remember { mutableStateOf("") }
+    var prizeCash by remember { mutableStateOf("") }
+    var requirement by remember { mutableStateOf("") }
+    var tournamentCity by remember { mutableStateOf(currentCity) }
+    var tournamentArea by remember { mutableStateOf(currentArea) }
+    var tournamentVenue by remember { mutableStateOf("") }
+    var tournamentNetworkScope by remember { mutableStateOf(EventNetworkScope.CITY) }
+    var showRegion by remember { mutableStateOf(false) }
     var formError by remember { mutableStateOf<String?>(null) }
 
     // E-Spor / Gaming Özellikleri
     var platform by remember { mutableStateOf("PS5 & PC Crossplay") }
-    var format by remember { mutableStateOf("16 Takım · Tek Eleme Tablosu") }
+    var format by remember { mutableStateOf("16 Takım · Tek Eleme") }
+    var formatStyle by remember { mutableStateOf("Tek Eleme") }
     var serverRegion by remember { mutableStateOf("TR Sunucusu · Discord Lobi") }
 
     val isGaming = (selectedSport.isESport || selectedSport == Sport.CHESS) || (selectedSport == Sport.CUSTOM && customIsGaming)
@@ -287,16 +307,58 @@ fun CreateTournamentSheet(
                                     colors = premiumTextFieldColors()
                                 )
 
-                                OutlinedTextField(
-                                    textStyle = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                                    value = format,
-                                    onValueChange = { format = it },
-                                    label = { Text("Format / Kapasite") },
-                                    placeholder = { Text("16 Takım · Tek Eleme") },
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.weight(1.2f),
-                                    colors = premiumTextFieldColors()
+                                MFloatingDropdownBox(
+                                    label = "Format / Kapasite", selectedValue = formatCode to liveCapacity,
+                                    options = supportedFormats, optionLabel = ::formatLabel,
+                                    onSelect = {
+                                        formatCode = it.first
+                                        liveCapacity = it.second
+                                        formatStyle = if (it.first == "ROUND_ROBIN") "Lig Usulü" else "Tek Eleme"
+                                    },
+                                    modifier = Modifier.weight(1.2f)
+                                )
+                            }
+
+                            MFloatingDropdownBox(
+                                label = "Turnuva Usulü",
+                                selectedValue = formatStyle,
+                                options = listOf("Tek Eleme", "Lig Usulü", "Grup + Eleme", "İsviçre Sistemi"),
+                                optionLabel = { it },
+                                onSelect = {
+                                    formatStyle = it
+                                    formatCode = if (it == "Lig Usulü" || it == "İsviçre Sistemi") "ROUND_ROBIN" else "KNOCKOUT"
+                                    if (formatCode == "ROUND_ROBIN" && liveCapacity > 16) liveCapacity = 16
+                                },
+                                icon = Icons.Rounded.AccountTree
+                            )
+
+                            MFloatingDropdownBox("Maç kadrosu · takım başına", rosterSize, (1..25).toList(), { "$it sporcu" }, { rosterSize = it }, icon = Icons.Rounded.Groups)
+                            Text("Kaptan kayıtta bu sayıda oyuncu seçer. Takımdaki diğer sporcular kulüpte kalır; turnuva kadrosuna otomatik eklenmez.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+
+                            MFloatingInputBox(
+                                label = "Organizatör Adı",
+                                value = organizer,
+                                onValueChange = { organizer = it },
+                                placeholder = "Organizatör veya kulüp adı",
+                                icon = Icons.Rounded.VerifiedUser
+                            )
+
+                            MFloatingDropdownBox(
+                                label = "Turnuva Ağı / Kapsamı",
+                                selectedValue = tournamentNetworkScope,
+                                options = EventNetworkScope.entries,
+                                optionLabel = { it.label },
+                                onSelect = { tournamentNetworkScope = it },
+                                icon = Icons.Rounded.Hub
+                            )
+
+                            if (!isGaming) {
+                                VenueChoiceField(
+                                    "Turnuva Tesisi / Sahası",
+                                    tournamentVenue,
+                                    { tournamentVenue = it.take(160) },
+                                    emptyList(),
+                                    tournamentCity
                                 )
                             }
 
@@ -331,6 +393,21 @@ fun CreateTournamentSheet(
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            item { MFloatingActionRow("Turnuva bölgesi", "$tournamentCity · $tournamentArea", Icons.Rounded.LocationOn, onClick = { showRegion = true }) }
+            item {
+                MSubCard {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        MFloatingDropdownBox("Her oyuncu için en düşük MMR", minRating,
+                            listOf(0, 1000, 1200, 1500, 1800, 2000), { if (it == 0) "MMR sınırı yok" else "$it MMR" }, { minRating = it })
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Telefonu doğrulanmış kadro", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                            Switch(verifiedOnly, { verifiedOnly = it })
+                        }
+                        Text("Koşullar kayıtta ve fikstür oluşturulurken her oyuncu için denetlenir. Ödül notu otomatik ödeme oluşturmaz.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
                     }
                 }
             }
@@ -410,14 +487,14 @@ fun CreateTournamentSheet(
                     Text(error, fontSize = 11.sp, color = MColors.Rose, modifier = Modifier.padding(bottom = 8.dp))
                 }
                 MButton(
-                    text = if (tokenBalance < 50) "Token yükle · 50 TKN gerekli" else "Turnuvayı yayınla · 50 TKN kilitle",
+                    text = if (tokenBalance < lockAmount) "Token yükle · $lockAmount TKN gerekli" else "Turnuvayı yayınla · $lockAmount TKN kilitle",
                     onClick = {
 val validationError = when {
                             title.isBlank() -> "Turnuva adını gir."
                             organizer.isBlank() -> "Organizatör adını gir."
                             selectedSport == Sport.CUSTOM && customSportName.isBlank() -> "Özel branş adını gir."
                             dates.isBlank() -> "Turnuva tarihini gir."
-                            prizeToken.isBlank() && prizeCash.isBlank() -> "Ödül havuzunu belirt."
+                            !liveMode && prizeToken.isBlank() && prizeCash.isBlank() -> "Ödül havuzunu belirt."
                             else -> null
                         }
                         if (validationError != null) {
@@ -425,7 +502,7 @@ val validationError = when {
                             return@MButton
                         }
                         formError = null
-                        if (tokenBalance < 50) {
+                        if (tokenBalance < lockAmount) {
                             onRequestTokens()
                             return@MButton
                         }
@@ -433,23 +510,28 @@ val validationError = when {
                             id = newTournamentId(),
                             name = title.trim(),
                             sport = selectedSport,
-                            format = if (isGaming) "$platform · $format" else format,
-                            participants = 6,
-                            capacity = 16,
+                            format = "$liveCapacity Takım · $formatStyle".take(80),
+                            participants = 0,
+                            capacity = liveCapacity,
                             dates = dates,
                             organizer = organizer.trim(),
                             requirement = requirement,
                             status = "Kayıtlar Açık",
-                            feeNote = "Katılım ücretsiz · Ödül: ${prizeToken.ifBlank { "—" }} + ${prizeCash.ifBlank { "—" }}",
-                            bracket = listOf(
-                                BracketMatch(round = 1, teamA = "Takım A", teamB = "Takım B", scoreA = null, scoreB = null),
-                                BracketMatch(round = 1, teamA = "Takım C", teamB = "Takım D", scoreA = null, scoreB = null)
-                            ),
+                            feeNote = if (liveMode && prizeToken.isBlank() && prizeCash.isBlank()) "Katılım ücretsiz · Ödül tanımlanmadı" else "Katılım ücretsiz · Organizatörün ödül notu: ${prizeToken.ifBlank { "—" }} + ${prizeCash.ifBlank { "—" }}",
+                            bracket = emptyList(),
                             standings = emptyList(),
-                            isLeague = format.contains("Lig", ignoreCase = true) || format.contains("Grup", ignoreCase = true),
+                            isLeague = formatCode == "ROUND_ROBIN",
                             customSportName = if (selectedSport == Sport.CUSTOM) customSportName.trim() else null,
                             creatorId = DemoData.ME,
-                            organizerLockTokens = 50
+                            organizerLockTokens = lockAmount,
+                            formatCode = formatCode, minRating = minRating, verifiedOnly = verifiedOnly, rosterSize = rosterSize,
+                            city = tournamentCity, area = tournamentArea,
+                            networkScope = tournamentNetworkScope,
+                            venue = tournamentVenue.trim(),
+                            prizeToken = prizeToken.trim(),
+                            prizeCash = prizeCash.trim(),
+                            gamePlatform = if (isGaming) platform.trim() else "",
+                            serverRegion = if (isGaming) serverRegion.trim() else ""
                         )
                         onCreateTournament(newTournament)
                         onDismiss()
@@ -461,4 +543,5 @@ val validationError = when {
             }
         }
     }
+    if (showRegion) CityAndLocationSelectorSheet(tournamentCity, tournamentArea, false, { showRegion = false }, { city, area, _ -> tournamentCity = city; tournamentArea = area })
 }

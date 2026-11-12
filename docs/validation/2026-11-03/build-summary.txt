@@ -1,0 +1,6 @@
+3 Kasım 2026
+
+Mock önizleme: Android debug APK + iOS Simulator Arm64 framework + 23 KMP testi: BUILD SUCCESSFUL.
+Yerel API modu: Android debug APK + iOS Simulator Arm64 framework + 23 KMP testi: BUILD SUCCESSFUL.
+Yayın kapısı: preview/local ile üretim yapılandırması kontrolü beklendiği gibi reddedildi.
+Supabase, gerçek mağaza, SMS, APNs/FCM ve fiziksel cihaz testi yapılmadı.

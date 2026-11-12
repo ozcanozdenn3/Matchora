@@ -29,6 +29,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.matchora.app.state.*
+import com.matchora.app.data.*
+import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalUriHandler
 import com.matchora.app.ui.theme.MColors
 
 private enum class WalletSheetTab(val label: String) {
@@ -80,10 +83,38 @@ fun TokenWalletSheet(
     var selectedPack by remember { mutableStateOf(initialPack) }
     var selectedPlanSku by remember { mutableStateOf(DemoData.proPlans.firstOrNull()?.sku ?: "pro_monthly") }
     var loading by remember { mutableStateOf(false) }
+    var storeBusy by remember { mutableStateOf(false) }
     var storeNotice by remember { mutableStateOf<String?>(null) }
     var historyFilter by remember { mutableIntStateOf(0) }
+    val backend = LocalBackendRepository.current
+    val remoteStorePending = backend?.enabled == true
+    val scope = rememberCoroutineScope()
+    val uriHandler = LocalUriHandler.current
+    var catalog by remember { mutableStateOf(emptyList<StoreListing>()) }
+    var catalogError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(backend?.userId) {
+        if (remoteStorePending && backend != null) {
+            try { catalog = StoreBilling.catalog(backend); catalogError = null }
+            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+            catch (e: Exception) { catalogError = e.message }
+        }
+    }
+    fun price(sku: String, preview: String): String = if (!remoteStorePending) preview else catalog.find { it.sku == sku }?.price ?: "Mağaza bekleniyor"
+    fun storeAction(sku: String? = null) {
+        if (loading || storeBusy || backend == null) return
+        storeBusy = true; loading = true
+        scope.launch {
+            try {
+                if (catalog.isEmpty()) catalog = StoreBilling.catalog(backend)
+                if (sku == null) StoreBilling.restore(backend) else StoreBilling.purchase(backend, sku)
+                storeNotice = "Mağaza işlemi alındı. Haklar sunucuda doğrulandığında cüzdanın güncellenecek."
+            } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+            catch (e: Exception) { if ((e as? BackendFailure)?.code != "PURCHASE_CANCELLED") storeNotice = e.message }
+            finally { loading = false; storeBusy = false }
+        }
+    }
 
-    LaunchedEffect(balance, activeProPlan) { loading = false }
+    LaunchedEffect(balance, activeProPlan) { if (!storeBusy) loading = false }
 
     ModalBottomSheet(
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -109,6 +140,7 @@ fun TokenWalletSheet(
                 )
             }
 
+            if (remoteStorePending && catalogError != null) item { Text(catalogError.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MColors.Ink500) }
             // Segmented Geçiş: Token Paketleri / Matchora Plus
             item {
                 Surface(
@@ -250,7 +282,7 @@ fun TokenWalletSheet(
                                                 fontWeight = if (pack.bonus > 0) FontWeight.Bold else FontWeight.Normal
                                             )
                                             Text(
-                                                text = pack.priceLabel,
+                                                text = price(pack.sku, pack.priceLabel),
                                                 style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MColors.BrandDeep
@@ -268,7 +300,8 @@ fun TokenWalletSheet(
                     // Apple Pay / Google StoreKit Satın Alma Butonu
                     Surface(
                         onClick = {
-                            if (!loading) {
+                            if (remoteStorePending) storeAction(selectedPack.sku)
+                            else if (!loading) {
                                 loading = true
                                 onLoad(selectedPack)
                             }
@@ -291,7 +324,7 @@ fun TokenWalletSheet(
                             Icon(Icons.Rounded.ShoppingBag, null, Modifier.size(20.dp), tint = Color.White)
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = if (loading) "İşleniyor…" else "${selectedPack.tokens + selectedPack.bonus} TKN al · ${selectedPack.priceLabel}",
+                                text = if (loading) "İşleniyor…" else "${selectedPack.tokens + selectedPack.bonus} TKN al · ${price(selectedPack.sku, selectedPack.priceLabel)}",
                                 fontSize = 14.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -373,7 +406,7 @@ fun TokenWalletSheet(
                             }
 
                             Text(
-                                text = "Sınırsız maç deneyimi ve öncelikli sporcu ayrıcalıkları",
+                                text = if (remoteStorePending) "Aylık token ve sporcu pasaportu ayrıcalıkları" else "Sınırsız maç deneyimi ve öncelikli sporcu ayrıcalıkları",
                                 fontSize = 13.sp,
                                 color = Color(0xFFE2E8F0),
                                 lineHeight = 18.sp
@@ -382,7 +415,12 @@ fun TokenWalletSheet(
                             HorizontalDivider(color = Color.White.copy(alpha = 0.15f))
 
                             // Avantaj Maddeleri
-                            val benefits = listOf(
+                            val benefits = if (remoteStorePending) listOf(
+                                "⚡ Her ay 100 TKN",
+                                "👑 Sporcu pasaportunda altın Plus çerçevesi",
+                                "🔐 Hesabına bağlı, cihazlar arası abonelik",
+                                "⚙️ Apple / Google hesabından abonelik yönetimi"
+                            ) else listOf(
                                 "⚡ Her ay 100 TKN Hediye (₺100 değerinde)",
                                 "👑 Altın Onaylı Sporcu Rozeti & vitrinde öne çıkma",
                                 "🎟️ Sınırsız & Komisyonsuz Maç İlanı Açma",
@@ -435,7 +473,7 @@ fun TokenWalletSheet(
                                                 }
                                             }
                                         }
-                                        Text("${plan.priceLabel} ${plan.period}", fontSize = 13.sp, color = MColors.BrandDeep, fontWeight = FontWeight.SemiBold)
+                                        Text("${price(plan.sku, plan.priceLabel)} ${plan.period}", fontSize = 13.sp, color = MColors.BrandDeep, fontWeight = FontWeight.SemiBold)
                                     }
 
                                     RadioButton(
@@ -453,7 +491,8 @@ fun TokenWalletSheet(
                     val planToSubscribe = DemoData.proPlans.firstOrNull { it.sku == selectedPlanSku } ?: DemoData.proPlans.first()
                     Surface(
                         onClick = {
-                            if (!loading && activeProPlan == null) {
+                            if (remoteStorePending) storeAction(planToSubscribe.sku)
+                            else if (!loading && activeProPlan == null) {
                                 loading = true
                                 onSubscribePlan(planToSubscribe)
                             }
@@ -480,7 +519,7 @@ fun TokenWalletSheet(
                                 Icon(Icons.Rounded.ShoppingBag, null, Modifier.size(20.dp), tint = Color.White)
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    text = if (loading) "İşleniyor…" else "Abone ol · ${planToSubscribe.priceLabel}",
+                                    text = if (loading) "İşleniyor…" else "Abone ol · ${price(planToSubscribe.sku, planToSubscribe.priceLabel)}",
                                     fontSize = 14.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -502,10 +541,11 @@ fun TokenWalletSheet(
                     )
                 }
             }
+            item { AppLegalLinks() }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    TextButton(onClick = { storeNotice = "Geri yükleme arayüzü hazır. Mağaza bağlantısı açıldığında satın almaların hesabınla eşleştirilecek." }) { Text("Satın alımları geri yükle", fontSize = 11.sp) }
-                    TextButton(onClick = { storeNotice = if (activeProPlan == null) "Aktif bir Plus planı bulunmuyor." else "${activeProPlan.title} · ${activeProPlan.priceLabel} ${activeProPlan.period}. Gerçek abonelik değişiklikleri mağaza hesabından yönetilir." }) { Text("Üyeliği yönet", fontSize = 11.sp) }
+                    TextButton(onClick = { if (remoteStorePending) storeAction() else storeNotice = "Önizleme modunda gerçek mağaza işlemi yapılmaz." }, enabled = !storeBusy) { Text("Satın alımları geri yükle", fontSize = 11.sp) }
+                    TextButton(onClick = { if (remoteStorePending) { runCatching { uriHandler.openUri(if (storePlatform == "ios") "https://apps.apple.com/account/subscriptions" else "https://play.google.com/store/account/subscriptions") }.onFailure { storeNotice = "Mağaza hesabı açılamadı." } } else storeNotice = if (activeProPlan == null) "Aktif bir Plus planı bulunmuyor." else "${activeProPlan.title} · ${activeProPlan.priceLabel} ${activeProPlan.period}. Gerçek abonelik değişiklikleri mağaza hesabından yönetilir." }) { Text("Üyeliği yönet", fontSize = 11.sp) }
                 }
             }
         }

@@ -36,19 +36,23 @@ import com.matchora.app.ui.theme.MColors
 fun EventDetailSheet(
     event: SportEvent,
     currentPlayer: Player = DemoData.mePlayer,
+    players: List<Player> = DemoData.players,
     isJoined: Boolean,
     isCheckedIn: Boolean,
     isOnWaitlist: Boolean = false,
+    waitlistOfferUntil: Long? = null,
     isHost: Boolean = false,
     pendingRequest: JoinRequest? = null,
     pendingRequestsCount: Int = 0,
     onDismiss: () -> Unit,
     onToggleJoin: () -> Unit,
     onToggleWaitlist: () -> Unit = {},
+    onAcceptWaitlistOffer: () -> Unit = {},
     onRequestJoin: () -> Unit = {},
     onCancelRequest: () -> Unit = {},
     onOpenManageRequests: () -> Unit = {},
     onDirectMessageHost: () -> Unit = {},
+    onDirectMessagePlayer: (Player) -> Unit = {},
     onCheckIn: () -> Unit,
     onOpenChat: () -> Unit,
     onReportEvent: () -> Unit,
@@ -57,10 +61,40 @@ fun EventDetailSheet(
     onCancelEvent: () -> Unit = {},
     hasResult: Boolean = false,
     onOpenResult: () -> Unit = {},
+    isRemovedByHost: Boolean = false,
+    removedPlayers: List<Player> = emptyList(),
+    onRemoveParticipant: (Player) -> Unit = {},
+    onRestoreParticipant: (Player) -> Unit = {},
+    isDirectInvited: Boolean = false,
+    onChallengePlayer: ((Player) -> Unit)? = null,
+    onInvitePlayerToTeam: ((Player) -> Unit)? = null,
     onShare: () -> Unit
 ) {
     var showMatchScoreDetail by remember { mutableStateOf(false) }
     var hostAction by remember { mutableStateOf<String?>(null) }
+    var removalTarget by remember { mutableStateOf<Player?>(null) }
+    var showRemoved by remember { mutableStateOf(false) }
+    var selectedPlayerProfile by remember { mutableStateOf<Player?>(null) }
+    val backendMode = LocalBackendRepository.current?.enabled == true
+    val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+    val preStart = if (backendMode) event.startsAtEpochMillis?.let { it > now } ?: false else (event.startsInMin ?: 1) > 0
+    val active = event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING, EventStatus.FULL)
+    val canManageRoster = active && preStart && !event.isTeamEvent
+    val checkInOpen = !backendMode || event.startsAtEpochMillis?.let { now >= it - 30 * 60000 && now <= it + event.durationMin * 60000 } == true
+    val mayCheckIn = checkInOpen && (active || event.status == EventStatus.IN_PROGRESS)
+    removalTarget?.let { player -> AlertDialog(onDismissRequest = { removalTarget = null }, title = { Text("Kadrodan çıkarılsın mı?") },
+        text = { Text("${player.name} kadrodan çıkarılacak. Varsa taahhüdü iade edilir; bu işlem güvenilirlik cezası vermez. Yeniden katılabilmesi için izin vermen gerekir.") },
+        confirmButton = { TextButton(onClick = { removalTarget = null; onRemoveParticipant(player) }) { Text("Kadrodan çıkar", color = MColors.Rose) } },
+        dismissButton = { TextButton(onClick = { removalTarget = null }) { Text("Vazgeç") } }) }
+    if (showRemoved) AlertDialog(onDismissRequest = { showRemoved = false }, title = { Text("Çıkarılan katılımcılar") }, text = {
+        Column { if (removedPlayers.isEmpty()) Text("Çıkarılmış katılımcı yok.")
+            removedPlayers.forEach { player -> Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(player.name, Modifier.weight(1f))
+                TextButton(onClick = { onRestoreParticipant(player) }) { Text("Yeniden izin ver") }
+            } }
+            Text("İzin vermek sporcuyu otomatik katmaz ve Token harcatmaz.", style = MaterialTheme.typography.bodySmall)
+        }
+    }, confirmButton = { TextButton(onClick = { showRemoved = false }) { Text("Kapat") } })
     val displayedParticipantIds = if (isJoined) {
         (event.participantIds + DemoData.ME).distinct()
     } else {
@@ -111,9 +145,10 @@ fun EventDetailSheet(
                     MCard(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Organizatör işlemleri", style = MaterialTheme.typography.titleSmall)
-                            MButton(if (event.status == EventStatus.IN_PROGRESS) "Maçı tamamla" else "Maçı başlat", {
+                            if (event.status == EventStatus.IN_PROGRESS || !backendMode || event.startsAtEpochMillis?.let { now < it + event.durationMin * 60000 } == true) MButton(if (event.status == EventStatus.IN_PROGRESS) "Maçı tamamla" else "Maçı başlat", {
                                 hostAction = if (event.status == EventStatus.IN_PROGRESS) "complete" else "start"
                             }, isPrimary = false)
+                            if (mayCheckIn) MButton("Saha check-in kodu", onCheckIn, isPrimary = false, icon = Icons.Rounded.QrCode)
                             TextButton(onClick = { hostAction = "cancel" }) { Text("Maçı iptal et", color = MColors.Rose) }
                         }
                     }
@@ -153,7 +188,7 @@ fun EventDetailSheet(
                 }
             }
 
-            event.approximateLocation?.let { point ->
+            (event.meetingLocation ?: event.approximateLocation)?.let { point ->
                 item {
                     NativeMapView(Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(20.dp)),
                         point.latitude, point.longitude, 1000.0,
@@ -185,6 +220,18 @@ fun EventDetailSheet(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
+                            }
+                            if (!isOnlineMeeting(event)) {
+                                OutlinedButton(
+                                    onClick = { openEventDirections(event) },
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 9.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Directions, null, Modifier.size(14.dp), tint = MColors.BrandDeep)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Yol Tarifi", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MColors.BrandDeep)
+                                }
                             }
                         }
                         val sessionDetails = listOfNotNull(
@@ -222,7 +269,7 @@ fun EventDetailSheet(
                             }
                             Column {
                                 Text("KİŞİ BAŞI", style = MaterialTheme.typography.labelSmall, color = MColors.Ink400)
-                                Text(if (event.pricePerPersonTry > 0) "TKN ${event.pricePerPersonTry}" else "Ücretsiz", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MColors.Brand, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(if (event.pricePerPersonTry > 0) "₺${event.pricePerPersonTry}" else "Ücretsiz", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MColors.Brand, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
@@ -366,10 +413,10 @@ fun EventDetailSheet(
             }
 
             // Oyuncu Listesi
-            items(displayedParticipantIds) { pid ->
-                val p = if (pid == DemoData.ME) currentPlayer else DemoData.player(pid)
+            items(displayedParticipantIds.filter { !isJoined || it != DemoData.ME }) { pid ->
+                val p = if (pid == DemoData.ME) currentPlayer else players.firstOrNull { it.id == pid }
                 if (p != null) {
-                    MCard(modifier = Modifier.fillMaxWidth()) {
+                    MCard(modifier = Modifier.fillMaxWidth(), onClick = { if (p.id != DemoData.ME) selectedPlayerProfile = p }) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -378,15 +425,12 @@ fun EventDetailSheet(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(p.color),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(p.initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                }
+                                UserAvatar(
+                                    userId = p.id,
+                                    name = p.name,
+                                    modifier = Modifier.size(36.dp),
+                                    fallbackColor = p.color
+                                )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -401,7 +445,14 @@ fun EventDetailSheet(
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                MBadge(text = "R:${p.reliability}", textColor = MColors.Mint, backgroundColor = MColors.MintTint)
+                                if (pid in event.checkedInParticipantIds) {
+                                    MBadge(text = "✓ Check-in", textColor = MColors.Mint, backgroundColor = MColors.MintTint)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                }
+                                MBadge(text = "R:${p.reliabilityLabel}", textColor = MColors.Mint, backgroundColor = MColors.MintTint)
+                                if (isHost && canManageRoster && pid != event.hostId) IconButton(onClick = { removalTarget = p }) {
+                                    Icon(Icons.Rounded.PersonRemove, contentDescription = "${p.name} kadrodan çıkar", tint = MColors.Rose, modifier = Modifier.size(20.dp))
+                                }
                                 if (p.chemistry != null) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     MBadge(text = "%${p.chemistry}", textColor = MColors.Lilac, backgroundColor = MColors.LilacTint)
@@ -410,6 +461,10 @@ fun EventDetailSheet(
                         }
                     }
                 }
+            }
+
+            if (isHost && canManageRoster && removedPlayers.isNotEmpty()) item {
+                TextButton(onClick = { showRemoved = true }) { Text("Çıkarılan katılımcılar (${removedPlayers.size})") }
             }
 
             // Sen katıldıysan senin kartın
@@ -428,23 +483,20 @@ fun EventDetailSheet(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(MColors.Brand),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("Ö", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                }
+                                UserAvatar(
+                                    userId = currentPlayer.id,
+                                    name = currentPlayer.name,
+                                    modifier = Modifier.size(36.dp),
+                                    fallbackColor = MColors.Brand
+                                )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text("Sen · ${currentPlayer.name}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MColors.Ink900, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text("10 TKN taahhüt kilitlendi", style = MaterialTheme.typography.bodySmall, fontSize = 11.sp, color = MColors.Ink600)
+                                    Text("${event.commitmentTokens} TKN taahhüt kilitlendi", style = MaterialTheme.typography.bodySmall, fontSize = 11.sp, color = MColors.Ink600)
                                 }
                             }
                             MBadge(
-                                text = if (isCheckedIn) "✓ Check-in" else "Kadroda",
+                                text = if (isCheckedIn || DemoData.ME in event.checkedInParticipantIds) "✓ Check-in" else "Kadroda",
                                 textColor = MColors.Mint,
                                 backgroundColor = Color.White
                             )
@@ -472,7 +524,7 @@ fun EventDetailSheet(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text("Başvurun bekliyor", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MColors.Brand)
-                                    Text("Rol: ${pendingRequest.requestedPosition ?: "Oyuncu"} · 10 TKN kilitte", fontSize = 10.sp, color = MColors.Ink600)
+                                    Text("Rol: ${pendingRequest.requestedPosition ?: "Oyuncu"} · ${event.commitmentTokens} TKN kilitte", fontSize = 10.sp, color = MColors.Ink600)
                                 }
                             }
                             TextButton(onClick = onCancelRequest) {
@@ -487,9 +539,9 @@ fun EventDetailSheet(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (isHost) {
-                        // KAPTAN GÖRÜNÜMÜ: Başvuruları Yönet
-                        MButton(
-                            text = "📋 Başvuruları yönet ($pendingRequestsCount Bekleyen)",
+                        // KAPTAN GÖRÜNÜMÜ: Yönetim Paneli
+                        if (canManageRoster) MButton(
+                            text = "⚙️ İlan Yönetim Paneli ($pendingRequestsCount Başvuru)",
                             onClick = onOpenManageRequests,
                             isPrimary = true
                         )
@@ -501,7 +553,7 @@ fun EventDetailSheet(
                         )
                     } else if (isJoined) {
                         // KATILMIŞ KULLANICI GÖRÜNÜMÜ
-                        if (!isCheckedIn) {
+                        if (!isCheckedIn && mayCheckIn) {
                             MButton(
                                 text = "📍 Check-in yap",
                                 onClick = onCheckIn,
@@ -515,14 +567,18 @@ fun EventDetailSheet(
                             isPrimary = false
                         )
 
-                        OutlinedButton(
+                        if (canManageRoster && !isCheckedIn) OutlinedButton(
                             onClick = onToggleJoin,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MColors.Rose)
                         ) {
-                            Text("Maç Kadrosundan Çık (Taahhüt İade Edilir)")
+                            Text(if (!backendMode || (event.startsInMin ?: 0) >= 180) "Maç kadrosundan ayrıl · taahhüt iade edilir" else "Maç kadrosundan ayrıl · geç iptal, taahhüt iade edilmez")
                         }
+                    } else if (isRemovedByHost) {
+                        Text("Organizatör katılımını sonlandırdı. Yeniden katılım için organizatörün izin vermesi gerekiyor.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
+                    } else if (!active || !preStart || event.isTeamEvent) {
+                        Text(if (event.isTeamEvent) "Bu resmi maçın kadrosu takım kaydından belirlenir." else "Bu karşılaşma artık katılım almıyor.", style = MaterialTheme.typography.bodySmall)
                     } else if (pendingRequest != null) {
                         // BAŞVURUSU BEKLEYEN KULLANICI
                         MButton(
@@ -531,16 +587,51 @@ fun EventDetailSheet(
                             isPrimary = true
                         )
                     } else if (isOnWaitlist) {
+                        if (waitlistOfferUntil != null && waitlistOfferUntil > now) {
+                            Text("Bekleme sırasında yer açıldı. Teklif süresi dolmadan yanıtla.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
+                            MButton(text = if (event.approvalRequired) "Kadro başvurusu gönder · organizatör onayı gerekir" else "Açılan yeri kabul et (${event.commitmentTokens} TKN kilit)", onClick = onAcceptWaitlistOffer)
+                        }
                         MButton(text = "Bekleme listesinden ayrıl", onClick = onToggleWaitlist, isPrimary = false)
                     } else if (event.status == EventStatus.FULL || displayedFreeSpots == 0) {
                         MButton(text = "Bekleme listesine katıl", onClick = onToggleWaitlist, isPrimary = true)
                     } else if (event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING)) {
-                        // YENİ KATILACAK KULLANICI: Kadroya Başvur + Organizatöre Mesaj
-                        MButton(
-                            text = "✓ Kadroya Katıl / Başvur (${event.commitmentTokens} TKN kilit)",
-                            onClick = onRequestJoin,
-                            isPrimary = true
-                        )
+                        // YENİ KATILACAK KULLANICI: Doğrudan Davetli veya Standart
+                        if (isDirectInvited) {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFFF0FDF4),
+                                border = BorderStroke(1.dp, Color(0xFF86EFAC)),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.size(34.dp).background(Color(0xFFDCFCE7), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Rounded.ConfirmationNumber, null, tint = Color(0xFF16A34A), modifier = Modifier.size(18.dp))
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Özel Davet Kodu Doğrulandı", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF14532D))
+                                        Text("İlan sahibinin doğrudan davetlisisin · Ev sahibi onayı gerekmeden anında katılabilirsin.", fontSize = 11.sp, color = Color(0xFF166534), lineHeight = 15.sp)
+                                    }
+                                }
+                            }
+                            MButton(
+                                text = "⚡ Doğrudan Kadroya Katıl (${event.commitmentTokens} TKN kilit)",
+                                onClick = onRequestJoin,
+                                isPrimary = true
+                            )
+                        } else {
+                            MButton(
+                                text = if (event.approvalRequired) "Kadroya başvur (${event.commitmentTokens} TKN kilit)" else "Kadroya katıl (${event.commitmentTokens} TKN kilit)",
+                                onClick = onRequestJoin,
+                                isPrimary = true
+                            )
+                        }
 
                         OutlinedButton(
                             onClick = onDirectMessageHost,
@@ -557,16 +648,57 @@ fun EventDetailSheet(
                         Text("Bu karşılaşma artık katılım almıyor.", fontSize = 12.sp, color = MColors.Ink500)
                     }
 
-                    // Paylaş & Şikayet Et
+                    // Benzersiz İlan ID Kartı ve Paylaşım
+                    var copiedToast by remember { mutableStateOf(false) }
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFFF8FAFC),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("BENZERSİZ İLAN ID", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.Ink400, letterSpacing = 0.5.sp)
+                                Text(eventDisplayId(event.id), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = MColors.BrandDeep)
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                                FilledTonalButton(
+                                    onClick = {
+                                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(event.id))
+                                        copiedToast = true
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(13.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(if (copiedToast) "Kopyalandı" else "Kopyala", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Button(
+                                    onClick = onShare,
+                                    colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Share, null, modifier = Modifier.size(13.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    EventDeviceActions(event)
+                    BackendEventEditing(event)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.End
                     ) {
-                        TextButton(onClick = onShare) {
-                            Icon(Icons.Rounded.Share, null, modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Davet Linkini Paylaş", style = MaterialTheme.typography.labelSmall)
-                        }
                         TextButton(onClick = onReportEvent) {
                             Icon(Icons.Rounded.Flag, null, tint = MColors.Ink400, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(4.dp))
@@ -576,5 +708,28 @@ fun EventDetailSheet(
                 }
             }
         }
+    }
+    selectedPlayerProfile?.let { player ->
+        PlayerProfileSheet(
+            name = player.name,
+            initials = player.initials,
+            rating = player.rating,
+            rank = 1,
+            player = player,
+            isInvitedToTeam = false,
+            sport = event.sport,
+            onDismiss = { selectedPlayerProfile = null },
+            onChallenge = {
+                val target = player
+                selectedPlayerProfile = null
+                onChallengePlayer?.invoke(target)
+            },
+            onInviteTeam = {
+                val target = player
+                selectedPlayerProfile = null
+                onInvitePlayerToTeam?.invoke(target)
+            },
+            onDirectMessage = { selectedPlayerProfile = null; onDirectMessagePlayer(player) }
+        )
     }
 }

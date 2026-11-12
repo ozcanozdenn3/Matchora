@@ -1,0 +1,9 @@
+6 Kasım 2026 — tam ekran/backend envanteri
+Android assembleDebug, iOS linkDebugFrameworkIosSimulatorArm64 ve testDebugUnitTest başarılı.
+89 backend ve 28 KMP testi geçti; hata/atlanan yok.
+48 ortak UI dosyası; 218 fonksiyon bildirimi; 72 pencere/menü açılış noktası; 21 native Kotlin dosyası; 79 sunucu komutu.
+Ana envanter 253 benzersiz ID içerir. Bu sayılar kaynak envanteridir, cihaz test sayısı değildir.
+Yeni bağlantılar: sporcu formu/uyum/rozet, anı tema/skor, takım rengi, turnuva metadata, destek yanıtı/durum, satış bayrağı, yerel sıra, topluluk sayı/tür uyumu.
+Mocklar korunuyor; DemoData.kt değiştirilmedi; varsayılan mod preview.
+Canlı Supabase/Apple/Google/SMS/RevenueCat/APNs/FCM ve fiziksel cihaz uçtan uca doğrulaması yapılmadı.
+Son preview paketinin simülatöre kurulumu/başlatılması başarılı; PID 98281. Son çalıştırmada görsel CUA testi yapılmadı.

@@ -29,7 +29,14 @@ import com.matchora.app.state.*
 import com.matchora.app.ui.theme.MColors
 
 @Composable
-fun VenueSpotlightCard(venue: VenueInfo, bookedSlotIds: Set<String>, onSelect: (VenueSlotInfo) -> Unit) {
+fun VenueSpotlightCard(
+    venue: VenueInfo,
+    bookedSlotIds: Set<String>,
+    onCardClick: (() -> Unit)? = null,
+    onDirections: (() -> Unit)? = null,
+    onShareVenue: (() -> Unit)? = null,
+    onSelect: (VenueSlotInfo) -> Unit
+) {
     val accent = if (venue.name.contains("Kort", true) || venue.name.contains("Tenis", true)) Color(0xFF9EDDC8) else Color(0xFFFFC08E)
     val availableCount = venue.slots.count { it.available && "${venue.id}:${it.id}" !in bookedSlotIds }
 
@@ -38,7 +45,8 @@ fun VenueSpotlightCard(venue: VenueInfo, bookedSlotIds: Set<String>, onSelect: (
         cornerRadius = 18.dp,
         elevation = 2.dp,
         borderColor = Color(0xFFE4E9F1),
-        borderWidth = 1.dp
+        borderWidth = 1.dp,
+        onClick = onCardClick
     ) {
         // 1. Üst Başlık: Tesis adı, konum, saha sayısı ve başlangıç fiyatı tek bakışta okunaklı
         Row(
@@ -92,7 +100,7 @@ fun VenueSpotlightCard(venue: VenueInfo, bookedSlotIds: Set<String>, onSelect: (
                 ) {
                     Icon(Icons.Rounded.LocationOn, null, Modifier.size(12.dp), tint = accent)
                     Text(
-                        text = "${venue.area} · ${venue.distanceKm} km · ${venue.courts} saha",
+                        text = "${venue.area}${venue.distanceKm?.let { " · $it km" }.orEmpty()} · ${venue.courts} saha",
                         color = Color(0xFFC8D5DC),
                         fontSize = 11.5.sp,
                         lineHeight = 14.sp,
@@ -111,7 +119,7 @@ fun VenueSpotlightCard(venue: VenueInfo, bookedSlotIds: Set<String>, onSelect: (
                 modifier = Modifier.shadow(6.dp, RoundedCornerShape(9.dp), ambientColor = Color(0x55000000), spotColor = Color(0x77000000))
             ) {
                 Text(
-                    text = "${venue.fromPriceTry} TKN",
+                    text = "₺${venue.fromPriceLabel}",
                     color = accent,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
@@ -233,12 +241,63 @@ fun VenueSpotlightCard(venue: VenueInfo, bookedSlotIds: Set<String>, onSelect: (
                                 color = if (available) MColors.Ink600 else MColors.Ink400
                             )
                             Text(
-                                text = if (booked) "Rezerve" else if (!available) "Dolu" else "${slot.priceTry} TKN",
+                                text = if (booked) "Rezerve" else if (!available) "Dolu" else "₺${slot.priceLabel}",
                                 fontSize = 10.5.sp,
                                 lineHeight = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (available) MColors.BrandDeep else MColors.Ink400
                             )
+                        }
+                    }
+                }
+            }
+
+            // Tesis ID, Yol Tarifi ve Paylaşım Satırı
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFFF1F5F9),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Text(
+                        text = venueDisplayId(venue.id),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MColors.BrandDeep,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                    )
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (onDirections != null) {
+                        OutlinedButton(
+                            onClick = onDirections,
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Icon(Icons.Rounded.Directions, null, Modifier.size(12.dp), tint = MColors.BrandDeep)
+                            Spacer(Modifier.width(3.dp))
+                            Text("Yol Tarifi", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MColors.BrandDeep)
+                        }
+                    }
+                    if (onShareVenue != null) {
+                        Button(
+                            onClick = onShareVenue,
+                            colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Icon(Icons.Rounded.Share, null, tint = Color.White, modifier = Modifier.size(12.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text("Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
                 }

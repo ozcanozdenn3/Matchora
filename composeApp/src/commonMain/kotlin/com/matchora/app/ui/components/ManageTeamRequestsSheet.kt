@@ -41,6 +41,7 @@ fun ManageTeamRequestsSheet(
     onReject: (TeamJoinRequest) -> Unit,
     onDirectMessage: (Player) -> Unit
 ) {
+    var selectedPlayerProfile by remember { mutableStateOf<Player?>(null) }
     ModalBottomSheet(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         tonalElevation = 0.dp,
@@ -111,7 +112,10 @@ fun ManageTeamRequestsSheet(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable { selectedPlayerProfile = req.player }
+                                ) {
                                     Box(
                                         modifier = Modifier
                                             .size(42.dp)
@@ -137,7 +141,7 @@ fun ManageTeamRequestsSheet(
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                text = "• ${req.player.rating} MMR",
+                                                text = "• ${req.player.ratingLabel}",
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MColors.Brand
@@ -158,7 +162,7 @@ fun ManageTeamRequestsSheet(
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = "%${req.player.reliability} Güvenilirlik",
+                                        text = "${req.player.reliabilityLabel} Güvenilirlik",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MColors.Mint
@@ -222,11 +226,42 @@ fun ManageTeamRequestsSheet(
                                 ) {
                                     Icon(Icons.Rounded.Chat, contentDescription = "Mesaj", tint = MColors.Brand, modifier = Modifier.size(16.dp))
                                 }
+
+                                OutlinedButton(
+                                    onClick = { selectedPlayerProfile = req.player },
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.dp, MColors.Mint),
+                                    modifier = Modifier.height(38.dp)
+                                ) {
+                                    Text("🪪 Pasaport", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MColors.Mint)
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    selectedPlayerProfile?.let { player ->
+        PlayerProfileSheet(
+            name = player.name,
+            initials = player.initials,
+            rating = player.rating,
+            rank = 1,
+            player = player,
+            sport = team.sport,
+            onDismiss = { selectedPlayerProfile = null },
+            onChallenge = {
+                selectedPlayerProfile = null
+            },
+            onInviteTeam = {
+                selectedPlayerProfile = null
+            },
+            onDirectMessage = {
+                selectedPlayerProfile = null
+                onDirectMessage(player)
+            }
+        )
     }
 }

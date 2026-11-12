@@ -1,0 +1,77 @@
+{
+  "apk": "composeApp/build/outputs/apk/debug/composeApp-debug.apk",
+  "staticLoadAlignmentOnly": true,
+  "passed": true,
+  "libraries": [
+    {
+      "library": "lib/arm64-v8a/libandroidx.graphics.path.so",
+      "loadAlignment": [
+        16384,
+        16384,
+        16384
+      ],
+      "atLeast16Kb": true
+    },
+    {
+      "library": "lib/arm64-v8a/libdatastore_shared_counter.so",
+      "loadAlignment": [
+        16384,
+        16384,
+        16384
+      ],
+      "atLeast16Kb": true
+    },
+    {
+      "library": "lib/armeabi-v7a/libandroidx.graphics.path.so",
+      "loadAlignment": [
+        16384,
+        16384,
+        16384
+      ],
+      "atLeast16Kb": true
+    },
+    {
+      "library": "lib/armeabi-v7a/libdatastore_shared_counter.so",
+      "loadAlignment": [
+        16384,
+        16384
+      ],
+      "atLeast16Kb": true
+    },
+    {
+      "library": "lib/x86/libandroidx.graphics.path.so",
+      "loadAlignment": [
+        16384,
+        16384,
+        16384
+      ],
+      "atLeast16Kb": true
+    },
+    {
+      "library": "lib/x86/libdatastore_shared_counter.so",
+      "loadAlignment": [
+        16384,
+        16384
+      ],
+      "atLeast16Kb": true
+    },
+    {
+      "library": "lib/x86_64/libandroidx.graphics.path.so",
+      "loadAlignment": [
+        16384,
+        16384,
+        16384
+      ],
+      "atLeast16Kb": true
+    },
+    {
+      "library": "lib/x86_64/libdatastore_shared_counter.so",
+      "loadAlignment": [
+        16384,
+        16384
+      ],
+      "atLeast16Kb": true
+    }
+  ],
+  "zipalign16KbPassed": true
+}

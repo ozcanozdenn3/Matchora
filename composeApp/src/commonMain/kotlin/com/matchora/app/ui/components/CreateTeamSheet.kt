@@ -37,28 +37,34 @@ import com.matchora.app.ui.theme.MColors
 @Composable
 fun CreateTeamSheet(
     onDismiss: () -> Unit,
-    onCreateTeam: (TeamProfile) -> Unit
+    onCreateTeam: (TeamProfile) -> Unit,
+    currentCity: String = "İstanbul",
+    currentArea: String = "Kadıköy"
 ) {
     var teamName by remember { mutableStateOf("") }
     var selectedSport by remember { mutableStateOf(Sport.FOOTBALL) }
-    var selectedArea by remember { mutableStateOf("Kadıköy") }
+    var selectedArea by remember { mutableStateOf(currentArea) }
+    var selectedCity by remember { mutableStateOf(currentCity) }
+    var homeVenue by remember { mutableStateOf("") }
+    var availability by remember { mutableStateOf("Hafta içi & Hafta sonu") }
+    var showRegion by remember { mutableStateOf(false) }
     var badgeText by remember { mutableStateOf("") }
     var selectedColorIndex by remember { mutableIntStateOf(0) }
-    var minMmr by remember { mutableIntStateOf(1200) }
+    var minMmr by remember { mutableIntStateOf(1000) }
     var recruitingOpen by remember { mutableStateOf(true) }
     var bio by remember { mutableStateOf("") }
 
     val teamColors = listOf(
         MColors.Brand,
+        Color(0xFF203B35),
         Color(0xFF2563EB),
         Color(0xFF0FA968),
-        Color(0xFF7457F5),
+        Color(0xFF7C3AED),
         Color(0xFFDC2626),
         Color(0xFFD97706),
-        Color(0xFF0284C7)
+        Color(0xFF111827)
     )
 
-    val areas = listOf("Kadıköy", "Beşiktaş", "Üsküdar", "Ataşehir", "Moda", "Bostancı", "Online / Crossplay")
     val mmrOptions = listOf(1000, 1200, 1400, 1600)
 
     val effectiveBadge = remember(badgeText, teamName) {
@@ -238,13 +244,17 @@ fun CreateTeamSheet(
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         SportPickerField(selectedSport, { if (it != null) selectedSport = it }, allowAll = false)
 
-                        MFloatingDropdownBox(
-                            label = "Kulübün Ana Sahası",
-                            selectedValue = selectedArea,
-                            options = areas,
-                            optionLabel = { it },
-                            onSelect = { selectedArea = it },
-                            icon = Icons.Rounded.LocationOn
+                        MFloatingActionRow("Kulübün bölgesi", "$selectedCity · $selectedArea", Icons.Rounded.LocationOn, onClick = { showRegion = true })
+
+                        VenueChoiceField("Ev sahibi tesis / saha", homeVenue, { homeVenue = it.take(160) }, emptyList(), selectedCity)
+
+                        MFloatingInputBox(
+                            label = "Oynama Zamanları",
+                            value = availability,
+                            onValueChange = { availability = it.take(200) },
+                            placeholder = "Örn: Hafta içi akşam & Hafta sonu",
+                            icon = Icons.Rounded.Schedule,
+                            suggestions = listOf("Hafta içi & Hafta sonu", "Hafta içi 20:00 - 23:00", "Hafta sonu tüm gün")
                         )
 
                         MFloatingDropdownBox(
@@ -306,7 +316,7 @@ if (teamName.isNotBlank()) {
                                 coCaptainId = null,
                                 memberIds = listOf("me"),
                                 substituteIds = emptyList(),
-                                rating = 1400,
+                                rating = 1000,
                                 wins = 0,
                                 losses = 0,
                                 draws = 0,
@@ -314,11 +324,13 @@ if (teamName.isNotBlank()) {
                                 fairPlay = 5.0f,
                                 reliability = 100,
                                 lookingForOpponent = true,
-                                availability = "Hafta içi & Hafta sonu",
+                                availability = availability.ifBlank { "Hafta içi & Hafta sonu" },
                                 isMine = true,
                                 description = bio.ifBlank { "Yeni kurulan aktif spor takımı." },
                                 recruitingOpen = recruitingOpen,
-                                requiredMmr = minMmr
+                                requiredMmr = minMmr,
+                                city = selectedCity,
+                                homeVenue = homeVenue.trim()
                             )
                             onCreateTeam(newTeam)
                             onDismiss()
@@ -326,9 +338,10 @@ if (teamName.isNotBlank()) {
                     },
                     modifier = Modifier.fillMaxWidth(),
                     icon = Icons.Rounded.Shield,
-                    enabled = teamName.isNotBlank()
+                    enabled = teamName.trim().length >= 3
                 )
             }
         }
     }
+    if (showRegion) CityAndLocationSelectorSheet(selectedCity, selectedArea, false, { showRegion = false }, { city, area, _ -> selectedCity = city; selectedArea = area })
 }

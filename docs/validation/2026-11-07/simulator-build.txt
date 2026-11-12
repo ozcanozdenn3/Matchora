@@ -1,0 +1,78 @@
+==> Preparing preview framework...
+> Task :composeApp:kmpPartiallyResolvedDependenciesChecker
+> Task :composeApp:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :composeApp:downloadKotlinNativeDistribution UP-TO-DATE
+> Task :composeApp:convertXmlValueResourcesForAppleMain NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForAppleMain NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForAppleMain NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForAppleMain NO-SOURCE
+> Task :composeApp:convertXmlValueResourcesForCommonMain NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForCommonMain UP-TO-DATE
+> Task :composeApp:prepareComposeResourcesTaskForCommonMain UP-TO-DATE
+> Task :composeApp:generateResourceAccessorsForCommonMain UP-TO-DATE
+> Task :composeApp:convertXmlValueResourcesForIosMain NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForIosMain NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForIosMain NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForIosMain NO-SOURCE
+> Task :composeApp:convertXmlValueResourcesForIosSimulatorArm64Main NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForIosSimulatorArm64Main NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForIosSimulatorArm64Main NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForIosSimulatorArm64Main NO-SOURCE
+> Task :composeApp:convertXmlValueResourcesForNativeMain NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForNativeMain NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForNativeMain NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForNativeMain NO-SOURCE
+> Task :composeApp:generateActualResourceCollectorsForIosSimulatorArm64Main UP-TO-DATE
+> Task :composeApp:generateBackendConfig UP-TO-DATE
+> Task :composeApp:generateComposeResClass UP-TO-DATE
+> Task :composeApp:generateExpectResourceCollectorsForCommonMain UP-TO-DATE
+> Task :composeApp:compileKotlinIosSimulatorArm64 UP-TO-DATE
+> Task :composeApp:linkDebugFrameworkIosSimulatorArm64 UP-TO-DATE
+
+[Incubating] Problems report is available at: file:///Users/md/Desktop/Matchora/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.3.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 1s
+11 actionable tasks: 1 executed, 10 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.3.0/userguide/configuration_cache_enabling.html
+==> Cleaning output...
+==> Copying ComposeApp.framework...
+==> Compiling Swift sources for iOS Simulator...
+==> Compiling Asset Catalog with actool...
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.actool.compilation-results</key>
+	<dict>
+		<key>output-files</key>
+		<array>
+			<string>/Users/md/Desktop/Matchora/iosApp/build/Matchora.app/AppIcon60x60@2x.png</string>
+			<string>/Users/md/Desktop/Matchora/iosApp/build/Matchora.app/AppIcon76x76@2x~ipad.png</string>
+			<string>/Users/md/Desktop/Matchora/iosApp/build/Matchora.app/Assets.car</string>
+			<string>/Users/md/Desktop/Matchora/iosApp/build/partial.plist</string>
+		</array>
+	</dict>
+</dict>
+</plist>
+==> Copying Info.plist and App Icons...
+==> Copying Compose Multiplatform resources...
+==> Code signing...
+/Users/md/Desktop/Matchora/iosApp/build/Matchora.app/Frameworks/ComposeApp.framework: replacing existing signature
+/Users/md/Desktop/Matchora/iosApp/build/Matchora.app: replacing existing signature
+==> Build successful: /Users/md/Desktop/Matchora/iosApp/build/Matchora.app
+==> Preparing iOS Simulator...
+==> Opening Simulator window...
+==> Waiting for simulator to be ready...
+Monitoring boot status for iPhone 17 Pro (FFD364D8-C8F8-4886-A74A-DCB4792DD958).
+Device already booted, nothing to do.
+
+==> Installing Matchora.app on simulator...
+==> Launching Matchora...
+com.matchora.app: 74213
+==> Done! App is running on iOS Simulator.

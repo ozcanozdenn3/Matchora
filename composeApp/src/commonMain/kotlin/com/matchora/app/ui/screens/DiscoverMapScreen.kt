@@ -33,6 +33,11 @@ import androidx.compose.ui.unit.sp
 import com.matchora.app.domain.*
 import com.matchora.app.state.*
 import com.matchora.app.ui.components.LocalScrollToTopTrigger
+import com.matchora.app.ui.components.LocalRequireAccount
+import com.matchora.app.ui.components.LocalBackendRepository
+import com.matchora.app.ui.components.DeviceLocationState
+import com.matchora.app.ui.components.BackendMoreEventsButton
+import com.matchora.app.ui.components.rememberRegionCenter
 import com.matchora.app.ui.components.MBadge
 import com.matchora.app.ui.components.MCard
 import com.matchora.app.ui.components.MChemistryBadge
@@ -58,6 +63,7 @@ fun DiscoverMapScreen(
     isGpsActive: Boolean = false,
     joinedEventIds: Set<String> = emptySet(),
     waitlistedEventIds: Set<String> = emptySet(),
+    pendingRequestEventIds: Set<String> = emptySet(),
     onLocationClick: () -> Unit = {},
     onSelectEvent: (SportEvent) -> Unit,
     onQuickJoin: (SportEvent) -> Unit,
@@ -65,22 +71,23 @@ fun DiscoverMapScreen(
 ) {
     var selectedSport by remember { mutableStateOf<Sport?>(null) }
     var isMapView by remember { mutableStateOf(true) }
-    var selectedEventId by remember { mutableStateOf<String?>(events.firstOrNull()?.id) }
+    var selectedEventId by remember(currentCity, currentDistrict) { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var activeAiFilterLabel by remember { mutableStateOf<String?>(null) }
     var showSmartMatchSheet by remember { mutableStateOf(false) }
+    val backendMode = LocalBackendRepository.current?.enabled == true
+    val requireAccount = LocalRequireAccount.current
 
-    val networkEvents = remember(events, user.campus, user.company) {
+    val networkEvents = remember(events, user.campus, user.company, backendMode) {
         events.filter { event ->
             when (event.networkScope) {
                 EventNetworkScope.CITY, EventNetworkScope.TRAVEL -> true
-                EventNetworkScope.CAMPUS -> !user.campus.isNullOrBlank() && event.networkName.equals(user.campus, ignoreCase = true)
-                EventNetworkScope.COMPANY -> !user.company.isNullOrBlank() && event.networkName.equals(user.company, ignoreCase = true)
+                EventNetworkScope.CAMPUS, EventNetworkScope.COMPANY -> true
             }
         }
     }
 
-    val filteredEvents = remember(networkEvents, selectedSport, searchQuery, activeAiFilterLabel) {
+    val filteredEvents = remember(networkEvents, selectedSport, searchQuery, activeAiFilterLabel, backendMode, currentCity) {
         networkEvents.filter { ev ->
             val isDiscoverable = ev.status in setOf(
                 com.matchora.app.domain.EventStatus.PUBLISHED,
@@ -101,14 +108,17 @@ fun DiscoverMapScreen(
                 ev.venue.contains(searchQuery, ignoreCase = true) ||
                 ev.area.contains(searchQuery, ignoreCase = true) ||
                 ev.sport.label.contains(searchQuery, ignoreCase = true)
-            isDiscoverable && matchSport && matchAi && matchQuery
+            val matchCity = !backendMode || ev.city.equals(currentCity, ignoreCase = true)
+            isDiscoverable && matchSport && matchAi && matchQuery && matchCity
         }
     }
 
-    val mapPinDataList = remember(filteredEvents) {
+    val deviceLocation by DeviceLocationState.current.collectAsState()
+    val regionCenter = rememberRegionCenter(currentCity, currentDistrict)
+    val mapPinDataList = remember(filteredEvents, backendMode) {
         filteredEvents.filterNot { it.area.contains("online", ignoreCase = true) }
-            .map { event ->
-                val point = event.approximateLocation?.let { it.latitude to it.longitude } ?: demoCoordinatesForArea(event.area)
+            .mapNotNull { event ->
+                val point = event.approximateLocation?.let { it.latitude to it.longitude } ?: if (backendMode) return@mapNotNull null else demoCoordinatesForArea(event.area)
                 MapPinData(
                     id = event.id,
                     title = event.title,
@@ -124,15 +134,25 @@ fun DiscoverMapScreen(
             }
     }
     val selectedEvent = filteredEvents.firstOrNull { it.id == selectedEventId }
-    val mapCenter = selectedEvent?.takeUnless { it.area.contains("online", ignoreCase = true) }?.let { event -> event.approximateLocation?.let { it.latitude to it.longitude } ?: demoCoordinatesForArea(event.area) }
-        ?: demoCoordinatesForArea(currentDistrict)
+    val selectedPoint = selectedEvent?.takeUnless { it.area.contains("online", ignoreCase = true) }?.approximateLocation
+    val selectedRegionLocation = deviceLocation?.takeIf {
+        it.city.equals(currentCity, ignoreCase = true) &&
+            (currentDistrict.isBlank() || it.district.equals(currentDistrict, ignoreCase = true))
+    }
+    val liveRegionCenter = selectedRegionLocation ?: regionCenter
+    val mapCenter = run {
+        selectedPoint?.let { it.latitude to it.longitude }
+            ?: if (!backendMode && selectedEvent != null) demoCoordinatesForArea(selectedEvent.area)
+            else liveRegionCenter?.let { it.latitude to it.longitude }
+                ?: if (currentCity == "İstanbul") demoCoordinatesForArea(currentDistrict) else (39.0 to 35.0)
+    }
 
     val carouselListState = rememberLazyListState()
 
     // Filtre değişince seçili pin filtre dışına düşerse ilk sonuca dön.
     LaunchedEffect(filteredEvents) {
         if (filteredEvents.none { it.id == selectedEventId }) {
-            selectedEventId = filteredEvents.firstOrNull()?.id
+            selectedEventId = null
         }
     }
 
@@ -157,41 +177,42 @@ fun DiscoverMapScreen(
                 modifier = Modifier.fillMaxSize(),
                 latitude = mapCenter.first,
                 longitude = mapCenter.second,
-                zoomMeters = 3800.0,
+                zoomMeters = if (selectedEvent == null && liveRegionCenter == null && currentCity != "İstanbul") 1600000.0
+                    else if (selectedEvent == null && (currentDistrict.isBlank() || currentDistrict == "Merkez")) 60000.0 else 3800.0,
                 pins = mapPinDataList,
                 selectedPinId = selectedEventId,
                 onPinSelected = { pinId ->
-                    selectedEventId = pinId
+                    requireAccount { selectedEventId = pinId }
                 }
             )
 
             // ═══════════════════════════════════════════════════════════════
-            // SAĞ YÜZEN AKILLI EŞLEŞME SEMBOLÜ & CANLI KONUM FAB
+            // YÜZEN KONTROLLER: SOL KÖŞEDE SPOR RADARI (Kırmızı), SAĞ KÖŞEDE CANLI KONUM
             // ═══════════════════════════════════════════════════════════════
             Box(
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
+                    .align(Alignment.BottomStart)
                     .padding(
-                        bottom = paddingValues.calculateBottomPadding() + 242.dp,
-                        end = 16.dp
+                        bottom = paddingValues.calculateBottomPadding() + 188.dp,
+                        start = 16.dp
                     )
             ) {
                 Surface(
-                    onClick = { showSmartMatchSheet = true },
+                    onClick = { requireAccount { showSmartMatchSheet = true } },
                     shape = RoundedCornerShape(15.dp),
-                    color = MColors.Ink900,
+                    color = Color(0xFFDC2626),
                     shadowElevation = 8.dp,
                     border = BorderStroke(
                         width = 1.5.dp,
-                        color = if (activeAiFilterLabel != null) Color(0xFFFFB37B) else Color.White.copy(alpha = 0.22f)
+                        color = if (activeAiFilterLabel != null) Color.White else Color.White.copy(alpha = 0.45f)
                     ),
                     modifier = Modifier
                         .size(46.dp)
                         .shadow(
-                            elevation = 8.dp,
+                            elevation = 10.dp,
                             shape = RoundedCornerShape(15.dp),
-                            ambientColor = Color(0x3A0B1220),
-                            spotColor = Color(0x520B1220)
+                            ambientColor = Color(0x55DC2626),
+                            spotColor = Color(0x66DC2626)
                         )
                 ) {
                     Box(
@@ -200,15 +221,15 @@ fun DiscoverMapScreen(
                             .fillMaxSize()
                             .background(
                                 Brush.linearGradient(
-                                    listOf(Color(0xFF283548), MColors.Ink900)
+                                    listOf(Color(0xFFFF453A), Color(0xFFD32F2F))
                                 )
                             )
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.AutoAwesome,
-                            contentDescription = "Akıllı Eşleşme",
-                            tint = Color(0xFFFFB37B),
-                            modifier = Modifier.size(22.dp)
+                            imageVector = Icons.Rounded.Radar,
+                            contentDescription = "Spor Radarı",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
@@ -311,6 +332,7 @@ fun DiscoverMapScreen(
                             TextButton(onClick = {
                                 selectedSport = null
                                 searchQuery = ""
+                                activeAiFilterLabel = null
                             }) { Text("Filtreleri temizle") }
                         }
                     }
@@ -424,12 +446,13 @@ fun DiscoverMapScreen(
 
                                     val alreadyJoined = joinedEventIds.contains(ev.id)
                                     val alreadyWaiting = waitlistedEventIds.contains(ev.id)
+                                    val alreadyPending = pendingRequestEventIds.contains(ev.id)
                                     val canJoin = ev.freeSpots > 0 && ev.status in setOf(
                                         com.matchora.app.domain.EventStatus.PUBLISHED,
                                         com.matchora.app.domain.EventStatus.FILLING
                                     )
                                     val canWaitlist = ev.status == com.matchora.app.domain.EventStatus.FULL
-                                    val canAct = !alreadyJoined && (canJoin || canWaitlist)
+                                    val canAct = !alreadyJoined && !alreadyPending && (canJoin || canWaitlist)
                                     Button(
                                         onClick = {
                                             when {
@@ -450,9 +473,10 @@ fun DiscoverMapScreen(
                                         Text(
                                             text = when {
                                                 alreadyJoined -> "Katıldın"
+                                                alreadyPending -> "Bekliyor"
                                                 alreadyWaiting -> "Listeden çık"
                                                 canWaitlist -> "Bekleme"
-                                                canJoin -> "Katıl"
+                                                canJoin -> if (ev.approvalRequired) "Başvur" else "Katıl"
                                                 else -> "Kapalı"
                                             },
                                             color = if (canAct) Color.White else MColors.Ink500,
@@ -469,6 +493,13 @@ fun DiscoverMapScreen(
                                         )
                                     }
                                 }
+                            }
+                        }
+                    }
+                    if (backendMode) {
+                        item {
+                            Box(modifier = Modifier.height(124.dp), contentAlignment = Alignment.Center) {
+                                BackendMoreEventsButton()
                             }
                         }
                     }
@@ -507,7 +538,8 @@ fun DiscoverMapScreen(
                                 Text("Filtreleri genişletip tekrar dene.", fontSize = 12.sp, color = MColors.Ink500)
                                 TextButton(onClick = {
                                     selectedSport = null
-                                            searchQuery = ""
+                                    searchQuery = ""
+                                    activeAiFilterLabel = null
                                 }) { Text("Filtreleri temizle") }
                             }
                         }
@@ -577,6 +609,7 @@ fun DiscoverMapScreen(
                         }
                     }
                 }
+                if (backendMode) item { BackendMoreEventsButton() }
             }
         }
 
@@ -614,10 +647,13 @@ fun DiscoverMapScreen(
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onLocationClick() }
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { onLocationClick() }
+                        ) {
                             Icon(
                                 imageVector = if (isGpsActive) Icons.Rounded.MyLocation else Icons.Rounded.LocationOn,
                                 contentDescription = null,
@@ -632,11 +668,36 @@ fun DiscoverMapScreen(
                                 color = if (isGpsActive) MColors.Mint else MColors.Ink900
                             )
                         }
-                        Text(
-                            text = "Bölgeyi değiştir",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontSize = 11.sp,
-                            color = MColors.Ink500
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it.take(80) },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, color = MColors.Ink800),
+                            decorationBox = { innerTextField ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        if (searchQuery.isEmpty()) {
+                                            Text(
+                                                text = "Saha, maç ara veya bölge değiştir",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontSize = 11.sp,
+                                                color = MColors.Ink500
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                    if (searchQuery.isNotEmpty()) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Close,
+                                            contentDescription = "Temizle",
+                                            tint = MColors.Ink400,
+                                            modifier = Modifier
+                                                .size(14.dp)
+                                                .clickable { searchQuery = "" }
+                                        )
+                                    }
+                                }
+                            }
                         )
                     }
 

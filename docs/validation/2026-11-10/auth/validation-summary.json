@@ -1,0 +1,28 @@
+{
+  "date": "2026-11-10",
+  "backend": {
+    "tests": 220,
+    "passed": 220,
+    "failed": 0
+  },
+  "mobile": {
+    "tests": 71,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "androidBuild": "passed",
+  "iosFramework": "passed",
+  "iosSwiftBuild": "passed",
+  "simulator": {
+    "mode": "preview",
+    "udid": "FFD364D8-C8F8-4886-A74A-DCB4792DD958",
+    "pid": 87305,
+    "launched": true,
+    "guiVerified": false,
+    "blocker": "Mac locked; automatic unlock failed"
+  },
+  "liveProviderVerified": false,
+  "mockDataChanged": false,
+  "sourceHashChanges": []
+}

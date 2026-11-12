@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -86,11 +88,26 @@ private fun SpotlightStats(values: List<Pair<String, String>>, compact: Boolean 
 }
 
 @Composable
-fun CommunitySpotlightCard(community: CommunityInfo, joined: Boolean, requested: Boolean, onJoin: () -> Unit) {
-    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp) {
+fun CommunitySpotlightCard(
+    community: CommunityInfo,
+    joined: Boolean,
+    requested: Boolean,
+    onShare: (() -> Unit)? = null,
+    onJoin: () -> Unit
+) {
+    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp, onClick = onJoin) {
         SpotlightTitle(community.name, community.area, community.emoji, "${community.type.label} · ${community.access.label}", MintAccent)
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            SpotlightStats(listOf("${community.members + if (joined) 1 else 0}" to "Üye", "${community.upcomingEvents}" to "Yaklaşan oyun"))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                SpotlightStats(listOf("${community.members + if (joined) 1 else 0}" to "Üye", "${community.upcomingEvents}" to "Yaklaşan oyun"))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFFF1F5F9),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Text(communityDisplayId(community.id), modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MColors.BrandDeep)
+                }
+            }
             Text(community.description, fontSize = 11.5.sp, lineHeight = 15.sp, color = MColors.Ink600)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
                 items(community.sports) { sport ->
@@ -112,13 +129,25 @@ fun CommunitySpotlightCard(community: CommunityInfo, joined: Boolean, requested:
                     }
                 }
             }
-            MButton(when {
-                joined -> "Katıldın · Ayrıl"
-                requested -> "Başvuru bekliyor · İptal"
-                community.access == CommunityAccess.OPEN -> "Topluluğa katıl"
-                community.access == CommunityAccess.APPROVAL -> "Katılım başvurusu"
-                else -> "Davet gerekli"
-            }, onJoin, Modifier.fillMaxWidth(), enabled = community.access != CommunityAccess.INVITE, isPrimary = !joined && !requested, height = 38.dp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                MButton(when {
+                    joined -> "Katıldın · Ayrıl"
+                    requested -> "Başvuru bekliyor · İptal"
+                    community.access == CommunityAccess.OPEN -> "Topluluğa katıl"
+                    community.access == CommunityAccess.APPROVAL -> "Katılım başvurusu"
+                    else -> "Davet gerekli"
+                }, onJoin, Modifier.weight(1f), enabled = joined || requested || community.access != CommunityAccess.INVITE, isPrimary = !joined && !requested, height = 38.dp)
+                if (onShare != null) {
+                    FilledTonalButton(
+                        onClick = onShare,
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Icon(Icons.Rounded.Share, "Paylaş (+2 TKN)", modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
         }
     }
 }
@@ -147,6 +176,13 @@ fun RankingSpotlightCard(row: LeaderboardRow, onClick: () -> Unit) {
                     if (podium) Text("★", color = GoldAccent, fontSize = 8.sp)
                 }
             }
+            UserAvatar(
+                userId = row.playerId,
+                name = row.name,
+                modifier = Modifier.size(34.dp),
+                fallbackColor = if (podium) Color(0xFFE1C49D) else MColors.BrandTint,
+                fallbackTextColor = if (podium) MColors.Ink900 else MColors.Brand
+            )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(if (row.isMe) "${row.name} · Sen" else row.name, color = MColors.Ink900, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -168,7 +204,7 @@ fun RankingSpotlightCard(row: LeaderboardRow, onClick: () -> Unit) {
 
 @Composable
 fun TournamentSpotlightCard(tournament: TournamentInfo, onOpen: () -> Unit) {
-    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp) {
+    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp, onClick = onOpen) {
         SpotlightTitle(tournament.name, "${tournament.format} · ${tournament.dates}", tournament.displaySportEmoji, tournament.status, GoldAccent)
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             SpotlightStats(listOf("${tournament.participants}/${tournament.capacity}" to "Katılım", if (tournament.isLeague) "Lig" to "Organizasyon" else "Kupa" to "Organizasyon"))
@@ -182,7 +218,7 @@ fun TournamentSpotlightCard(tournament: TournamentInfo, onOpen: () -> Unit) {
 
 @Composable
 fun TeamSpotlightCard(team: TeamProfile, primaryLabel: String, onPrimary: () -> Unit, onDetails: () -> Unit, compact: Boolean = true) {
-    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp) {
+    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp, onClick = onDetails) {
         SpotlightTitle(team.name, "${team.sport.emoji} ${team.sport.label} · ${team.area}", team.badge, if (team.isMine) "TAKIMIN · KAPTANSIN" else if (team.lookingForOpponent) "RAKİP ARIYOR" else "KULÜP PROFİLİ", if (team.isMine) GoldAccent else MintAccent, compact)
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             SpotlightStats(listOf("${team.rating}" to "MMR", "${team.wins}" to "Galibiyet", "${team.memberIds.size}" to "Kadro"), compact)
@@ -196,8 +232,8 @@ fun TeamSpotlightCard(team: TeamProfile, primaryLabel: String, onPrimary: () -> 
 }
 
 @Composable
-fun ChallengeSpotlightCard(challenge: ChallengeOffer, opponent: TeamProfile, onDetails: () -> Unit, onAccept: () -> Unit, onDecline: () -> Unit, onChat: () -> Unit) {
-    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp) {
+fun ChallengeSpotlightCard(challenge: ChallengeOffer, opponent: TeamProfile, onDetails: () -> Unit, onAccept: () -> Unit, onDecline: () -> Unit, onChat: () -> Unit, canRespond: Boolean = true) {
+    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp, onClick = onDetails) {
         Column(Modifier.clickable(onClick = onDetails)) {
             SpotlightTitle(opponent.name, if (challenge.incoming) "Gelen meydan okuma · Detayları aç →" else "Gönderilen teklif · Detayları aç →", opponent.badge, challenge.status.label, GoldAccent)
         }
@@ -223,7 +259,7 @@ fun ChallengeSpotlightCard(challenge: ChallengeOffer, opponent: TeamProfile, onD
                     Text(challenge.note, Modifier.fillMaxWidth().padding(9.dp), fontSize = 11.sp, color = MColors.Ink700)
                 }
             }
-            if (challenge.incoming && challenge.status == ChallengeStatus.PENDING) {
+            if (canRespond && challenge.incoming && challenge.status == ChallengeStatus.PENDING) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     MButton("Kabul et", onAccept, Modifier.weight(1f), height = 38.dp)
                     MButton("Reddet", onDecline, Modifier.weight(1f), isPrimary = false, height = 38.dp)

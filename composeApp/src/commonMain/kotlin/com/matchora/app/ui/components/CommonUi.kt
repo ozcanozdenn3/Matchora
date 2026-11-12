@@ -576,15 +576,11 @@ fun MTopBar(
                     Modifier.size(42.dp)
                         .shadow(3.dp, RoundedCornerShape(14.dp))
                         .clip(RoundedCornerShape(14.dp))
-                        .background(if (isLoggedIn) MGradients.Brand else Brush.linearGradient(listOf(Color(0xFF283548), MColors.Ink900)))
+                        .background(MGradients.Brand)
                         .clickable(onClick = if (isLoggedIn) onOpenProfile else onOpenAuth),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (isLoggedIn) {
-                        Icon(Icons.Rounded.Explore, "Spor pasaportun", tint = Color.White, modifier = Modifier.size(25.dp))
-                    } else {
-                        Icon(Icons.Rounded.SportsSoccer, "Matchora", tint = Color(0xFFFFB37B), modifier = Modifier.size(24.dp))
-                    }
+                    Icon(Icons.Rounded.Explore, "Matchora pusulası", tint = Color.White, modifier = Modifier.size(25.dp))
                 }
                 Spacer(Modifier.width(10.dp))
 

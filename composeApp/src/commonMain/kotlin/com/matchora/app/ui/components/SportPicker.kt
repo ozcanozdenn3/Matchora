@@ -55,8 +55,9 @@ fun SportPickerField(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val requireAccount = LocalRequireAccount.current
     Surface(
-        onClick = { expanded = true },
+        onClick = { requireAccount { expanded = true } },
         modifier = modifier
             .fillMaxWidth()
             .height(58.dp)

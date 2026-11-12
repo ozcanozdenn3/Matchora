@@ -31,8 +31,15 @@ fun AthleteAwardCard(athlete: LeaderboardRow, onClick: () -> Unit) {
             val center = Offset(size.width * .92f, size.height * .2f)
             listOf(42.dp, 70.dp, 98.dp).forEach { drawCircle(Color(0xFFFFD48A).copy(alpha = .12f), it.toPx(), center, style = Stroke(1.dp.toPx())) }
         }.padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(Modifier.size(58.dp).shadow(8.dp, RoundedCornerShape(19.dp), ambientColor = Color(0x66000000), spotColor = Color(0x88000000)).background(Brush.linearGradient(listOf(Color(0xFFFFE5A7), Color(0xFFD4A64D))), RoundedCornerShape(19.dp)), contentAlignment = Alignment.Center) {
-                Text(athlete.initials, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF45351D))
+            Box(Modifier.size(58.dp).shadow(8.dp, RoundedCornerShape(19.dp), ambientColor = Color(0x66000000), spotColor = Color(0x88000000)), contentAlignment = Alignment.Center) {
+                UserAvatar(
+                    userId = athlete.playerId,
+                    name = athlete.name,
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(19.dp),
+                    fallbackColor = Color(0xFFD4A64D),
+                    fallbackTextColor = Color(0xFF45351D)
+                )
                 Icon(Icons.Rounded.WorkspacePremium, null, Modifier.align(Alignment.BottomEnd).offset(x = 5.dp, y = 5.dp).size(21.dp), tint = Color(0xFFFFD48A))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {

@@ -1,0 +1,42 @@
+{
+  "verifiedOn": "2026-11-07",
+  "mode": "preview",
+  "tests": 32,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "suites": [
+    {
+      "suite": "com.matchora.app.BackendClientTest",
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executedAtUtc": "2026-11-07T17:12:50.088Z"
+    },
+    {
+      "suite": "com.matchora.app.DemoCatalogTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executedAtUtc": "2026-11-07T17:12:50.262Z"
+    },
+    {
+      "suite": "com.matchora.app.EventSchedulingTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executedAtUtc": "2026-11-07T17:12:50.297Z"
+    },
+    {
+      "suite": "com.matchora.app.PassportDraftTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "executedAtUtc": "2026-11-07T17:12:50.320Z"
+    }
+  ]
+}
