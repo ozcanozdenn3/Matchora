@@ -272,23 +272,30 @@ fun AthleteQrPassSheet(
             Spacer(modifier = Modifier.height(16.dp))
 
             if (backend != null) {
-                TextButton(onClick = { showVerifyInput = !showVerifyInput }) {
-                    Text(if (showVerifyInput) "Kod doğrulamayı gizle" else "Başka sporcu kartını doğrula")
-                }
+                MPillActionButton(
+                    text = if (showVerifyInput) "Kod doğrulamayı gizle" else "Başka sporcu kartını doğrula",
+                    icon = Icons.Rounded.QrCodeScanner,
+                    tone = MPillTone.NEUTRAL,
+                    compact = true,
+                    onClick = { showVerifyInput = !showVerifyInput }
+                )
                 if (showVerifyInput) {
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedTextField(
+                        MPremiumTextField(
                             value = verifyCodeInput,
                             onValueChange = { verifyCodeInput = it.trim() },
-                            placeholder = { Text("Pasaport kodu") },
-                            singleLine = true,
+                            label = "Pasaport kodu",
                             modifier = Modifier.weight(1f)
                         )
-                        OutlinedButton(
+                        MPillActionButton(
+                            text = "Doğrula",
+                            icon = Icons.Rounded.VerifiedUser,
+                            tone = MPillTone.BRAND,
                             enabled = verifyCodeInput.isNotBlank(),
                             onClick = {
                                 scope.launch {
@@ -301,7 +308,7 @@ fun AthleteQrPassSheet(
                                     }
                                 }
                             }
-                        ) { Text("Doğrula") }
+                        )
                     }
                     verifyResult?.let {
                         Text(it, fontSize = 11.5.sp, color = if (it.startsWith("✓")) MColors.Mint else MColors.Rose, modifier = Modifier.padding(bottom = 8.dp))

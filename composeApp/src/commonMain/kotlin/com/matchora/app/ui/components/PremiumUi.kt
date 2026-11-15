@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -629,7 +630,8 @@ fun MPremiumTextField(
     maxLines: Int = if (singleLine) 1 else 4,
     isError: Boolean = false,
     readOnly: Boolean = false,
-    leadingIcon: ImageVector? = null
+    leadingIcon: ImageVector? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default
 ) {
     OutlinedTextField(
         value = value,
@@ -653,6 +655,7 @@ fun MPremiumTextField(
         maxLines = maxLines,
         isError = isError,
         readOnly = readOnly,
+        keyboardOptions = keyboardOptions,
         shape = RoundedCornerShape(14.dp),
         colors = premiumTextFieldColors(),
         textStyle = MaterialTheme.typography.bodyMedium.copy(

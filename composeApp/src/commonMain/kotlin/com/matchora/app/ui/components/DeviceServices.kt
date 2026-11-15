@@ -1,5 +1,7 @@
 package com.matchora.app.ui.components
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 
@@ -57,7 +59,12 @@ fun NotificationPermissionButton() {
         message = if (granted) "Bildirim izni açık. Bildirim tercihlerini bu ekrandan yönetebilirsin."
         else "Bildirim izni kapalı. İstersen cihaz ayarlarından Matchora bildirimlerini açabilirsin."
     }
-    TextButton(onClick = request) { Text("Cihaz bildirim iznini kontrol et") }
+    MPremiumMenuRow(
+        text = "Cihaz bildirim iznini kontrol et",
+        subtitle = "Maç, kadro ve sohbet bildirimleri için sistem izni",
+        icon = Icons.Rounded.NotificationsActive,
+        onClick = request
+    )
     message?.let { text -> AlertDialog(onDismissRequest = { message = null },
         title = { Text("Bildirim izni") }, text = { Text(text) },
         confirmButton = { TextButton(onClick = { message = null }) { Text("Tamam") } },

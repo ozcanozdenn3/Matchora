@@ -49,9 +49,19 @@ internal actual fun rememberNativeGalleryPicker(onPhoto: (ImageBitmap) -> Unit, 
             catch (_: Exception) { error("Seçilen fotoğraf okunamadı. Başka bir fotoğraf deneyebilirsin.") }
         }
     }
+    val fallbackPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            try { callback(readPhoto(context, uri)) }
+            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+            catch (_: Exception) { error("Seçilen fotoğraf okunamadı. Başka bir fotoğraf deneyebilirsin.") }
+        }
+    }
     val launchPicker = {
         runCatching { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
-            .onFailure { error("Bu cihazda fotoğraf seçici açılamadı.") }
+            .onFailure {
+                runCatching { fallbackPicker.launch("image/*") }
+                    .onFailure { error("Bu cihazda fotoğraf seçici açılamadı.") }
+            }
         Unit
     }
     val permissionName = if (android.os.Build.VERSION.SDK_INT >= 33) {

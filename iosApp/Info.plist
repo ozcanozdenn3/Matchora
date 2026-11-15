@@ -6,6 +6,8 @@
 	<string>Light</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Matchora</string>
 	<key>CFBundleExecutable</key>
 	<string>Matchora</string>
 	<key>CFBundleIdentifier</key>
@@ -101,5 +103,9 @@
 	<string>Katıldığın maçı cihaz takvimine ekleyebilmek için takvim izni gerekir.</string>
 	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
 	<string>Katıldığın maçı cihaz takvimine ekleyebilmek için takvim izni gerekir.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

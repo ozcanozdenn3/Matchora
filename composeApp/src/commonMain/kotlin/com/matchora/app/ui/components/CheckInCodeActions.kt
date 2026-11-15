@@ -2,6 +2,8 @@ package com.matchora.app.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -31,7 +33,12 @@ fun CheckInCodeActions(hostCode: String, onCode: (String) -> Unit) {
             finally { busy = false }
         }
     }
-    TextButton(onClick = picker, enabled = !busy) { Text(if (busy) "QR okunuyor…" else "QR fotoğrafını çek / seç") }
+    MPremiumMenuRow(
+        text = if (busy) "QR okunuyor…" else "QR fotoğrafını çek / seç",
+        subtitle = "Kamera veya galeriden check-in QR kodunu okut",
+        icon = Icons.Rounded.QrCodeScanner,
+        onClick = { if (!busy) picker() }
+    )
     val qr = remember(hostCode) { if (hostCode.isBlank()) null else makeQrCode(hostCode) }
     qr?.let { Image(it, "Organizatör check-in QR kodu", Modifier.fillMaxWidth().height(200.dp)) }
     message?.let { text -> AlertDialog(onDismissRequest = { message = null }, title = { Text("Check-in QR") }, text = { Text(text) }, confirmButton = { TextButton(onClick = { message = null }) { Text("Tamam") } }) }

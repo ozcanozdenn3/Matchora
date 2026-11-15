@@ -125,7 +125,12 @@ actual fun rememberLocationRequester(requestPermission: Boolean, onResult: (Loca
         stop(); reverseLookup?.cancel(); generation++
         val requestGeneration = generation
         val fine = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        val providers = listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER).filter {
+        val providers = listOfNotNull(
+            if (Build.VERSION.SDK_INT >= 31) LocationManager.FUSED_PROVIDER else null,
+            LocationManager.GPS_PROVIDER,
+            LocationManager.NETWORK_PROVIDER,
+            LocationManager.PASSIVE_PROVIDER
+        ).distinct().filter {
             (it != LocationManager.GPS_PROVIDER || fine) && runCatching { manager.isProviderEnabled(it) }.getOrDefault(false)
         }
         if (providers.isEmpty()) callback(LocationOutcome.Failed("Konum alınamadı. Cihazın konum hizmetlerini kontrol et veya bölgeni elle seç.", true))

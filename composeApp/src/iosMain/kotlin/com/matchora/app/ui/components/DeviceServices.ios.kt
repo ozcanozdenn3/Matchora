@@ -118,7 +118,16 @@ private class IosLocationRequest(
         if (!active) return
         when (CLLocationManager.authorizationStatus()) {
             kCLAuthorizationStatusAuthorizedAlways, kCLAuthorizationStatusAuthorizedWhenInUse -> if (!requestedLocation) {
-                requestedLocation = true; manager.requestLocation()
+                requestedLocation = true
+                val cached = manager.location?.takeIf {
+                    it.coordinate.useContents { freshLocationFix(latitude, longitude, -it.timestamp.timeIntervalSinceNow * 1000.0, it.horizontalAccuracy) }
+                }
+                if (cached != null) {
+                    locationManager(manager, listOf(cached))
+                } else {
+                    manager.startUpdatingLocation()
+                    manager.requestLocation()
+                }
             }
             kCLAuthorizationStatusDenied, kCLAuthorizationStatusRestricted -> {
                 DeviceLocationState.current.value = null

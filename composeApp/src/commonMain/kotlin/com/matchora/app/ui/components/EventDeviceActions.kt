@@ -1,7 +1,14 @@
 package com.matchora.app.ui.components
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Directions
+import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.unit.dp
 import com.matchora.app.state.SportEvent
 import com.matchora.app.state.EventGeoPoint
 
@@ -137,10 +144,32 @@ internal fun matchesEventInviteCode(eventId: String, query: String): Boolean {
 
 expect fun openEventCalendar(event: SportEvent, includeInviteLink: Boolean = true): Boolean
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EventDeviceActions(event: SportEvent, showDirections: Boolean = true, includeInviteLink: Boolean = false) {
     var error by remember { mutableStateOf<String?>(null) }
-    if (showDirections && !isOnlineMeeting(event)) TextButton(onClick = { if (!openEventDirections(event)) error = "Harita uygulaması açılamadı. Tesis adresini elle arayabilirsin." }) { Text("Yol tarifi al") }
-    if (event.startsAtEpochMillis != null) TextButton(onClick = { if (!openEventCalendar(event, includeInviteLink)) error = "Takvim açılamadı. Cihazında bir takvim uygulaması bulunduğunu kontrol et." }) { Text("Cihaz takvimine ekle") }
+    val hasDirections = showDirections && !isOnlineMeeting(event)
+    val hasCalendar = event.startsAtEpochMillis != null
+    if (hasDirections || hasCalendar) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (hasDirections) MPillActionButton(
+                text = "Yol tarifi al",
+                icon = Icons.Rounded.Directions,
+                tone = MPillTone.NEUTRAL,
+                compact = true,
+                onClick = { if (!openEventDirections(event)) error = "Harita uygulaması açılamadı. Tesis adresini elle arayabilirsin." }
+            )
+            if (hasCalendar) MPillActionButton(
+                text = "Cihaz takvimine ekle",
+                icon = Icons.Rounded.EventAvailable,
+                tone = MPillTone.NEUTRAL,
+                compact = true,
+                onClick = { if (!openEventCalendar(event, includeInviteLink)) error = "Takvim açılamadı. Cihazında bir takvim uygulaması bulunduğunu kontrol et." }
+            )
+        }
+    }
     error?.let { message -> AlertDialog(onDismissRequest = { error = null }, title = { Text("Cihaz bağlantısı") }, text = { Text(message) }, confirmButton = { TextButton(onClick = { error = null }) { Text("Tamam") } }) }
 }

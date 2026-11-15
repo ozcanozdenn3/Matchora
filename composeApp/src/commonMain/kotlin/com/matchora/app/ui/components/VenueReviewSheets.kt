@@ -41,26 +41,45 @@ fun VenueReviewsSheet(venue: VenueInfo, onDismiss: () -> Unit, onReport: (String
     ActivitySheet("Tesis değerlendirmeleri", venue.name, onDismiss, Icons.Rounded.RateReview) {
         Text("Tamamlanan rezervasyonlardan, inceleme sonrası yayınlanan yorumlar.", style = MaterialTheme.typography.bodySmall)
         if (backend == null) Text("Önizleme değerlendirmesi", color = MColors.Ink500, style = MaterialTheme.typography.bodySmall)
-        reviewable.forEach { payment -> TextButton(onClick = { editing = payment }) { Text("Rezervasyonunu değerlendir · ${payment.description}") } }
+        reviewable.forEach { payment ->
+            MPremiumMenuRow(
+                text = "Rezervasyonunu değerlendir",
+                subtitle = payment.description,
+                icon = Icons.Rounded.RateReview,
+                onClick = { editing = payment }
+            )
+        }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        error?.let { Text(it, color = MColors.Rose); TextButton(onClick = { refresh++ }) { Text("Tekrar dene") } }
+        error?.let {
+            Text(it, color = MColors.Rose)
+            MPillActionButton("Tekrar dene", { refresh++ }, icon = Icons.Rounded.Refresh, tone = MPillTone.NEUTRAL, compact = true)
+        }
         if (rows.isEmpty() && !busy && error == null) Text("Henüz yayınlanmış değerlendirme yok.")
         rows.forEach { review -> MSubCard {
             Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("${review.s("authorName")} · ${review.i("rating")}/5", style = MaterialTheme.typography.titleSmall)
                 Text(review.s("comment"), style = MaterialTheme.typography.bodySmall)
                 if (review.s("status") == "pending") Text("İnceleme bekliyor", color = MColors.Ink500)
-                if (backend != null && !review.b("own")) TextButton(onClick = { report = review }) { Text("Yorumu bildir", color = MColors.Rose) }
+                if (backend != null && !review.b("own")) {
+                    MPillActionButton("Yorumu bildir", { report = review }, icon = Icons.Rounded.Flag, tone = MPillTone.DANGER, compact = true)
+                }
             }
         } }
-        if (backend != null && nextCursor != null) TextButton(enabled = !busy, onClick = { actions.launch {
-            val cursor = nextCursor ?: return@launch
-            busy = true; error = null
-            try { val page = backend.venueReviews(venue.id, cursor); rows = (rows + page.a("items")).distinctBy { it.s("id") }; nextCursor = page.s("nextCursor").ifBlank { null } }
-            catch (cancel: CancellationException) { throw cancel }
-            catch (failure: Exception) { error = (failure as? BackendFailure)?.message ?: "Değerlendirmeler yüklenemedi." }
-            finally { busy = false }
-        } }) { Text("Önceki değerlendirmeleri yükle") }
+        if (backend != null && nextCursor != null) MPillActionButton(
+            text = "Önceki değerlendirmeleri yükle",
+            onClick = { actions.launch {
+                val cursor = nextCursor ?: return@launch
+                busy = true; error = null
+                try { val page = backend.venueReviews(venue.id, cursor); rows = (rows + page.a("items")).distinctBy { it.s("id") }; nextCursor = page.s("nextCursor").ifBlank { null } }
+                catch (cancel: CancellationException) { throw cancel }
+                catch (failure: Exception) { error = (failure as? BackendFailure)?.message ?: "Değerlendirmeler yüklenemedi." }
+                finally { busy = false }
+            } },
+            icon = Icons.Rounded.ExpandMore,
+            tone = MPillTone.NEUTRAL,
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
     report?.let { review -> ReportAndDisputeDialog("${venue.name} değerlendirmesi", { report = null }, { reason, details -> onReport(review.s("id"), reason, details); report = null }) }
     editing?.let { payment -> VenueReviewEditorSheet(payment) { editing = null; refresh++ } }
@@ -78,9 +97,11 @@ fun VenueReviewEditorSheet(payment: VenuePayment, onDismiss: () -> Unit) {
     ActivitySheet("Tesisi değerlendir", payment.venue, onDismiss, Icons.Rounded.StarOutline) {
         Text("Değerlendirmen kontrol edildikten sonra yayınlanır. Aynı rezervasyon için tek yorum kaydı tutulur.", style = MaterialTheme.typography.bodySmall)
         MFloatingDropdownBox("Puanın", stars, (1..5).toList(), { "$it / 5" }, { stars = it })
-        OutlinedTextField(comment, { comment = it.take(1000) }, label = { Text("Deneyimini anlat") }, minLines = 3, modifier = Modifier.fillMaxWidth(), colors = premiumTextFieldColors())
+        MPremiumTextField(comment, { comment = it.take(1000) }, label = "Deneyimini anlat", singleLine = false, minLines = 3, maxLines = 5)
         MButton("İncelemeye gönder", { command("venue.review.save", apiPayload("bookingId" to payment.id, "rating" to stars, "comment" to comment, "expectedVersion" to original?.i("version"))); onDismiss() }, enabled = backend?.authenticated == true)
-        if (original != null && original.s("status") != "deleted") TextButton(onClick = { remove = true }) { Text("Değerlendirmemi kaldır", color = MColors.Rose) }
+        if (original != null && original.s("status") != "deleted") {
+            MPillActionButton("Değerlendirmemi kaldır", { remove = true }, icon = Icons.Rounded.DeleteOutline, tone = MPillTone.DANGER, compact = true, modifier = Modifier.fillMaxWidth())
+        }
     }
     if (remove) AlertDialog(onDismissRequest = { remove = false }, title = { Text("Değerlendirme kaldırılsın mı?") }, text = { Text("Yorumun ve puanın tesisin görünümünden kaldırılacak.") },
         confirmButton = { TextButton(onClick = { command("venue.review.delete", apiPayload("reviewId" to original?.s("id"))); remove = false; onDismiss() }) { Text("Kaldır", color = MColors.Rose) } }, dismissButton = { TextButton(onClick = { remove = false }) { Text("Vazgeç") } })

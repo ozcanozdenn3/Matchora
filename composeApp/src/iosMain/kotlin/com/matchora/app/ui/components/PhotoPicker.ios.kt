@@ -80,7 +80,7 @@ internal actual fun rememberNativeGalleryPicker(onPhoto: (ImageBitmap) -> Unit, 
             }
         }
     }
-    val presentPicker = {
+    val presentPicker: () -> Unit = {
         val controller = topController()
         if (controller == null) error("Fotoğraf seçici açılamadı. Tekrar deneyebilirsin.")
         else if (lifetime.active && lifetime.controller == null) {
@@ -90,20 +90,8 @@ internal actual fun rememberNativeGalleryPicker(onPhoto: (ImageBitmap) -> Unit, 
             controller.presentViewController(picker, animated = true, completion = null)
         }
     }
-    return {
-        when (PHPhotoLibrary.authorizationStatus()) {
-            PHAuthorizationStatusAuthorized, PHAuthorizationStatusLimited -> presentPicker()
-            PHAuthorizationStatusNotDetermined -> PHPhotoLibrary.requestAuthorization { status ->
-                dispatch_async(dispatch_get_main_queue()) {
-                    if (lifetime.active) {
-                        if (status == PHAuthorizationStatusAuthorized || status == PHAuthorizationStatusLimited) presentPicker()
-                        else error("Fotoğraf arşivine erişim izni verilmedi. İzni cihaz ayarlarından açabilirsin.")
-                    }
-                }
-            }
-            else -> error("Fotoğraf arşivine erişim kapalı. Fotoğraf seçmek için cihaz ayarlarından izin verebilirsin.")
-        }
-    }
+    // PHPickerViewController runs out-of-process and never requires full PHPhotoLibrary permission.
+    return presentPicker
 }
 
 @Composable

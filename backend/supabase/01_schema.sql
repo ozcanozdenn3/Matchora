@@ -190,6 +190,7 @@ CREATE INDEX IF NOT EXISTS bookings_user_created ON bookings(user_id, created_at
 CREATE INDEX IF NOT EXISTS venues_owner ON venues(owner_id);
 INSERT INTO schema_migrations(version,applied_at) VALUES(11,0) ON CONFLICT(version) DO NOTHING;
 
+
 -- 002_postgres_security.sql
 -- Private server-owned schema. Mobile clients use the authenticated API, never direct table writes.
 DO $$ DECLARE t RECORD; BEGIN

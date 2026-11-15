@@ -303,20 +303,20 @@ fun MatchResultSheet(event: SportEvent, result: MatchResultDraft?, canSubmit: Bo
             MFeatureHeader("${result.homeScore} – ${result.awayScore}", when { result.status == "verified" -> "Sonuç doğrulandı"; result.disputed -> "İtiraz kaydı var · inceleme bekleniyor"; else -> "Sonuç bildirildi · doğrulama bekleniyor" }, Icons.Rounded.Scoreboard)
             if (onConfirm != null && result.status == "pending" && result.submittedBy != DemoData.ME && meOnOpposingSide) MButton("Skoru onaylıyorum", onConfirm, icon = Icons.Rounded.Verified)
             if (result.status == "pending" && result.submittedBy == DemoData.ME && canSubmit) {
-                TextButton(onClick = { editingPending = true }) { Text("Skoru düzenle") }
+                MPillActionButton("Skoru düzenle", { editingPending = true }, icon = Icons.Rounded.Edit, tone = MPillTone.NEUTRAL, compact = true)
             }
             onOpenFeedback?.let { action -> MButton("Saha deneyimini değerlendir", action, isPrimary = false, icon = Icons.Rounded.StarOutline) }
             Text(result.note.ifBlank { "Sonuç notu eklenmedi." }, color = MColors.Ink500)
             if (!backendMode) Text("Fair play değerlendirmen: ${result.fairPlay}/5", style = MaterialTheme.typography.bodySmall)
             if (!result.disputed && result.status == "pending" && (result.disputeUntil == null || kotlinx.datetime.Clock.System.now().toEpochMilliseconds() < result.disputeUntil)) {
-                OutlinedTextField(reason, { reason = it.take(500) }, label = { Text("İtiraz gerekçen") }, modifier = Modifier.fillMaxWidth(), minLines = 2, shape = RoundedCornerShape(16.dp), colors = premiumTextFieldColors())
+                MPremiumTextField(reason, { reason = it.take(500) }, label = "İtiraz gerekçen", singleLine = false, minLines = 2, maxLines = 4)
                 MButton("Sonuca itiraz et", { onDispute(reason.trim()) }, enabled = reason.trim().length >= 10, isPrimary = false)
             }
         } else if (canSubmit) {
             Text("Skoru ve saha deneyimini kaydet. Sonuç doğrulanmadan MMR veya güvenilirlik puanı değişmez.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(home, { home = it.filter(Char::isDigit).take(3) }, label = { Text("Ev sahibi") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, shape = RoundedCornerShape(16.dp), colors = premiumTextFieldColors())
-                OutlinedTextField(away, { away = it.filter(Char::isDigit).take(3) }, label = { Text("Rakip") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, shape = RoundedCornerShape(16.dp), colors = premiumTextFieldColors())
+                MPremiumTextField(home, { home = it.filter(Char::isDigit).take(3) }, label = "Ev sahibi", modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                MPremiumTextField(away, { away = it.filter(Char::isDigit).take(3) }, label = "Rakip", modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
             if (backendMode) {
                 Text("Maç tarafları", style = MaterialTheme.typography.titleSmall)
@@ -330,9 +330,9 @@ fun MatchResultSheet(event: SportEvent, result: MatchResultDraft?, canSubmit: Bo
                 Text("Fair play", style = MaterialTheme.typography.titleSmall)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { (1..5).forEach { score -> FilterChip(fairPlay == score, { fairPlay = score }, label = { Text("$score ★") }, colors = premiumChoiceChipColors()) } }
             }
-            OutlinedTextField(note, { note = it.take(500) }, label = { Text("Maç notu · isteğe bağlı") }, minLines = 2, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = premiumTextFieldColors())
+            MPremiumTextField(note, { note = it.take(500) }, label = "Maç notu · isteğe bağlı", singleLine = false, minLines = 2, maxLines = 4)
             MButton(if (editingPending) "Skoru güncelle" else "Sonucu bildir", { editingPending = false; onSubmit(MatchResultDraft(event.id, home.toInt(), away.toInt(), note.trim(), fairPlay, homeParticipantIds = homeIds.toList(), awayParticipantIds = awayIds.toList())) }, enabled = home.toIntOrNull() != null && away.toIntOrNull() != null && (!backendMode || sidesReady))
-            if (editingPending) TextButton(onClick = { editingPending = false }) { Text("Vazgeç") }
+            if (editingPending) MPillActionButton("Vazgeç", { editingPending = false }, icon = Icons.Rounded.Close, tone = MPillTone.NEUTRAL, compact = true)
         } else Text("Sonuç kaydı tamamlanan veya devam eden maçlarda açılır.", color = MColors.Ink500)
     }
 }
@@ -375,7 +375,7 @@ fun ContactVerificationSheet(initialPhone: String, onRecordRequest: (String) -> 
             }
             1 -> {
                 Text(if (previewCode != null) "Geliştirme kodu: $previewCode" else "Telefonuna gönderilen 6 haneli kodu gir.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
-                OutlinedTextField(code, { code = it.filter(Char::isDigit).take(if (backend == null) 4 else 6); error = null }, label = { Text("Doğrulama kodu") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth(), singleLine = true, isError = error != null, shape = RoundedCornerShape(16.dp), colors = premiumTextFieldColors())
+                MPremiumTextField(code, { code = it.filter(Char::isDigit).take(if (backend == null) 4 else 6); error = null }, label = "Doğrulama kodu", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), isError = error != null)
                 error?.let { Text(it, color = MColors.Rose) }
                 MButton("Doğrulama talebini kaydet", {
                     if (backend == null) {
@@ -388,7 +388,7 @@ fun ContactVerificationSheet(initialPhone: String, onRecordRequest: (String) -> 
                         finally { busy = false }
                     }
                 }, enabled = code.length == (if (backend == null) 4 else 6) && !busy)
-                TextButton(onClick = { step = 0 }) { Text("Numarayı değiştir") }
+                MPillActionButton("Numarayı değiştir", { step = 0 }, icon = Icons.Rounded.Edit, tone = MPillTone.NEUTRAL, compact = true)
             }
             else -> {
                 MFeatureHeader(if (backend == null) "Talebin kaydedildi" else "Telefonun doğrulandı", if (backend == null) "Hesap → Destek bölümünden ulaşabilirsin" else "İletişim bilgin hesabına bağlandı", Icons.Rounded.VerifiedUser)
@@ -407,7 +407,12 @@ fun PhotoVerificationSheet(profile: UserProfile, onPhotoRequest: (androidx.compo
     ActivitySheet("Fotoğraf doğrulaması", "Sporcu kartını güvenle tamamla", onDismiss, Icons.Rounded.VerifiedUser) {
         Text("Yüzünün net göründüğü, tek başına olduğun bir fotoğraf seç. Seçimin profil fotoğrafın olarak kaydedilir. İnceleme tamamlanmadan doğrulama rozeti verilmez.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
         photo?.let { androidx.compose.foundation.Image(it, "İncelemeye eklenecek fotoğraf", Modifier.fillMaxWidth().height(200.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit) }
-        OutlinedButton(onClick = pick, modifier = Modifier.fillMaxWidth(), enabled = !busy) { Text(if (photo == null) "Fotoğraf seç" else "Fotoğrafı değiştir") }
+        MPremiumMenuRow(
+            text = if (photo == null) "Fotoğraf seç" else "Fotoğrafı değiştir",
+            subtitle = "Kamerayla çek veya galeriden net bir portre seç",
+            icon = Icons.Rounded.AddAPhoto,
+            onClick = { if (!busy) pick() }
+        )
         MButton(if (busy) "Gönderiliyor…" else if (submitted) "İnceleme talebi kaydedildi" else "İnceleme talebi oluştur", { photo?.let { image -> busy = true; onPhotoRequest(image) { success -> submitted = success; busy = false } } }, enabled = photo != null && !submitted && !busy)
     }
 }
