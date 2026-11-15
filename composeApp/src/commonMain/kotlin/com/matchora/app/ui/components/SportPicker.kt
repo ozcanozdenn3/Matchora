@@ -75,11 +75,11 @@ fun SportPickerField(
         ) {
             Surface(
                 shape = RoundedCornerShape(9.dp),
-                color = MColors.Ink900
+                color = Color(0xFF203B35)
             ) {
                 Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
                     if (selectedSport != null) Text(selectedSport.emoji, fontSize = 16.sp)
-                    else Icon(Icons.Rounded.Sports, null, Modifier.size(17.dp), tint = Color(0xFFFFB37B))
+                    else Icon(Icons.Rounded.Sports, null, Modifier.size(17.dp), tint = Color.White)
                 }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -144,7 +144,7 @@ fun MCompactSportPill(
                 Icon(
                     imageVector = Icons.Rounded.Sports,
                     contentDescription = null,
-                    tint = Color(0xFF213E38),
+                    tint = Color(0xFF203B35),
                     modifier = Modifier.size(16.dp)
                 )
             }

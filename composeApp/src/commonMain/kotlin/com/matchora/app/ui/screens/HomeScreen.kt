@@ -272,7 +272,7 @@ fun HomeScreen(
                                 readOnly = featuresLocked,
                                 label = { Text("ID ile bul") },
                                 placeholder = { Text("İlan, turnuva, kulüp veya tesis ID’si") },
-                                leadingIcon = { Icon(Icons.Rounded.Tag, null, tint = MColors.BrandDeep) },
+                                leadingIcon = { Icon(Icons.Rounded.Tag, null, tint = Color(0xFF203B35)) },
                                 trailingIcon = { IconButton(onClick = {
                                     requireAccount {
                                         val id = eventInvitationId(invitationId, preview = true) ?: invitationId.trim().removePrefix("#").takeIf { it.isNotBlank() }
@@ -309,7 +309,7 @@ fun HomeScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Icon(Icons.Rounded.LocationOn, null, tint = MColors.BrandDeep, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Rounded.LocationOn, null, tint = Color(0xFF203B35), modifier = Modifier.size(16.dp))
                                     Text(currentCity, color = MColors.Ink900, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, maxLines = 1)
                                 }
                             }

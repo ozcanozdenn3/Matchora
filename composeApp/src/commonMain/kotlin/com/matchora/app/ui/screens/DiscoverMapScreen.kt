@@ -660,7 +660,7 @@ fun DiscoverMapScreen(
                     Icon(
                         imageVector = Icons.Rounded.Search,
                         contentDescription = "Ara",
-                        tint = MColors.Brand,
+                        tint = Color(0xFF203B35),
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -677,7 +677,7 @@ fun DiscoverMapScreen(
                             Icon(
                                 imageVector = if (isGpsActive) Icons.Rounded.MyLocation else Icons.Rounded.LocationOn,
                                 contentDescription = null,
-                                tint = if (isGpsActive) MColors.Mint else MColors.Brand,
+                                tint = if (isGpsActive) MColors.Mint else Color(0xFF203B35),
                                 modifier = Modifier.size(13.dp)
                             )
                             Spacer(modifier = Modifier.width(3.dp))
