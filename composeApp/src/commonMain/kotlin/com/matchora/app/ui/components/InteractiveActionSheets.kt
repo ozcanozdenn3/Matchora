@@ -841,198 +841,132 @@ fun TournamentDetailSheet(
             item {
                 MSheetHeading(
                     title = tournament.name,
-                    subtitle = "${tournament.displaySportLabel} · ${tournament.format} · ${tournament.dates}",
+                    subtitle = "${tournament.displaySportEmoji} ${tournament.displaySportLabel} · ${tournament.format} · ${tournament.dates}",
                     icon = Icons.Rounded.EmojiEvents,
                     onDismiss = onDismiss
                 )
             }
 
-            // 1. Üst Turnuva / Lig Hero Kartı
-            item {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color.White,
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                    shadowElevation = 5.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.premiumSurface().padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(modifier = Modifier.weight(1f).padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .background(MColors.Brand),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("🏆", fontSize = 24.sp)
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f, fill = false)) {
-                                    Text(
-                                        text = tournament.name,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 17.sp,
-                                        color = MColors.Ink900,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = "${tournament.displaySportEmoji} ${tournament.displaySportLabel} · ${tournament.format} · ${tournament.dates}",
-                                        fontSize = 11.sp,
-                                        color = MColors.Ink500,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = "📍 ${tournament.organizer}",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MColors.Brand,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(statusTint)
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Text(tournament.status, color = statusColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 1.1 Benzersiz Turnuva ID Kartı & Paylaşım
+            // 1. Birleşik Turnuva Özeti, ID, Paylaşım ve Ücret Bilgisi
             item {
                 var copiedTourneyId by remember { mutableStateOf(false) }
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color.White,
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                    shadowElevation = 3.dp,
-                    modifier = Modifier.fillMaxWidth().shadow(5.dp, RoundedCornerShape(16.dp), ambientColor = Color(0x180B1220))
-                ) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Box(
-                                    modifier = Modifier.size(36.dp).background(MColors.BrandTint, RoundedCornerShape(10.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Rounded.Tag, null, tint = MColors.Brand, modifier = Modifier.size(18.dp))
-                                }
-                                Column {
-                                    Text("BENZERSİZ TURNUVA ID", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.Ink400, letterSpacing = 0.5.sp)
-                                    Text(tournamentDisplayId(tournament.id), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = MColors.BrandDeep)
-                                }
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-                                FilledTonalButton(
-                                    onClick = {
-                                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(tournament.id))
-                                        copiedTourneyId = true
-                                    },
-                                    shape = RoundedCornerShape(10.dp),
-                                    contentPadding = PaddingValues(horizontal = 9.dp, vertical = 6.dp)
-                                ) {
-                                    Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(13.dp))
-                                    Spacer(Modifier.width(3.dp))
-                                    Text(if (copiedTourneyId) "Kopyalandı" else "Kopyala", fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                }
-                                Button(
-                                    onClick = {
-                                        shareText("Turnuva Daveti", tournamentInvitationText(tournament.name, tournament.id, tournament.dates, tournament.format, tournament.organizer))
-                                        onShareTournament?.invoke()
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
-                                    shape = RoundedCornerShape(10.dp),
-                                    contentPadding = PaddingValues(horizontal = 9.dp, vertical = 6.dp)
-                                ) {
-                                    Icon(Icons.Rounded.Share, null, modifier = Modifier.size(13.dp))
-                                    Spacer(Modifier.width(3.dp))
-                                    Text("Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                }
+                            Text(
+                                text = "📍 ${tournament.organizer}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MColors.Ink700,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f).padding(end = 8.dp)
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                MBadge("${tournament.participants}/${tournament.capacity} takım", MColors.Ink700, Color(0xFFF1F5F9))
+                                MBadge(tournament.status, statusColor, statusTint)
                             }
                         }
+
                         Surface(
-                            shape = RoundedCornerShape(9.dp),
-                            color = Color(0xFFF1F5F9),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFF8FAFC),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Box(
+                                            modifier = Modifier.size(32.dp).background(MColors.BrandTint, RoundedCornerShape(8.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.Rounded.Tag, null, tint = MColors.Brand, modifier = Modifier.size(16.dp))
+                                        }
+                                        Column {
+                                            Text("TURNUVA ID", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.Ink400, letterSpacing = 0.5.sp)
+                                            Text(tournamentDisplayId(tournament.id), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = MColors.BrandDeep)
+                                        }
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                                        FilledTonalButton(
+                                            onClick = {
+                                                clipboard.setText(androidx.compose.ui.text.AnnotatedString(tournament.id))
+                                                copiedTourneyId = true
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 5.dp),
+                                            modifier = Modifier.height(32.dp)
+                                        ) {
+                                            Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(13.dp))
+                                            Spacer(Modifier.width(3.dp))
+                                            Text(if (copiedTourneyId) "Kopyalandı" else "Kopyala", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                        Button(
+                                            onClick = {
+                                                shareText("Turnuva Daveti", tournamentInvitationText(tournament.name, tournament.id, tournament.dates, tournament.format, tournament.organizer))
+                                                onShareTournament?.invoke()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
+                                            shape = RoundedCornerShape(10.dp),
+                                            contentPadding = PaddingValues(horizontal = 9.dp, vertical = 5.dp),
+                                            modifier = Modifier.height(32.dp)
+                                        ) {
+                                            Icon(Icons.Rounded.Share, null, modifier = Modifier.size(13.dp))
+                                            Spacer(Modifier.width(3.dp))
+                                            Text("Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                                Text(
+                                    text = "Kaptanlar bu ID ile akıştan turnuvayı bulup takımlarını kaydettirebilir.",
+                                    fontSize = 10.5.sp,
+                                    color = MColors.Ink500
+                                )
+                            }
+                        }
+
+                        if (isOrganizer) {
+                            Surface(
+                                shape = RoundedCornerShape(11.dp),
+                                color = Color(0xFFFFFBEB),
+                                border = BorderStroke(1.dp, Color(0xFFFDE68A)),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Icon(Icons.Rounded.Info, null, tint = MColors.Ink500, modifier = Modifier.size(13.dp))
-                                Text("Kulüp ve kaptanlar bu ID ile akıştan turnuvayı bulup takımlarını kaydettirebilir.", fontSize = 10.sp, color = MColors.Ink600)
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("👑", fontSize = 18.sp)
+                                    Column {
+                                        Text("Turnuva Yönetim Paneli", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF92400E))
+                                        Text("Organizatörsün · ${tournament.registrations.size} kayıtlı takım · ${tournament.organizerLockTokens} TKN güvence kilitli.", fontSize = 11.sp, color = Color(0xFFB45309))
+                                    }
+                                }
                             }
                         }
-                    }
-                }
-            }
 
-            if (isOrganizer) {
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFFFFFBEB),
-                        border = BorderStroke(1.dp, Color(0xFFFDE68A)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        Surface(
+                            shape = RoundedCornerShape(11.dp),
+                            color = Color(0xFFFFF7ED),
+                            border = BorderStroke(1.dp, MColors.Brand.copy(alpha = 0.2f)),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("👑", fontSize = 20.sp)
-                            Column {
-                                Text("Turnuva Yönetim Paneli", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF92400E))
-                                Text("Bu turnuvanın organizatörüsün · ${tournament.registrations.size} kayıtlı takım · ${tournament.organizerLockTokens} TKN güvence kilitli.", fontSize = 11.sp, color = Color(0xFFB45309))
+                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("ÜCRET & ÖDÜL", fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp, color = MColors.Brand)
+                                Text(tournament.feeNote, fontSize = 12.sp, lineHeight = 16.sp, color = MColors.Ink700)
                             }
                         }
-                    }
-                }
-            }
-
-            // 2. Katılım ve kontenjan bilgisi
-            item {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFFFFF7ED),
-                    border = BorderStroke(1.dp, MColors.Brand.copy(alpha = 0.2f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("ÜCRET / ÖDÜL BİLGİSİ", fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = MColors.Brand)
-                            MBadge(
-                                text = "${tournament.participants}/${tournament.capacity} takım",
-                                textColor = MColors.Ink700,
-                                backgroundColor = Color.White
-                            )
-                        }
-                        Text(tournament.feeNote, fontSize = 12.sp, lineHeight = 17.sp, color = MColors.Ink700)
                     }
                 }
             }

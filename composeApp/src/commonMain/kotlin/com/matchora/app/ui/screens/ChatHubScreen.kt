@@ -301,55 +301,55 @@ fun ChatHubScreen(
             // 1. MESAJLAR / ANI VİTRİNİ GEÇİŞ ADASI
             item {
                 Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = Color.White,
-                    shadowElevation = 5.dp,
-                    border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(7.dp, RoundedCornerShape(18.dp), ambientColor = Color(0x260B1220), spotColor = Color(0x360B1220))
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFFF1F5F9),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(5.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         ChatHubSection.entries.forEach { section ->
                             val selected = activeSection == section
                             val bg by animateColorAsState(
-                                if (selected) MColors.Ink900 else Color.Transparent,
-                                tween(220),
+                                targetValue = if (selected) MColors.Ink900 else Color.White.copy(alpha = 0.7f),
+                                animationSpec = tween(200),
                                 label = "chat_hub_section"
                             )
                             Surface(
                                 onClick = {
                                     if (activeSection == section) localScrollToTop++ else activeSection = section
                                 },
-                                shape = RoundedCornerShape(13.dp),
+                                shape = RoundedCornerShape(11.dp),
                                 color = bg,
-                                shadowElevation = if (selected) 4.dp else 0.dp,
-                                modifier = Modifier.weight(1f)
+                                shadowElevation = if (selected) 2.dp else 0.dp,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(38.dp)
                             ) {
                                 Row(
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 10.dp, horizontal = 10.dp),
+                                        .fillMaxSize()
+                                        .padding(horizontal = 10.dp),
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
                                         imageVector = if (section == ChatHubSection.MESSAGES) Icons.Rounded.Forum else Icons.Rounded.PhotoLibrary,
                                         contentDescription = null,
-                                        tint = if (selected) Color(0xFFFFB37B) else MColors.Ink500,
+                                        tint = if (selected) Color(0xFFFFB37B) else MColors.BrandDeep,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(Modifier.width(6.dp))
                                     Text(
                                         text = section.label,
                                         fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (selected) Color.White else MColors.Ink600
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                                        color = if (selected) Color.White else MColors.Ink800
                                     )
                                 }
                             }
@@ -619,16 +619,15 @@ fun ChatHubScreen(
                             Box(modifier = Modifier.weight(1f)) {
                                 Surface(
                                     onClick = { expandedFilter = true },
-                                    shape = RoundedCornerShape(13.dp),
+                                    shape = RoundedCornerShape(11.dp),
                                     color = Color(0xFFF8FAFC),
-                                    shadowElevation = 2.dp,
                                     border = BorderStroke(
                                         width = 1.dp,
-                                        color = if (expandedFilter) MColors.Brand.copy(alpha = 0.6f) else Color(0xFFDCE4F0)
+                                        color = if (expandedFilter) MColors.Brand.copy(alpha = 0.6f) else Color(0xFFE2E8F0)
                                     ),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(46.dp)
+                                        .height(40.dp)
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -639,7 +638,7 @@ fun ChatHubScreen(
                                     ) {
                                         Text(
                                             text = currentLabel,
-                                            fontSize = 13.sp,
+                                            fontSize = 12.5.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = MColors.Ink900,
                                             maxLines = 1,
@@ -649,7 +648,7 @@ fun ChatHubScreen(
                                             imageVector = if (expandedFilter) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
                                             contentDescription = null,
                                             tint = MColors.Ink700,
-                                            modifier = Modifier.size(19.dp)
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
@@ -699,13 +698,13 @@ fun ChatHubScreen(
 
                             Surface(
                                 onClick = { shuffleSeed++ },
-                                shape = RoundedCornerShape(13.dp),
+                                shape = RoundedCornerShape(11.dp),
                                 color = Color(0xFFF8FAFC),
                                 border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                modifier = Modifier.size(44.dp)
+                                modifier = Modifier.size(40.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Rounded.Refresh, "Akışı yenile", tint = MColors.Ink700, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Rounded.Refresh, "Akışı yenile", tint = MColors.Ink700, modifier = Modifier.size(19.dp))
                                 }
                             }
                             // Fotoğraf Ekle Butonu
@@ -716,11 +715,11 @@ fun ChatHubScreen(
                                         showCreateMemorySheet = true
                                     }
                                 },
-                                shape = RoundedCornerShape(13.dp),
+                                shape = RoundedCornerShape(11.dp),
                                 color = MColors.Ink900,
-                                shadowElevation = 2.dp,
+                                shadowElevation = 1.dp,
                                 border = BorderStroke(1.dp, Color(0xFFFFB37B).copy(alpha = 0.45f)),
-                                modifier = Modifier.height(44.dp)
+                                modifier = Modifier.height(40.dp)
                             ) {
                                 Row(
                                     modifier = Modifier

@@ -184,8 +184,9 @@ fun CommunityAndVenueScreen(
                                 Surface(
                                     onClick = { requireAccount { showTravelLocation = true } },
                                     shape = RoundedCornerShape(11.dp),
-                                    color = if (travelModeActive) Color(0xFFECFDF5) else Color(0xFFF8FAFC),
-                                    border = BorderStroke(1.dp, if (travelModeActive) Color(0xFF85DFCC) else Color(0xFFE2E8F0)),
+                                    color = if (travelModeActive) MColors.Ink900 else Color(0xFFF8FAFC),
+                                    border = BorderStroke(1.dp, if (travelModeActive) MColors.Ink900 else Color(0xFFE2E8F0)),
+                                    shadowElevation = if (travelModeActive) 1.dp else 0.dp,
                                     modifier = Modifier.height(38.dp)
                                 ) {
                                     Row(
@@ -196,14 +197,14 @@ fun CommunityAndVenueScreen(
                                         Icon(
                                             imageVector = Icons.Rounded.FlightTakeoff,
                                             contentDescription = "Seyahat modu",
-                                            tint = if (travelModeActive) Color(0xFF1E5E4B) else MColors.Ink500,
+                                            tint = if (travelModeActive) Color(0xFFFFB37B) else MColors.BrandDeep,
                                             modifier = Modifier.size(15.dp)
                                         )
                                         Text(
                                             text = if (travelModeActive) travelCity.ifBlank { "Seyahat açık" } else "Seyahat modu",
                                             fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = if (travelModeActive) Color(0xFF1E5E4B) else MColors.Ink700,
+                                            fontWeight = if (travelModeActive) FontWeight.Bold else FontWeight.SemiBold,
+                                            color = if (travelModeActive) Color.White else MColors.Ink700,
                                             maxLines = 1,
                                             softWrap = false,
                                             overflow = TextOverflow.Ellipsis
@@ -212,7 +213,7 @@ fun CommunityAndVenueScreen(
                                             Icon(
                                                 imageVector = Icons.Rounded.Close,
                                                 contentDescription = "Seyahat modunu kapat",
-                                                tint = Color(0xFF1E5E4B),
+                                                tint = Color.White.copy(alpha = 0.85f),
                                                 modifier = Modifier
                                                     .size(15.dp)
                                                     .clickable {
@@ -308,49 +309,66 @@ fun CommunityAndVenueScreen(
                                 onSelect = { selectedSportFilter = it },
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf(5, 10, 25, 50, null).forEach { km ->
-                                    val label = if (km == null) "Tüm $currentCity" else "$km km"
-                                    val selected = maxVenueRadiusKm == km
-                                    Surface(
-                                        onClick = { maxVenueRadiusKm = km },
-                                        shape = RoundedCornerShape(9.dp),
-                                        color = if (selected) MColors.Ink900 else Color(0xFFF1F5F9),
-                                        border = BorderStroke(1.dp, if (selected) MColors.Ink900 else Color(0xFFE2E8F0))
-                                    ) {
-                                        Text(
-                                            text = label,
-                                            fontSize = 11.sp,
-                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-                                            color = if (selected) Color.White else MColors.Ink700,
-                                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp)
-                                        )
-                                    }
-                                }
-                            }
+                            MRadiusFilterBar(
+                                currentCity = currentCity,
+                                selectedRadiusKm = maxVenueRadiusKm,
+                                onSelectRadiusKm = { maxVenueRadiusKm = it },
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                 }
                 wire?.a("venueApplications").orEmpty().forEach { application -> item(key = "application-${application.s("id")}") {
-                    MCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(application.s("name"), style = MaterialTheme.typography.titleSmall)
-                        Text(when (application.s("status")) { "approved" -> "Onaylandı · tesisin yayında"; "rejected" -> "Başvuru kabul edilmedi"; "withdrawn" -> "Başvurun geri çekildi"; else -> "İşletmeci başvurun inceleniyor" }, style = MaterialTheme.typography.bodySmall)
-                        if (application.s("response").isNotBlank()) Text(application.s("response"), style = MaterialTheme.typography.bodySmall)
-                        if (application.s("status") == "pending") {
-                            MPillActionButton(
-                                text = "Başvuruyu geri çek",
-                                icon = Icons.Rounded.Close,
-                                tone = MPillTone.DANGER,
-                                compact = true,
-                                onClick = { pendingWithdrawApp = application }
-                            )
+                    val appStatus = application.s("status")
+                    val (statusLabel, statusTint, statusColor) = when (appStatus) {
+                        "approved" -> Triple("Onaylandı", Color(0xFFDCFCE7), Color(0xFF15803D))
+                        "rejected" -> Triple("Reddedildi", Color(0xFFFEE2E2), MColors.Rose)
+                        "withdrawn" -> Triple("Geri çekildi", Color(0xFFF1F5F9), MColors.Ink600)
+                        else -> Triple("İnceleniyor", Color(0xFFFEF3C7), Color(0xFFB45309))
+                    }
+                    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(application.s("name"), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        when (appStatus) {
+                                            "approved" -> "Başvurun onaylandı · tesisin yayında"
+                                            "rejected" -> "Başvurun kabul edilmedi"
+                                            "withdrawn" -> "Başvurun geri çekildi"
+                                            else -> "İşletmeci başvurun inceleme aşamasında"
+                                        },
+                                        fontSize = 11.5.sp,
+                                        color = MColors.Ink600
+                                    )
+                                }
+                                MBadge(text = statusLabel, textColor = statusColor, backgroundColor = statusTint)
+                            }
+                            if (application.s("response").isNotBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFFF8FAFC),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(application.s("response"), modifier = Modifier.padding(9.dp), fontSize = 11.5.sp, color = MColors.Ink700)
+                                }
+                            }
+                            if (appStatus == "pending") {
+                                MPillActionButton(
+                                    text = "Başvuruyu geri çek",
+                                    icon = Icons.Rounded.Close,
+                                    tone = MPillTone.DANGER,
+                                    compact = true,
+                                    onClick = { pendingWithdrawApp = application }
+                                )
+                            }
                         }
-                    } }
+                    }
                 } }
                 val scopedVenues = venues.map { venue ->
                     val effectiveKm = venue.distanceKm ?: venue.approximateLocation?.let { pt ->
@@ -422,6 +440,7 @@ fun CommunityAndVenueScreen(
         val fresh = communities.firstOrNull { it.id == selected.id } ?: selected
         val isJoined = fresh.id in joinedCommunityIds
         val isRequested = fresh.id in requestedCommunityIds
+        val backendEnabled = LocalBackendRepository.current?.enabled == true
         ModalBottomSheet(
             onDismissRequest = { detailCommunity = null },
             containerColor = Color(0xFFF5F6F8),
@@ -433,35 +452,113 @@ fun CommunityAndVenueScreen(
                 contentPadding = PaddingValues(bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                item { MSheetHeading(fresh.name, "${fresh.city} · ${fresh.area} · ${fresh.type.label}", Icons.Rounded.Hub, { detailCommunity = null }) }
                 item {
-                    MCard(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(fresh.description.ifBlank { "Yerel sporcuları aynı çatı altında buluşturan topluluk ağı." }, style = MaterialTheme.typography.bodyMedium, color = MColors.Ink700)
-                            Text("${fresh.members} üye · ${fresh.sports.joinToString { it.label }}", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+                    MSheetHeading(
+                        title = fresh.name,
+                        subtitle = "${fresh.city} · ${fresh.area} · ${fresh.type.label}",
+                        icon = Icons.Rounded.Hub,
+                        onDismiss = { detailCommunity = null }
+                    )
+                }
+                item {
+                    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFF1F5F9),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                                ) {
+                                    Text(
+                                        text = communityDisplayId(fresh.id),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MColors.BrandDeep
+                                    )
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    MBadge("${fresh.members} üye", MColors.Ink700, Color(0xFFF1F5F9))
+                                    MBadge(fresh.access.label, MColors.BrandDeep, MColors.BrandTint)
+                                }
+                            }
+                            Text(
+                                text = fresh.description.ifBlank { "Yerel sporcuları aynı çatı altında buluşturan topluluk ağı." },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MColors.Ink700
+                            )
+                            if (fresh.sports.isNotEmpty()) {
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    items(fresh.sports) { sport ->
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Color(0xFFF1F5F9),
+                                            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                                        ) {
+                                            Text(
+                                                text = "${sport.emoji} ${sport.label}",
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MColors.Ink700
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (isJoined) {
-                            MButton("Topluluk sohbeti", { detailCommunity = null; requireAccount { onOpenCommunityChat(fresh) } }, icon = Icons.Rounded.Forum)
-                            MButton("Topluluktan ayrıl", { detailCommunity = null; leaveCommunityConfirm = fresh }, isPrimary = false, isDestructive = true, icon = Icons.Rounded.ExitToApp)
-                        } else {
-                            MButton(
-                                text = if (isRequested) "Başvuru bekliyor · İptal et" else "Topluluğa katıl",
-                                onClick = { detailCommunity = null; onJoinCommunity(fresh) },
-                                isPrimary = !isRequested,
-                                isDestructive = isRequested,
-                                icon = Icons.Rounded.GroupAdd
-                            )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (isJoined) {
+                                MButton(
+                                    text = "Topluluk sohbeti",
+                                    onClick = { detailCommunity = null; requireAccount { onOpenCommunityChat(fresh) } },
+                                    modifier = Modifier.weight(1f),
+                                    icon = Icons.Rounded.Forum,
+                                    height = 44.dp
+                                )
+                            } else {
+                                MButton(
+                                    text = if (isRequested) "Başvuru bekliyor · İptal" else "Topluluğa katıl",
+                                    onClick = { detailCommunity = null; onJoinCommunity(fresh) },
+                                    modifier = Modifier.weight(1f),
+                                    isPrimary = !isRequested,
+                                    isDestructive = isRequested,
+                                    icon = Icons.Rounded.GroupAdd,
+                                    height = 44.dp
+                                )
+                            }
+                            onShareCommunity?.let { share ->
+                                FilledTonalButton(
+                                    onClick = { share(fresh) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                                    modifier = Modifier.height(44.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Share, null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(5.dp))
+                                    Text(if (backendEnabled) "Paylaş" else "+2 TKN", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
-                        onShareCommunity?.let { share ->
-                            MButton(
-                                text = if (LocalBackendRepository.current?.enabled == true) "Topluluğu paylaş" else "Topluluğu paylaş (+2 TKN)",
-                                onClick = { share(fresh) },
-                                isPrimary = false,
-                                icon = Icons.Rounded.Share
+                        if (isJoined) {
+                            MPillActionButton(
+                                text = "Topluluktan ayrıl",
+                                icon = Icons.Rounded.ExitToApp,
+                                tone = MPillTone.DANGER,
+                                compact = true,
+                                onClick = { detailCommunity = null; leaveCommunityConfirm = fresh }
                             )
                         }
                     }

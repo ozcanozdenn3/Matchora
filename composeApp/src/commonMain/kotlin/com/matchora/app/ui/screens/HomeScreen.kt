@@ -233,21 +233,22 @@ fun HomeScreen(
                                 onClick = onOpenMap,
                                 shape = RoundedCornerShape(11.dp),
                                 color = Color.White,
-                                shadowElevation = 4.dp,
-                                border = BorderStroke(1.dp, Color(0xFFD2E2DB)),
-                                modifier = Modifier.shadow(
-                                    elevation = 6.dp,
-                                    shape = RoundedCornerShape(11.dp),
-                                    ambientColor = Color(0x2A0B1220),
-                                    spotColor = Color(0x3A0B1220)
-                                )
+                                shadowElevation = 1.dp,
+                                border = BorderStroke(1.dp, Color(0xFFD2E2DB))
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text("Haritayı aç", color = Color(0xFF23665D), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                                    Icon(Icons.Rounded.ArrowOutward, null, tint = Color(0xFF23665D), modifier = Modifier.padding(start = 4.dp).size(15.dp))
+                                    Box(Modifier.size(6.dp).background(MColors.Mint, CircleShape))
+                                    Text(
+                                        text = "${activeNetworkMode.label} · ${filteredEvents.size} oyun",
+                                        color = Color(0xFF213E38),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
                                 }
                             }
                         }
@@ -297,18 +298,18 @@ fun HomeScreen(
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 onClick = onOpenLocation,
-                                shape = RoundedCornerShape(14.dp),
-                                color = Color.White,
-                                shadowElevation = 2.dp,
+                                shape = RoundedCornerShape(13.dp),
+                                color = Color(0xFFF8FAFC),
+                                shadowElevation = 1.dp,
                                 border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                modifier = Modifier.height(56.dp)
+                                modifier = Modifier.height(52.dp)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 13.dp),
+                                    modifier = Modifier.padding(horizontal = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Icon(Icons.Rounded.LocationOn, null, tint = MColors.BrandDeep, modifier = Modifier.size(17.dp))
+                                    Icon(Icons.Rounded.LocationOn, null, tint = MColors.BrandDeep, modifier = Modifier.size(16.dp))
                                     Text(currentCity, color = MColors.Ink900, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, maxLines = 1)
                                 }
                             }
@@ -1230,34 +1231,6 @@ private fun LiveMiniRadarView(
                 .background(Color.Transparent)
                 .clickable(onClick = onOpenMap)
         )
-
-        // Harita üstü durum rozeti (RADAR ibaresi kaldırıldı)
-        Surface(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(9.dp)
-                .widthIn(max = 190.dp),
-            shape = RoundedCornerShape(9.dp),
-            color = Color.White.copy(alpha = .96f),
-            border = BorderStroke(.7.dp, Color(0xFFD1DED8)),
-            shadowElevation = 2.dp
-        ) {
-            Row(
-                Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                Box(Modifier.size(5.dp).background(MColors.Mint, CircleShape))
-                Text(
-                    "$scopeLabel · ${events.size} oyun",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF213E38),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
     }
 }
 

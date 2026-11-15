@@ -100,7 +100,6 @@ fun CompetitionScreen(
     var teamPickedCity by remember { mutableStateOf<String?>(null) }
     var showTeamCityPicker by remember { mutableStateOf(false) }
     var showRankingLocation by remember { mutableStateOf(false) }
-    var showRankingSports by remember { mutableStateOf(false) }
     val requireAccount = LocalRequireAccount.current
     val rankingBackend = LocalBackendRepository.current
     val rankingActions = rememberCoroutineScope()
@@ -307,92 +306,66 @@ fun CompetitionScreen(
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Surface(
-                                                onClick = { showRankingSports = true },
-                                                shape = RoundedCornerShape(11.dp),
-                                                color = Color(0xFFF8FAFC),
-                                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                                modifier = Modifier.weight(1f).height(38.dp)
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.padding(horizontal = 10.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                                ) {
-                                                    Text(selectedSport.emoji, fontSize = 14.sp)
-                                                    Text(
-                                                        text = selectedSport.label,
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = MColors.Ink800,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                        modifier = Modifier.weight(1f)
-                                                    )
-                                                    Icon(Icons.Rounded.KeyboardArrowDown, null, tint = MColors.Ink400, modifier = Modifier.size(16.dp))
-                                                }
-                                            }
+                                            MCompactSportPill(
+                                                selectedSport = selectedSport,
+                                                onSelect = { if (it != null) selectedSport = it },
+                                                allowAll = false,
+                                                modifier = Modifier.weight(1f)
+                                            )
                                             if (selectedScope != "Ulusal") {
                                                 Surface(
                                                     onClick = { showRankingLocation = true },
                                                     shape = RoundedCornerShape(11.dp),
-                                                    color = MColors.BrandTint,
-                                                    border = BorderStroke(1.dp, MColors.Brand.copy(alpha = 0.28f)),
+                                                    color = Color(0xFFF8FAFC),
+                                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                                                     modifier = Modifier.weight(1f).height(38.dp)
                                                 ) {
                                                     Row(
-                                                        modifier = Modifier.padding(horizontal = 10.dp),
+                                                        modifier = Modifier.padding(horizontal = 8.dp),
                                                         verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                                     ) {
-                                                        Icon(Icons.Rounded.LocationOn, null, tint = MColors.BrandDeep, modifier = Modifier.size(14.dp))
+                                                        Surface(
+                                                            shape = RoundedCornerShape(7.dp),
+                                                            color = MColors.BrandTint
+                                                        ) {
+                                                            Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                                                                Icon(
+                                                                    imageVector = Icons.Rounded.LocationOn,
+                                                                    contentDescription = null,
+                                                                    tint = MColors.BrandDeep,
+                                                                    modifier = Modifier.size(14.dp)
+                                                                )
+                                                            }
+                                                        }
                                                         Text(
                                                             text = if (selectedScope == "Şehir") rankingCity else "$rankingCity · $rankingDistrict",
-                                                            fontSize = 11.5.sp,
-                                                            fontWeight = FontWeight.SemiBold,
-                                                            color = MColors.BrandDeep,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MColors.Ink900,
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis,
                                                             modifier = Modifier.weight(1f)
+                                                        )
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.KeyboardArrowDown,
+                                                            contentDescription = null,
+                                                            tint = MColors.Ink400,
+                                                            modifier = Modifier.size(16.dp)
                                                         )
                                                     }
                                                 }
                                             }
                                         }
-                                        Surface(
-                                            shape = RoundedCornerShape(11.dp),
-                                            color = Color(0xFFF1F5F9),
-                                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth().padding(3.dp),
-                                                horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                            ) {
-                                                listOf(
-                                                    "İlçe" to "İlçe",
-                                                    "Şehir" to "İl geneli",
-                                                    "Ulusal" to "Türkiye"
-                                                ).forEach { (scopeKey, label) ->
-                                                    val isSel = selectedScope == scopeKey
-                                                    Surface(
-                                                        onClick = { selectedScope = scopeKey },
-                                                        shape = RoundedCornerShape(8.dp),
-                                                        color = if (isSel) MColors.Ink900 else Color.Transparent,
-                                                        modifier = Modifier.weight(1f).height(32.dp)
-                                                    ) {
-                                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                            Text(
-                                                                text = label,
-                                                                fontSize = 11.sp,
-                                                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.SemiBold,
-                                                                color = if (isSel) Color.White else MColors.Ink700
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
+                                        MSegmentPillBar(
+                                            options = listOf(
+                                                MSegmentPillOption("İlçe", "İlçe", Icons.Rounded.NearMe),
+                                                MSegmentPillOption("Şehir", "İl geneli", Icons.Rounded.LocationCity),
+                                                MSegmentPillOption("Ulusal", "Türkiye", Icons.Rounded.Public)
+                                            ),
+                                            selectedValue = selectedScope,
+                                            onSelect = { selectedScope = it }
+                                        )
                                     }
                                 }
                             }
@@ -495,7 +468,10 @@ fun CompetitionScreen(
 
                             // Turnuva Listesi
                             items(displayTournamentList, key = { it.id }) { tournament ->
-                                TournamentSpotlightCard(tournament) { selectedTournamentForDetail = tournament }
+                                TournamentSpotlightCard(
+                                    tournament = tournament,
+                                    onShare = onShareTournament?.let { share -> { share(tournament) } }
+                                ) { selectedTournamentForDetail = tournament }
                             }
                             item { BackendMoreCatalogButton("tournaments") }
                         }
@@ -634,11 +610,6 @@ fun CompetitionScreen(
         CityAndLocationSelectorSheet(rankingCity, rankingDistrict, false,
             onDismiss = { showRankingLocation = false },
             onSelectLocation = { city, district, _ -> rankingCity = city; rankingDistrict = district; showRankingLocation = false })
-    }
-    if (showRankingSports) {
-        SportPickerSheet(selectedSport = selectedSport, allowAll = false,
-            onDismiss = { showRankingSports = false },
-            onSelect = { sport -> if (sport != null) selectedSport = sport; showRankingSports = false })
     }
 
     // Oyuncu Profil Modalı

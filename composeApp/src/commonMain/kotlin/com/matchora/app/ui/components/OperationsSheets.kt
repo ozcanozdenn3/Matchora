@@ -591,11 +591,10 @@ private fun VenueScheduleSheet(venue: JsonObject, onDismiss: () -> Unit) {
                 listOf("Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz").forEachIndexed { index, label ->
                     val dayNum = index + 1
                     val selected = dayNum in weekdays
-                    FilterChip(
+                    MChip(
+                        text = label,
                         selected = selected,
-                        onClick = { weekdays = if (selected) weekdays - dayNum else weekdays + dayNum },
-                        label = { Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
-                        colors = premiumChoiceChipColors()
+                        onClick = { weekdays = if (selected) weekdays - dayNum else weekdays + dayNum }
                     )
                 }
             }

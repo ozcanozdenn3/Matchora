@@ -6,8 +6,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,9 +15,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.matchora.app.domain.Sport
@@ -73,14 +73,13 @@ fun CreateTeamSheet(
     }
 
     ModalBottomSheet(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         tonalElevation = 0.dp,
-        scrimColor = androidx.compose.ui.graphics.Color(0xFF0B1220).copy(alpha = .48f),
-
+        scrimColor = Color(0xFF0B1220).copy(alpha = .48f),
         onDismissRequest = onDismiss,
         modifier = Modifier.statusBarsPadding().padding(top = 12.dp),
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color(0xFFF5F7F4),
+        containerColor = Color(0xFFF8FAFC),
         dragHandle = { MPremiumSheetHandle() }
     ) {
         LazyColumn(
@@ -88,143 +87,79 @@ fun CreateTeamSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
             contentPadding = PaddingValues(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Başlık & Kapat
             item {
                 MSheetHeading("Kulüp kur", "Renklerini seç, kadronu bir araya getir.", Icons.Rounded.Groups, onDismiss)
             }
 
-            // Canlı Takım Arması & Önizleme
+            // Kart 1: Kulüp Kimliği, Canlı Arma & Renk Stüdyosu
             item {
-                Surface(
-                    shape = RoundedCornerShape(24.dp),
-                    color = Color(0xFF20362D),
-                    border = BorderStroke(1.dp, Color(0x334F775E)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                ClubSectionCard {
+                    ClubIdentityPreviewBanner(
+                        badgeText = effectiveBadge,
+                        crestColor = teamColors[selectedColorIndex],
+                        teamName = teamName,
+                        sportEmoji = selectedSport.emoji,
+                        sportLabel = selectedSport.label,
+                        city = selectedCity,
+                        area = selectedArea,
+                        recruitingOpen = recruitingOpen,
+                        minMmr = minMmr
+                    )
+
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(18.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        MPremiumTextField(
+                            value = teamName,
+                            onValueChange = { teamName = it },
+                            label = "Takım / Kulüp Adı",
+                            placeholder = "Örn: Kadıköy Wolves",
+                            modifier = Modifier.weight(2.1f)
+                        )
+                        MPremiumTextField(
+                            value = badgeText,
+                            onValueChange = { if (it.length <= 3) badgeText = it },
+                            label = "Arma (Maks 3)",
+                            placeholder = "KW",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    ClubFieldLabel("ARMA RENGİ")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(68.dp)
-                                .clip(RoundedCornerShape(22.dp))
-                                .background(teamColors[selectedColorIndex]),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = effectiveBadge,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(14.dp))
-
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                text = teamName.ifBlank { "Takımının adı" },
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 19.sp,
-                                color = if (teamName.isNotBlank()) Color.White else Color(0xFFB8C8BD),
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "${selectedSport.emoji} ${selectedSport.label} · $selectedArea · Min $minMmr MMR",
-                                fontSize = 12.sp,
-                                color = Color(0xFFD1DDD5),
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 2
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Takım Adı & Arma Kısaltması (Yüzen Beyaz Ada)
-            item {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color.White,
-                    shadowElevation = 5.dp,
-                    border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(7.dp, RoundedCornerShape(20.dp), ambientColor = Color(0x280B1220), spotColor = Color(0x380B1220))
-                ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Kulüp Kimliği", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            OutlinedTextField(
-                                textStyle = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                                value = teamName,
-                                onValueChange = { teamName = it },
-                                label = { Text("Takım Adı") },
-                                placeholder = { Text("Örn: Kadıköy Wolves") },
-                                shape = RoundedCornerShape(14.dp),
-                                singleLine = true,
-                                modifier = Modifier.weight(2f),
-                                colors = premiumTextFieldColors()
-                            )
-
-                            OutlinedTextField(
-                                textStyle = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                                value = badgeText,
-                                onValueChange = { if (it.length <= 3) badgeText = it },
-                                label = { Text("Arma") },
-                                placeholder = { Text("KW") },
-                                shape = RoundedCornerShape(14.dp),
-                                singleLine = true,
-                                modifier = Modifier.weight(1f),
-                                colors = premiumTextFieldColors()
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Renk Seçici
-            item {
-                Surface(
-                    shape = RoundedCornerShape(22.dp),
-                    color = Color.White,
-                    shadowElevation = 5.dp,
-                    border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                    modifier = Modifier.fillMaxWidth().shadow(7.dp, RoundedCornerShape(22.dp), ambientColor = Color(0x260B1220), spotColor = Color(0x360B1220))
-                ) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Kulüp renkleri", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            teamColors.forEachIndexed { index, color ->
-                                val isSel = selectedColorIndex == index
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .shadow(if (isSel) 6.dp else 3.dp, CircleShape)
-                                        .clip(CircleShape)
-                                        .background(color)
-                                        .border(
-                                            width = if (isSel) 3.dp else 1.dp,
-                                            color = if (isSel) Color.White else Color(0x20000000),
-                                            shape = CircleShape
-                                        )
-                                        .clickable { selectedColorIndex = index },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (isSel) {
-                                        Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                    }
+                        teamColors.forEachIndexed { index, color ->
+                            val isSel = selectedColorIndex == index
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                                    .border(
+                                        width = if (isSel) 2.5.dp else 1.dp,
+                                        color = if (isSel) Color.White else Color(0x26000000),
+                                        shape = CircleShape
+                                    )
+                                    .then(
+                                        if (isSel) Modifier.border(1.5.dp, MColors.Ink900, CircleShape)
+                                        else Modifier
+                                    )
+                                    .clickable { selectedColorIndex = index },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isSel) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
                             }
                         }
@@ -232,71 +167,84 @@ fun CreateTeamSheet(
                 }
             }
 
-            // Branş, Ana Saha, Başvurular ve Minimum MMR (Yüzen Gölgeli Açılır Menüler)
+            // Kart 2: Branş, Bölge & Ev Sahibi Saha
             item {
-                Surface(
-                    shape = RoundedCornerShape(22.dp),
-                    color = Color.White,
-                    shadowElevation = 5.dp,
-                    border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                    modifier = Modifier.fillMaxWidth().shadow(7.dp, RoundedCornerShape(22.dp), ambientColor = Color(0x260B1220), spotColor = Color(0x360B1220))
-                ) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SportPickerField(selectedSport, { if (it != null) selectedSport = it }, allowAll = false)
+                ClubSectionCard {
+                    ClubSectionHeader(Icons.Rounded.Place, "Branş ve Merkez Saha")
 
-                        MFloatingActionRow("Kulübün bölgesi", "$selectedCity · $selectedArea", Icons.Rounded.LocationOn, onClick = { showRegion = true })
+                    SportPickerField(
+                        selectedSport = selectedSport,
+                        onSelect = { if (it != null) selectedSport = it },
+                        allowAll = false
+                    )
 
-                        VenueChoiceField("Ev sahibi tesis / saha", homeVenue, { homeVenue = it.take(160) }, emptyList(), selectedCity)
+                    MFloatingActionRow(
+                        label = "Kulübün bölgesi",
+                        valueText = "$selectedCity · $selectedArea",
+                        icon = Icons.Rounded.LocationOn,
+                        onClick = { showRegion = true }
+                    )
 
-                        MFloatingInputBox(
-                            label = "Oynama Zamanları",
-                            value = availability,
-                            onValueChange = { availability = it.take(200) },
-                            placeholder = "Örn: Hafta içi akşam & Hafta sonu",
-                            icon = Icons.Rounded.Schedule,
-                            suggestions = listOf("Hafta içi & Hafta sonu", "Hafta içi 20:00 - 23:00", "Hafta sonu tüm gün")
-                        )
-
-                        MFloatingDropdownBox(
-                            label = "Oyuncu Başvuruları",
-                            selectedValue = recruitingOpen,
-                            options = listOf(true, false),
-                            optionLabel = { if (it) "Açık · Katılıma Uygun" else "Kapalı · Sadece Davetle" },
-                            onSelect = { recruitingOpen = it },
-                            icon = Icons.Rounded.PersonAddAlt1
-                        )
-
-                        MFloatingDropdownBox(
-                            label = "Minimum MMR",
-                            selectedValue = minMmr,
-                            options = mmrOptions,
-                            optionLabel = { "$it+ MMR" },
-                            onSelect = { minMmr = it },
-                            icon = Icons.Rounded.Leaderboard
-                        )
-                    }
+                    VenueChoiceField(
+                        label = "Ev sahibi tesis / saha",
+                        value = homeVenue,
+                        onChange = { homeVenue = it.take(160) },
+                        previewOptions = emptyList(),
+                        city = selectedCity
+                    )
                 }
             }
 
-            // Takım Açıklaması (Premium Yüzen Açıklama Kutusu)
+            // Kart 3: Kadro Kriterleri & Kulüp Vizyonu
             item {
-                MFloatingInputBox(
-                    label = "Takım Hedefi & Kısa Açıklama",
-                    value = bio,
-                    onValueChange = { bio = it },
-                    placeholder = "Örn: Hafta içi akşamları düzenli rekabetçi maçlar arıyoruz.",
-                    subtitle = "Kulübünün oyun kültürünü ve aradığı sporcu profilini özetle.",
-                    icon = Icons.Rounded.EditNote,
-                    badgeText = "Kulüp Vizyonu",
-                    singleLine = false,
-                    minLines = 2,
-                    maxLines = 4,
-                    suggestions = listOf(
-                        "Hafta içi akşam düzenli rekabetçi maçlar",
-                        "Centilmence oyun ve yüksek kondisyon",
-                        "Turnuva & Şehir Ligi şampiyonluk hedefi"
+                ClubSectionCard {
+                    ClubSectionHeader(Icons.Rounded.Groups, "Kadro Kriterleri ve Düzen")
+
+                    ClubFieldLabel("OYUNCU ALIMI")
+                    MSegmentPillBar(
+                        options = listOf(
+                            MSegmentPillOption(true, "Açık Başvuru", emoji = "🟢"),
+                            MSegmentPillOption(false, "Sadece Davetle", emoji = "🔒")
+                        ),
+                        selectedValue = recruitingOpen,
+                        onSelect = { recruitingOpen = it }
                     )
-                )
+
+                    ClubFieldLabel("MİNİMUM SEVİYE (MMR)")
+                    MSegmentPillBar(
+                        options = mmrOptions.map { MSegmentPillOption(it, "$it+ MMR") },
+                        selectedValue = minMmr,
+                        onSelect = { minMmr = it },
+                        fontSizeSp = 11f
+                    )
+
+                    MFloatingInputBox(
+                        label = "Oynama Zamanları",
+                        value = availability,
+                        onValueChange = { availability = it.take(200) },
+                        placeholder = "Örn: Hafta içi akşam & Hafta sonu",
+                        icon = Icons.Rounded.Schedule,
+                        suggestions = listOf("Hafta içi & Hafta sonu", "Hafta içi 20:00 - 23:00", "Hafta sonu tüm gün")
+                    )
+
+                    MFloatingInputBox(
+                        label = "Takım Hedefi & Kısa Açıklama",
+                        value = bio,
+                        onValueChange = { bio = it },
+                        placeholder = "Örn: Hafta içi akşamları düzenli rekabetçi maçlar arıyoruz.",
+                        subtitle = "Kulübünün oyun kültürünü ve aradığı sporcu profilini özetle.",
+                        icon = Icons.Rounded.EditNote,
+                        badgeText = "Kulüp Vizyonu",
+                        singleLine = false,
+                        minLines = 2,
+                        maxLines = 4,
+                        suggestions = listOf(
+                            "Hafta içi akşam düzenli rekabetçi maçlar",
+                            "Centilmence oyun ve yüksek kondisyon",
+                            "Turnuva & Şehir Ligi şampiyonluk hedefi"
+                        )
+                    )
+                }
             }
 
             // Takımı Kur Butonu
@@ -304,7 +252,7 @@ fun CreateTeamSheet(
                 MButton(
                     text = "Kulübü kur ve devam et",
                     onClick = {
-if (teamName.isNotBlank()) {
+                        if (teamName.isNotBlank()) {
                             val newTeam = TeamProfile(
                                 id = "team_${teamName.hashCode().toUInt().toString(16)}",
                                 name = teamName.trim(),
@@ -344,4 +292,135 @@ if (teamName.isNotBlank()) {
         }
     }
     if (showRegion) CityAndLocationSelectorSheet(selectedCity, selectedArea, false, { showRegion = false }, { city, area, _ -> selectedCity = city; selectedArea = area })
+}
+
+@Composable
+private fun ClubSectionCard(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White,
+        shadowElevation = 1.dp,
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp),
+            content = content
+        )
+    }
+}
+
+@Composable
+private fun ClubIdentityPreviewBanner(
+    badgeText: String,
+    crestColor: Color,
+    teamName: String,
+    sportEmoji: String,
+    sportLabel: String,
+    city: String,
+    area: String,
+    recruitingOpen: Boolean,
+    minMmr: Int
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MColors.Ink900,
+        border = BorderStroke(1.dp, Color(0xFF28374E)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.linearGradient(listOf(Color(0xFF1F2D42), MColors.Ink900)))
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(crestColor)
+                    .border(1.5.dp, Color.White.copy(alpha = 0.85f), RoundedCornerShape(16.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = badgeText,
+                    color = Color.White,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 17.sp,
+                    maxLines = 1
+                )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = teamName.ifBlank { "Kulübünün adı" },
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = if (teamName.isNotBlank()) Color.White else Color(0xFF94A3B8),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "$sportEmoji $sportLabel · $city / $area",
+                    fontSize = 11.5.sp,
+                    color = Color(0xFFCBD5E1),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFFFFD48A).copy(alpha = 0.14f),
+                    border = BorderStroke(1.dp, Color(0xFFFFD48A).copy(alpha = 0.30f))
+                ) {
+                    Text(
+                        text = if (recruitingOpen) "Katılıma Açık · $minMmr+ MMR" else "Davetli · $minMmr+ MMR",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFFD48A),
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ClubSectionHeader(icon: ImageVector, title: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(9.dp),
+            color = Color(0xFFFFF3EC),
+            border = BorderStroke(1.dp, MColors.Brand.copy(alpha = 0.2f)),
+            modifier = Modifier.size(28.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = MColors.BrandDeep, modifier = Modifier.size(15.dp))
+            }
+        }
+        Text(
+            text = title,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = MColors.Ink900
+        )
+    }
+}
+
+@Composable
+private fun ClubFieldLabel(text: String) {
+    Text(
+        text = text,
+        fontSize = 10.5.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.8.sp,
+        color = MColors.Ink500
+    )
 }

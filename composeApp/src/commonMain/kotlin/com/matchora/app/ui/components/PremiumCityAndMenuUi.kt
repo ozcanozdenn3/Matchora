@@ -237,37 +237,181 @@ private fun CityFilterSegmentPill(
     modifier: Modifier = Modifier,
     trailingIcon: ImageVector? = null
 ) {
+    UnifiedSegmentPill(
+        label = label,
+        icon = icon,
+        emoji = null,
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier,
+        trailingIcon = trailingIcon,
+        horizontalPadding = 8.dp,
+        iconSize = 14.dp,
+        fontSizeSp = 11.5f
+    )
+}
+
+/**
+ * Tekil bir sekment veya filtre hapı seçeneği; `MSegmentPillBar` içinde tek tip görünüm sağlar.
+ */
+data class MSegmentPillOption<T>(
+    val value: T,
+    val label: String,
+    val icon: ImageVector? = null,
+    val emoji: String? = null,
+    val weight: Float = 1f
+)
+
+/**
+ * Ekranlar ve alt sayfalarda dağınık duran sekmentli seçicileri `MCityFilterBar` ile aynı çizgide birleştirir.
+ */
+@Composable
+fun <T> MSegmentPillBar(
+    options: List<MSegmentPillOption<T>>,
+    selectedValue: T,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    pillHeightDp: Int = 35,
+    fontSizeSp: Float = 11.5f
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFFF1F5F9),
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            options.forEach { option ->
+                val isSelected = option.value == selectedValue
+                UnifiedSegmentPill(
+                    label = option.label,
+                    icon = option.icon,
+                    emoji = option.emoji,
+                    selected = isSelected,
+                    onClick = { onSelect(option.value) },
+                    modifier = Modifier.weight(option.weight),
+                    pillHeightDp = pillHeightDp,
+                    horizontalPadding = 7.dp,
+                    iconSize = 13.dp,
+                    fontSizeSp = fontSizeSp
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Tesisler sekmesi için km yarıçapı ve il kapsamını `MCityFilterBar` çizgisinde sunan şık filtre çubuğu.
+ */
+@Composable
+fun MRadiusFilterBar(
+    currentCity: String,
+    selectedRadiusKm: Int?,
+    onSelectRadiusKm: (Int?) -> Unit,
+    radiiKm: List<Int?> = listOf(5, 10, 25, 50, null),
+    modifier: Modifier = Modifier
+) {
+    val safeCity = currentCity.ifBlank { "Şehir" }
+    val allCityLabel = if (safeCity.length <= 8) "Tüm $safeCity" else "Tüm il"
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFFF1F5F9),
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            radiiKm.forEach { km ->
+                val selected = selectedRadiusKm == km
+                val isAllCity = km == null
+                val pillWeight = when {
+                    isAllCity -> 1.68f
+                    selected -> 1.08f
+                    else -> 0.86f
+                }
+                UnifiedSegmentPill(
+                    label = if (isAllCity) allCityLabel else "$km km",
+                    icon = when {
+                        isAllCity -> Icons.Rounded.Public
+                        selected -> Icons.Rounded.NearMe
+                        else -> null
+                    },
+                    emoji = null,
+                    selected = selected,
+                    onClick = { onSelectRadiusKm(km) },
+                    modifier = Modifier.weight(pillWeight),
+                    horizontalPadding = 4.dp,
+                    iconSize = 12.dp,
+                    fontSizeSp = 11f
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnifiedSegmentPill(
+    label: String,
+    icon: ImageVector?,
+    emoji: String?,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    trailingIcon: ImageVector? = null,
+    pillHeightDp: Int = 35,
+    horizontalPadding: androidx.compose.ui.unit.Dp = 8.dp,
+    iconSize: androidx.compose.ui.unit.Dp = 13.dp,
+    fontSizeSp: Float = 11.5f
+) {
     val bgColor by animateColorAsState(
-        targetValue = if (selected) MColors.Ink900 else Color.White.copy(alpha = 0.65f),
+        targetValue = if (selected) MColors.Ink900 else Color.White.copy(alpha = 0.68f),
         animationSpec = tween(180),
-        label = "city_pill_bg"
+        label = "unified_segment_pill_bg"
     )
     val contentColor = if (selected) Color.White else MColors.Ink800
     val iconColor = if (selected) Color(0xFFFFB37B) else MColors.BrandDeep
+    val iconTextSpacing = if (horizontalPadding <= 5.dp) 3.dp else 4.dp
 
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(9.dp),
         color = bgColor,
-        modifier = modifier.height(35.dp)
+        shadowElevation = if (selected) 2.dp else 0.dp,
+        modifier = modifier.height(pillHeightDp.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = horizontalPadding),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = iconColor,
-                modifier = Modifier.size(14.dp)
-            )
-            Spacer(Modifier.width(4.dp))
+            if (emoji != null) {
+                Text(text = emoji, fontSize = fontSizeSp.sp)
+                Spacer(Modifier.width(iconTextSpacing))
+            } else if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size(iconSize)
+                )
+                Spacer(Modifier.width(iconTextSpacing))
+            }
             Text(
                 text = label,
-                fontSize = 11.5.sp,
+                fontSize = fontSizeSp.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
                 color = contentColor,
                 maxLines = 1,

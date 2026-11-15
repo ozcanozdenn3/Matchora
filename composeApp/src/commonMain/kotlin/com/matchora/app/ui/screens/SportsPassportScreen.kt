@@ -299,17 +299,11 @@ fun SportsPassportScreen(
                                 onClick = { if (!isLoggedIn) onOpenAuth() else selectedSkillForDetail = skill },
                                 shape = RoundedCornerShape(15.dp),
                                 color = Color.White,
-                                shadowElevation = 6.dp,
-                                border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
+                                shadowElevation = 1.dp,
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 3.dp, vertical = 2.dp)
-                                    .shadow(
-                                        elevation = 9.dp,
-                                        shape = RoundedCornerShape(15.dp),
-                                        ambientColor = Color(0x320B1220),
-                                        spotColor = Color(0x460B1220)
-                                    )
+                                    .padding(horizontal = 2.dp, vertical = 1.dp)
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -321,7 +315,6 @@ fun SportsPassportScreen(
                                     Box(
                                         modifier = Modifier
                                             .size(38.dp)
-                                            .shadow(3.dp, RoundedCornerShape(11.dp), ambientColor = Color(0x220B1220), spotColor = Color(0x300B1220))
                                             .clip(RoundedCornerShape(11.dp))
                                             .background(Color(0xFFFFF7ED))
                                             .border(0.8.dp, Color(0xFFFDE6C8), RoundedCornerShape(11.dp)),
@@ -363,12 +356,10 @@ fun SportsPassportScreen(
                                     Surface(
                                         onClick = { if (!isLoggedIn) onOpenAuth() else selectedSkillForEdit = skill },
                                         shape = RoundedCornerShape(9.dp),
-                                        color = Color.White,
-                                        shadowElevation = 3.dp,
-                                        border = BorderStroke(0.8.dp, Color(0xFFE4E9F2)),
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .shadow(4.dp, RoundedCornerShape(9.dp), ambientColor = Color(0x240B1220), spotColor = Color(0x340B1220))
+                                        color = Color(0xFFF8FAFC),
+                                        shadowElevation = 1.dp,
+                                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                        modifier = Modifier.size(32.dp)
                                     ) {
                                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                             Icon(
@@ -409,19 +400,12 @@ fun SportsPassportScreen(
                                 onClick = { if (!isLoggedIn) onOpenAuth() else selectedBadgeForDetail = badge },
                                 shape = RoundedCornerShape(15.dp),
                                 color = Color.White,
-                                shadowElevation = 6.dp,
+                                shadowElevation = 1.dp,
                                 border = BorderStroke(
                                     width = 1.dp,
-                                    color = if (badge.earned) MColors.Brand.copy(alpha = 0.28f) else Color(0xFFE4E9F2)
+                                    color = if (badge.earned) MColors.Brand.copy(alpha = 0.28f) else Color(0xFFE2E8F0)
                                 ),
-                                modifier = Modifier
-                                    .width(86.dp)
-                                    .shadow(
-                                        elevation = 8.dp,
-                                        shape = RoundedCornerShape(15.dp),
-                                        ambientColor = Color(0x300B1220),
-                                        spotColor = Color(0x420B1220)
-                                    )
+                                modifier = Modifier.width(86.dp)
                             ) {
                                 Column(
                                     modifier = Modifier
@@ -432,7 +416,6 @@ fun SportsPassportScreen(
                                     Box(
                                         modifier = Modifier
                                             .size(38.dp)
-                                            .shadow(3.dp, CircleShape, ambientColor = Color(0x220B1220), spotColor = Color(0x300B1220))
                                             .clip(CircleShape)
                                             .background(if (badge.earned) Color(0xFFFFF7ED) else Color(0xFFF8FAFC))
                                             .border(

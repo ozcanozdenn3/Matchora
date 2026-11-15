@@ -222,18 +222,10 @@ fun PlayNowModalSheet(
 
                             Surface(
                                 onClick = { showSearchOptions = !showSearchOptions },
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color.White,
-                                shadowElevation = 3.dp,
-                                border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .shadow(
-                                        elevation = 5.dp,
-                                        shape = RoundedCornerShape(12.dp),
-                                        ambientColor = Color(0x220B1220),
-                                        spotColor = Color(0x320B1220)
-                                    )
+                                shape = RoundedCornerShape(13.dp),
+                                color = Color(0xFFF8FAFC),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -346,17 +338,11 @@ fun PlayNowModalSheet(
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = Color.White,
-                        shadowElevation = 5.dp,
-                        border = BorderStroke(1.dp, if (event.emergency) MColors.Brand else Color(0xFFE4E9F2)),
+                        shadowElevation = 1.dp,
+                        border = BorderStroke(1.dp, if (event.emergency) MColors.Brand else Color(0xFFE2E8F0)),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 2.dp)
-                            .shadow(
-                                elevation = 7.dp,
-                                shape = RoundedCornerShape(16.dp),
-                                ambientColor = Color(0x280B1220),
-                                spotColor = Color(0x380B1220)
-                            )
                             .clickable { onSelectEvent(event) }
                     ) {
                         Row(
@@ -446,16 +432,9 @@ fun PlayNowModalSheet(
                         Surface(
                             shape = RoundedCornerShape(16.dp),
                             color = Color.White,
-                            shadowElevation = 5.dp,
-                            border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(
-                                    elevation = 7.dp,
-                                    shape = RoundedCornerShape(16.dp),
-                                    ambientColor = Color(0x280B1220),
-                                    spotColor = Color(0x380B1220)
-                                )
+                            shadowElevation = 1.dp,
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
                                 modifier = Modifier.fillMaxWidth().padding(18.dp),
@@ -493,20 +472,13 @@ fun PlayNowModalSheet(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            // Yüzen İlan Tipi & Güvence Adası
+                            // İlan Tipi & Güvence Kartı
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
                                 color = Color.White,
-                                shadowElevation = 5.dp,
-                                border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .shadow(
-                                        elevation = 7.dp,
-                                        shape = RoundedCornerShape(16.dp),
-                                        ambientColor = Color(0x260B1220),
-                                        spotColor = Color(0x360B1220)
-                                    )
+                                shadowElevation = 1.dp,
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(
                                     modifier = Modifier.padding(12.dp),
@@ -519,7 +491,6 @@ fun PlayNowModalSheet(
                                         Surface(
                                             shape = RoundedCornerShape(11.dp),
                                             color = MColors.BrandTint,
-                                            shadowElevation = 2.dp,
                                             border = BorderStroke(1.dp, MColors.Brand.copy(alpha = 0.22f)),
                                             modifier = Modifier.size(34.dp)
                                         ) {
@@ -546,34 +517,14 @@ fun PlayNowModalSheet(
                                         }
                                     }
 
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        ListingIntent.entries.forEach { intent ->
-                                            val isSel = listingIntent == intent
-                                            Surface(
-                                                onClick = { listingIntent = intent },
-                                                shape = RoundedCornerShape(11.dp),
-                                                color = if (isSel) MColors.BrandTint else Color(0xFFF8FAFC),
-                                                shadowElevation = if (isSel) 3.dp else 1.dp,
-                                                border = BorderStroke(
-                                                    width = if (isSel) 1.5.dp else 1.dp,
-                                                    color = if (isSel) MColors.Brand.copy(alpha = 0.45f) else Color(0xFFE2E8F0)
-                                                ),
-                                                modifier = Modifier.weight(1f)
-                                            ) {
-                                                Box(
-                                                    contentAlignment = Alignment.Center,
-                                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 8.dp)
-                                                ) {
-                                                    Text(
-                                                        text = intent.title,
-                                                        fontSize = 12.sp,
-                                                        fontWeight = if (isSel) FontWeight.ExtraBold else FontWeight.SemiBold,
-                                                        color = if (isSel) MColors.BrandDeep else MColors.Ink700
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
+                                    MSegmentPillBar(
+                                        options = listOf(
+                                            MSegmentPillOption(ListingIntent.NEW_MATCH, ListingIntent.NEW_MATCH.title, Icons.Rounded.Sports),
+                                            MSegmentPillOption(ListingIntent.FIND_PLAYERS, ListingIntent.FIND_PLAYERS.title, Icons.Rounded.PersonAdd)
+                                        ),
+                                        selectedValue = listingIntent,
+                                        onSelect = { listingIntent = it }
+                                    )
                                 }
                             }
 
@@ -601,16 +552,22 @@ fun PlayNowModalSheet(
                             }
 
                             Text("İlanın yayınlanacağı ağ", style = MaterialTheme.typography.labelLarge, color = MColors.Ink900)
-                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                EventNetworkScope.entries.forEach { scope ->
-                                    MChip(when (scope) {
-                                        EventNetworkScope.CITY -> "Saha"
-                                        EventNetworkScope.CAMPUS -> "Kampüs"
-                                        EventNetworkScope.COMPANY -> "Şirket"
-                                        EventNetworkScope.TRAVEL -> "Seyahat"
-                                    }, adNetworkScope == scope, { adNetworkScope = scope; adCommunityId = null; adNetworkName = ""; adFormError = null })
-                                }
-                            }
+                            MSegmentPillBar(
+                                options = listOf(
+                                    MSegmentPillOption(EventNetworkScope.CITY, "Saha", Icons.Rounded.Stadium, weight = 0.9f),
+                                    MSegmentPillOption(EventNetworkScope.CAMPUS, "Kampüs", Icons.Rounded.School, weight = 1.05f),
+                                    MSegmentPillOption(EventNetworkScope.COMPANY, "Şirket", Icons.Rounded.Business, weight = 1f),
+                                    MSegmentPillOption(EventNetworkScope.TRAVEL, "Seyahat", Icons.Rounded.FlightTakeoff, weight = 1.05f)
+                                ),
+                                selectedValue = adNetworkScope,
+                                onSelect = { scope ->
+                                    adNetworkScope = scope
+                                    adCommunityId = null
+                                    adNetworkName = ""
+                                    adFormError = null
+                                },
+                                fontSizeSp = 11f
+                            )
                             Text(when (adNetworkScope) {
                                 EventNetworkScope.CITY -> "Seçtiğin şehirdeki sporculara açık tek buluşma ilanı."
                                 EventNetworkScope.CAMPUS, EventNetworkScope.COMPANY -> "Yeni topluluk oluşturmaz; üye olduğun topluluğa tek buluşma ilanı yayınlar."
@@ -654,100 +611,40 @@ fun PlayNowModalSheet(
                                 maxLines = 3
                             )
 
-                            // Kategori Seçici: [🏃‍♂️ Fiziksel Sporlar] [🎮 E-Spor & Gaming] [✨ Özel / Diğer Branş]
+                            // Kategori Seçici: [🏃‍♂️ Fiziksel] [🎮 E-Spor] [✨ Özel Branş]
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
                                 color = Color.White,
-                                shadowElevation = 5.dp,
-                                border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
+                                shadowElevation = 1.dp,
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 2.dp)
-                                    .shadow(
-                                        elevation = 7.dp,
-                                        shape = RoundedCornerShape(16.dp),
-                                        ambientColor = Color(0x280B1220),
-                                        spotColor = Color(0x380B1220)
-                                    )
                             ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Text("BRANŞ KATEGORİSİ", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MColors.Ink500)
                                 Spacer(modifier = Modifier.height(6.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(13.dp),
-                                    color = Color(0xFFF1F5F9), // Light Luxury Segmented Track
-                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(3.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(3.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        listOf(
-                                            Triple(SportCategory.PHYSICAL, "🏃‍♂️", "Fiziksel"),
-                                            Triple(SportCategory.ESPORTS, "🎮", "E-Spor"),
-                                            Triple(SportCategory.CUSTOM, "✨", "Özel Branş")
-                                        ).forEach { (cat, icon, label) ->
-                                            val isSel = adCategory == cat
-                                            val animatedBg by animateColorAsState(
-                                                targetValue = if (isSel) Color.White else Color.Transparent,
-                                                animationSpec = tween(180)
-                                            )
-                                            val animatedTextColor by animateColorAsState(
-                                                targetValue = if (isSel) MColors.Brand else Color(0xFF64748B),
-                                                animationSpec = tween(180)
-                                            )
-
-                                            Surface(
-                                                shape = RoundedCornerShape(10.dp),
-                                                color = animatedBg,
-                                                border = if (isSel) BorderStroke(1.dp, Color(0x18000000)) else null,
-                                                shadowElevation = if (isSel) 2.dp else 0.dp,
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .height(36.dp)
-                                                    .clickable {
-                                                        adCategory = cat
-                                                        if (cat == SportCategory.PHYSICAL && adSport.category != SportCategory.PHYSICAL) {
-                                                            adSport = Sport.FOOTBALL
-                                                            adFormat = defaultFormatForSport(Sport.FOOTBALL)
-                                                        } else if (cat == SportCategory.ESPORTS && adSport.category != SportCategory.ESPORTS) {
-                                                            adSport = Sport.ESPORTS_FC
-                                                            esAdType = defaultFormatForSport(Sport.ESPORTS_FC)
-                                                        } else if (cat == SportCategory.CUSTOM) {
-                                                            adSport = Sport.CUSTOM
-                                                            adFormat = defaultFormatForSport(Sport.CUSTOM)
-                                                        }
-                                                    }
-                                            ) {
-                                                Box(
-                                                    contentAlignment = Alignment.Center,
-                                                    modifier = Modifier.padding(horizontal = 4.dp)
-                                                ) {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.Center
-                                                    ) {
-                                                        Text(icon, fontSize = 12.sp)
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text(
-                                                            text = label,
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.SemiBold,
-                                                            color = animatedTextColor,
-                                                            fontSize = 11.5.sp,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
-                                                        )
-                                                    }
-                                                }
-                                            }
+                                MSegmentPillBar(
+                                    options = listOf(
+                                        MSegmentPillOption(SportCategory.PHYSICAL, "Fiziksel", emoji = "🏃‍♂️"),
+                                        MSegmentPillOption(SportCategory.ESPORTS, "E-Spor", emoji = "🎮"),
+                                        MSegmentPillOption(SportCategory.CUSTOM, "Özel Branş", emoji = "✨", weight = 1.15f)
+                                    ),
+                                    selectedValue = adCategory,
+                                    onSelect = { cat ->
+                                        adCategory = cat
+                                        if (cat == SportCategory.PHYSICAL && adSport.category != SportCategory.PHYSICAL) {
+                                            adSport = Sport.FOOTBALL
+                                            adFormat = defaultFormatForSport(Sport.FOOTBALL)
+                                        } else if (cat == SportCategory.ESPORTS && adSport.category != SportCategory.ESPORTS) {
+                                            adSport = Sport.ESPORTS_FC
+                                            esAdType = defaultFormatForSport(Sport.ESPORTS_FC)
+                                        } else if (cat == SportCategory.CUSTOM) {
+                                            adSport = Sport.CUSTOM
+                                            adFormat = defaultFormatForSport(Sport.CUSTOM)
                                         }
                                     }
-                                }
+                                )
 
                                 Spacer(modifier = Modifier.height(10.dp))
 

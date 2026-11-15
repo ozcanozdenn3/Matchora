@@ -30,57 +30,117 @@ private val MintAccent = Color(0xFF9EDDC8)
 private val GoldAccent = Color(0xFFFFD28C)
 
 @Composable
-private fun SpotlightTitle(title: String, subtitle: String, emblem: String, category: String, accent: Color, compact: Boolean = true) {
-    Row(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF293D46), MColors.Ink900)))
-        .drawBehind {
-            val center = Offset(size.width * .94f, size.height * .25f)
-            listOf(40.dp, 68.dp, 96.dp).forEach { radius ->
-                drawCircle(accent.copy(alpha = .10f), radius.toPx(), center, style = Stroke(1.dp.toPx()))
+private fun SpotlightTitle(
+    title: String,
+    subtitle: String,
+    emblem: String,
+    category: String,
+    accent: Color,
+    compact: Boolean = true,
+    codeBadge: String? = null
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Brush.linearGradient(listOf(Color(0xFF293D46), MColors.Ink900)))
+            .drawBehind {
+                val center = Offset(size.width * .94f, size.height * .25f)
+                listOf(40.dp, 68.dp, 96.dp).forEach { radius ->
+                    drawCircle(accent.copy(alpha = .10f), radius.toPx(), center, style = Stroke(1.dp.toPx()))
+                }
             }
-        }.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            .padding(horizontal = 12.dp, vertical = if (compact) 10.dp else 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         Surface(
-            shape = RoundedCornerShape(11.dp),
+            shape = RoundedCornerShape(10.dp),
             color = accent.copy(alpha = .16f),
             border = BorderStroke(0.8.dp, accent.copy(alpha = .32f)),
-            shadowElevation = 4.dp,
-            modifier = Modifier.shadow(6.dp, RoundedCornerShape(11.dp), ambientColor = Color(0x55000000), spotColor = Color(0x77000000))
+            shadowElevation = 0.dp
         ) {
-            Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                Text(emblem, color = accent, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+                Text(emblem, color = accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
-        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(category, color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .5.sp)
-            Text(title, fontSize = 14.5.sp, lineHeight = 18.sp, color = Color.White, fontWeight = FontWeight.Bold)
-            Text(subtitle, fontSize = 10.5.sp, lineHeight = 14.sp, color = Color(0xFFCCD8DB))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = category,
+                    color = accent,
+                    fontSize = 9.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = .4.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (!codeBadge.isNullOrBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(7.dp),
+                        color = Color.White.copy(alpha = 0.10f),
+                        border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.18f))
+                    ) {
+                        Text(
+                            text = codeBadge,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = accent,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+            }
+            Text(
+                text = title,
+                fontSize = 14.5.sp,
+                lineHeight = 18.sp,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = subtitle,
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+                color = Color(0xFFCCD8DB),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
 
 @Composable
-private fun SpotlightStats(values: List<Pair<String, String>>, compact: Boolean = true) {
-    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+private fun SpotlightStats(
+    values: List<Pair<String, String>>,
+    compact: Boolean = true,
+    modifier: Modifier = Modifier.fillMaxWidth()
+) {
+    Row(modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         values.forEach { (value, label) ->
             Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxHeight()
-                    .padding(vertical = 2.dp)
-                    .shadow(
-                        elevation = 7.dp,
-                        shape = RoundedCornerShape(11.dp),
-                        ambientColor = Color(0x2D0B1220),
-                        spotColor = Color(0x3D0B1220)
-                    ),
-                shape = RoundedCornerShape(11.dp),
-                color = Color.White,
-                shadowElevation = 5.dp,
-                border = BorderStroke(1.dp, Color(0xFFE4E9F2))
+                    .fillMaxHeight(),
+                shape = RoundedCornerShape(10.dp),
+                color = Color(0xFFF8FAFC),
+                shadowElevation = 0.dp,
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
             ) {
-                Column(Modifier.padding(horizontal = 9.dp, vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(value, color = MColors.Ink900, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                    Text(label, color = MColors.Ink500, fontSize = 9.5.sp, maxLines = 1)
+                Column(
+                    Modifier.padding(horizontal = 9.dp, vertical = if (compact) 7.dp else 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    Text(value, color = MColors.Ink900, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(label, color = MColors.Ink500, fontSize = 9.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -99,36 +159,50 @@ fun CommunitySpotlightCard(
     val backendEnabled = LocalBackendRepository.current?.enabled == true
     val placeLabel = listOf(community.area, community.city).filter { it.isNotBlank() }.distinct().joinToString(", ")
     MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp, onClick = onCardClick ?: onJoin) {
-        SpotlightTitle(community.name, placeLabel, community.emoji, "${community.type.label} · ${community.access.label}", MintAccent)
-        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                SpotlightStats(listOf("${community.members + if (joined) 1 else 0}" to "Üye", "${community.upcomingEvents}" to "Yaklaşan oyun"))
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFFF1F5F9),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-                ) {
-                    Text(communityDisplayId(community.id), modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MColors.BrandDeep)
-                }
+        SpotlightTitle(
+            title = community.name,
+            subtitle = placeLabel,
+            emblem = community.emoji,
+            category = "${community.type.label} · ${community.access.label}",
+            accent = MintAccent,
+            codeBadge = communityDisplayId(community.id)
+        )
+        Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SpotlightStats(
+                listOf(
+                    "${community.members + if (joined) 1 else 0}" to "Üye",
+                    "${community.upcomingEvents}" to "Yaklaşan",
+                    community.access.label to "Katılım"
+                )
+            )
+            if (community.description.isNotBlank()) {
+                Text(
+                    text = community.description,
+                    fontSize = 11.5.sp,
+                    lineHeight = 15.5.sp,
+                    color = MColors.Ink600,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-            Text(community.description, fontSize = 11.5.sp, lineHeight = 15.sp, color = MColors.Ink600)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                items(community.sports) { sport ->
-                    Surface(
-                        shape = RoundedCornerShape(9.dp),
-                        color = Color.White,
-                        shadowElevation = 4.dp,
-                        border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                        modifier = Modifier
-                            .padding(vertical = 1.dp)
-                            .shadow(
-                                elevation = 5.dp,
-                                shape = RoundedCornerShape(9.dp),
-                                ambientColor = Color(0x260B1220),
-                                spotColor = Color(0x360B1220)
+            if (community.sports.isNotEmpty()) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(community.sports) { sport ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFF1F5F9),
+                            shadowElevation = 0.dp,
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                        ) {
+                            Text(
+                                text = "${sport.emoji} ${sport.label}",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MColors.Ink700,
+                                maxLines = 1
                             )
-                    ) {
-                        Text("${sport.emoji} ${sport.label}", Modifier.padding(horizontal = 8.dp, vertical = 4.5.dp), fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = MColors.Ink700)
+                        }
                     }
                 }
             }
@@ -166,17 +240,9 @@ fun RankingSpotlightCard(row: LeaderboardRow, onClick: () -> Unit) {
         Row(Modifier.fillMaxWidth().background(if (row.isMe) MColors.BrandTint else Color.Transparent).padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = if (podium) MColors.Ink900 else Color.White,
-                shadowElevation = 4.dp,
-                border = BorderStroke(1.dp, if (podium) GoldAccent.copy(alpha = 0.35f) else Color(0xFFE4E9F2)),
-                modifier = Modifier
-                    .padding(vertical = 1.dp)
-                    .shadow(
-                        elevation = 6.dp,
-                        shape = RoundedCornerShape(10.dp),
-                        ambientColor = Color(0x2D0B1220),
-                        spotColor = Color(0x3D0B1220)
-                    )
+                color = if (podium) MColors.Ink900 else Color(0xFFF8FAFC),
+                shadowElevation = 0.dp,
+                border = BorderStroke(1.dp, if (podium) GoldAccent.copy(alpha = 0.35f) else Color(0xFFE2E8F0))
             ) {
                 Column(Modifier.width(34.dp).padding(vertical = 5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("${row.rank}", color = if (podium) GoldAccent else MColors.Ink700, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
@@ -210,15 +276,59 @@ fun RankingSpotlightCard(row: LeaderboardRow, onClick: () -> Unit) {
 }
 
 @Composable
-fun TournamentSpotlightCard(tournament: TournamentInfo, onOpen: () -> Unit) {
+fun TournamentSpotlightCard(
+    tournament: TournamentInfo,
+    onShare: (() -> Unit)? = null,
+    onOpen: () -> Unit
+) {
+    val backendEnabled = LocalBackendRepository.current?.enabled == true
     MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp, onClick = onOpen) {
-        SpotlightTitle(tournament.name, "${tournament.format} · ${tournament.dates}", tournament.displaySportEmoji, tournament.status, GoldAccent)
-        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            SpotlightStats(listOf("${tournament.participants}/${tournament.capacity}" to "Katılım", if (tournament.isLeague) "Lig" to "Organizasyon" else "Kupa" to "Organizasyon"))
-            LinearProgressIndicator(progress = { (tournament.participants.toFloat() / tournament.capacity.coerceAtLeast(1)).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(4.dp), color = MColors.Brand, trackColor = MColors.BrandTint)
-            Text(tournament.organizer, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MColors.Ink900)
-            Text(tournament.requirement, fontSize = 10.5.sp, color = MColors.Ink500)
-            MButton("Fikstür ve kayıt", onOpen, Modifier.fillMaxWidth(), height = 38.dp)
+        SpotlightTitle(
+            title = tournament.name,
+            subtitle = "${tournament.format} · ${tournament.dates}",
+            emblem = tournament.displaySportEmoji,
+            category = tournament.status,
+            accent = GoldAccent,
+            codeBadge = tournamentDisplayId(tournament.id)
+        )
+        Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SpotlightStats(
+                listOf(
+                    "${tournament.participants}/${tournament.capacity}" to "Katılım",
+                    if (tournament.isLeague) "Lig" to "Tür" else "Kupa" to "Tür"
+                )
+            )
+            LinearProgressIndicator(
+                progress = { (tournament.participants.toFloat() / tournament.capacity.coerceAtLeast(1)).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().height(5.dp),
+                color = MColors.Brand,
+                trackColor = MColors.BrandTint
+            )
+            Text(
+                text = listOf(tournament.organizer, tournament.requirement).filter { it.isNotBlank() }.joinToString(" · "),
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+                color = MColors.Ink600,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                MButton("Fikstür ve kayıt", onOpen, Modifier.weight(1f), height = 38.dp)
+                if (onShare != null) {
+                    FilledTonalButton(
+                        onClick = onShare,
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.Share,
+                            if (backendEnabled) "Paylaş" else "Paylaş (+2 TKN)",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -226,11 +336,19 @@ fun TournamentSpotlightCard(tournament: TournamentInfo, onOpen: () -> Unit) {
 @Composable
 fun TeamSpotlightCard(team: TeamProfile, primaryLabel: String, onPrimary: () -> Unit, onDetails: () -> Unit, compact: Boolean = true) {
     MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp, onClick = onDetails) {
-        SpotlightTitle(team.name, "${team.sport.emoji} ${team.sport.label} · ${team.area}", team.badge, if (team.isMine) "TAKIMIN · KAPTANSIN" else if (team.lookingForOpponent) "RAKİP ARIYOR" else "KULÜP PROFİLİ", if (team.isMine) GoldAccent else MintAccent, compact)
-        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SpotlightTitle(
+            title = team.name,
+            subtitle = "${team.sport.emoji} ${team.sport.label} · ${team.area}",
+            emblem = team.badge,
+            category = if (team.isMine) "TAKIMIN · KAPTANSIN" else if (team.lookingForOpponent) "RAKİP ARIYOR" else "KULÜP PROFİLİ",
+            accent = if (team.isMine) GoldAccent else MintAccent,
+            compact = compact,
+            codeBadge = teamDisplayId(team.id)
+        )
+        Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SpotlightStats(listOf("${team.rating}" to "MMR", "${team.wins}" to "Galibiyet", "${team.memberIds.size}" to "Kadro"), compact)
-            Text(team.record, fontSize = 10.5.sp, color = MColors.Ink600)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(team.record, fontSize = 11.sp, color = MColors.Ink600, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MButton("Kadro", onDetails, Modifier.weight(1f), isPrimary = false, height = 38.dp)
                 MButton(primaryLabel, onPrimary, Modifier.weight(1.4f), height = 38.dp)
             }
@@ -245,30 +363,22 @@ fun ChallengeSpotlightCard(challenge: ChallengeOffer, opponent: TeamProfile, onD
         Column(Modifier.clickable(onClick = onDetails)) {
             SpotlightTitle(opponent.name, if (challenge.incoming) "Gelen meydan okuma · Detayları aç →" else "Gönderilen teklif · Detayları aç →", opponent.badge, challenge.status.label, GoldAccent)
         }
-        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(challenge.proposedTime, fontSize = 13.sp, color = MColors.Ink900, fontWeight = FontWeight.Bold)
             Text(challenge.venue, fontSize = 11.sp, color = MColors.Ink500)
             if (!challenge.note.isNullOrBlank()) {
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = Color.White,
-                    shadowElevation = 4.dp,
-                    border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp)
-                        .shadow(
-                            elevation = 6.dp,
-                            shape = RoundedCornerShape(10.dp),
-                            ambientColor = Color(0x2A0B1220),
-                            spotColor = Color(0x3A0B1220)
-                        )
+                    color = Color(0xFFF8FAFC),
+                    shadowElevation = 0.dp,
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(challenge.note, Modifier.fillMaxWidth().padding(9.dp), fontSize = 11.sp, color = MColors.Ink700)
                 }
             }
             if (canRespond && challenge.incoming && challenge.status == ChallengeStatus.PENDING) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     MButton("Kabul et", onAccept, Modifier.weight(1f), height = 38.dp)
                     MButton("Reddet", { confirmDecline = true }, Modifier.weight(1f), isPrimary = false, isDestructive = true, height = 38.dp)
                 }

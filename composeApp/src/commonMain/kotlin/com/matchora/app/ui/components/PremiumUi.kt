@@ -101,18 +101,11 @@ fun MPremiumSheetHandle() {
 @Composable
 fun MSheetHeading(title: String, subtitle: String, icon: ImageVector, onDismiss: () -> Unit) {
     Surface(
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(18.dp),
         color = MColors.Ink900,
-        shadowElevation = 6.dp,
+        shadowElevation = 2.dp,
         border = BorderStroke(1.dp, Color(0xFF28374E)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = 8.dp,
-                shape = RoundedCornerShape(22.dp),
-                ambientColor = Color(0x320B1220),
-                spotColor = Color(0x420B1220)
-            )
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
@@ -123,19 +116,19 @@ fun MSheetHeading(title: String, subtitle: String, icon: ImageVector, onDismiss:
                     drawCircle(Color(0xFFFFB68F).copy(alpha = .08f), 68.dp.toPx(), center)
                     drawCircle(Color(0xFFFFB68F).copy(alpha = .12f), 88.dp.toPx(), center, style = Stroke(1.dp.toPx()))
                 }
-                .padding(horizontal = 15.dp, vertical = 14.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Surface(
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(12.dp),
                 color = Color(0xFF24344D),
-                shadowElevation = 4.dp,
+                shadowElevation = 0.dp,
                 border = BorderStroke(1.dp, Color(0x38FFB68F)),
-                modifier = Modifier.size(44.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, null, Modifier.size(22.dp), tint = Color(0xFFFFB68F))
+                    Icon(icon, null, Modifier.size(20.dp), tint = Color(0xFFFFB68F))
                 }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -157,11 +150,11 @@ fun MSheetHeading(title: String, subtitle: String, icon: ImageVector, onDismiss:
             }
             Surface(
                 onClick = onDismiss,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(10.dp),
                 color = Color(0xFF24344D),
-                shadowElevation = 3.dp,
+                shadowElevation = 0.dp,
                 border = BorderStroke(1.dp, Color(0xFF364966)),
-                modifier = Modifier.size(35.dp)
+                modifier = Modifier.size(34.dp)
             ) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.Close, "Kapat", tint = Color.White, modifier = Modifier.size(17.dp))

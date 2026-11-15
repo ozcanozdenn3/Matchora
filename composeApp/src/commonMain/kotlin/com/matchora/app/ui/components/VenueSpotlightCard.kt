@@ -42,13 +42,13 @@ fun VenueSpotlightCard(
 
     MCard(
         modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 18.dp,
+        cornerRadius = 16.dp,
         elevation = 2.dp,
-        borderColor = Color(0xFFE4E9F1),
+        borderColor = Color(0xFFE2E8F0),
         borderWidth = 1.dp,
         onClick = onCardClick
     ) {
-        // 1. Üst Başlık: Tesis adı, konum, saha sayısı ve başlangıç fiyatı tek bakışta okunaklı
+        // 1. Üst Başlık: Tesis adı, konum, saha sayısı, fiyat ve Tesis ID
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -65,31 +65,30 @@ fun VenueSpotlightCard(
                     drawLine(line, Offset(x, y + h / 2), Offset(x + w, y + h / 2), 0.8.dp.toPx())
                     drawCircle(line, w * .22f, Offset(x + w / 2, y + h / 2), style = stroke)
                 }
-                .padding(horizontal = 14.dp, vertical = 11.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(11.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Surface(
-                shape = RoundedCornerShape(11.dp),
-                color = accent.copy(alpha = .14f),
-                border = BorderStroke(0.8.dp, accent.copy(alpha = .28f)),
-                shadowElevation = 4.dp,
-                modifier = Modifier.shadow(6.dp, RoundedCornerShape(11.dp), ambientColor = Color(0x55000000), spotColor = Color(0x77000000))
+                shape = RoundedCornerShape(10.dp),
+                color = accent.copy(alpha = .16f),
+                border = BorderStroke(0.8.dp, accent.copy(alpha = .32f)),
+                shadowElevation = 0.dp
             ) {
-                Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Stadium, null, Modifier.size(17.dp), tint = accent)
+                Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.Stadium, null, Modifier.size(18.dp), tint = accent)
                 }
             }
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
                     text = venue.name,
                     color = Color.White,
-                    fontSize = 15.sp,
-                    lineHeight = 19.sp,
+                    fontSize = 14.5.sp,
+                    lineHeight = 18.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -103,7 +102,7 @@ fun VenueSpotlightCard(
                     Text(
                         text = "$placeText${venue.distanceKm?.let { " · $it km" }.orEmpty()} · ${venue.courts} saha",
                         color = Color(0xFFC8D5DC),
-                        fontSize = 11.5.sp,
+                        fontSize = 11.sp,
                         lineHeight = 14.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
@@ -112,27 +111,48 @@ fun VenueSpotlightCard(
                 }
             }
 
-            Surface(
-                shape = RoundedCornerShape(9.dp),
-                color = Color.White.copy(alpha = .08f),
-                border = BorderStroke(0.8.dp, accent.copy(alpha = .30f)),
-                shadowElevation = 4.dp,
-                modifier = Modifier.shadow(6.dp, RoundedCornerShape(9.dp), ambientColor = Color(0x55000000), spotColor = Color(0x77000000))
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(
-                    text = "₺${venue.fromPriceLabel}",
-                    color = accent,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
-                )
+                Surface(
+                    shape = RoundedCornerShape(7.dp),
+                    color = Color.White.copy(alpha = 0.10f),
+                    border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.18f))
+                ) {
+                    Text(
+                        text = venueDisplayId(venue.id),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = accent,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = accent.copy(alpha = .14f),
+                    border = BorderStroke(0.8.dp, accent.copy(alpha = .32f)),
+                    shadowElevation = 0.dp
+                ) {
+                    Text(
+                        text = "₺${venue.fromPriceLabel}",
+                        color = accent,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
             }
         }
 
-        // 2. Gövde: Ferah olanaklar ve kart üzerinde yüzen gölgeli saat kartları
+        // 2. Gövde: Sade olanaklar, temiz saat kartları ve birleşik aksiyon satırı
         Column(
-            modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp)
+            modifier = Modifier.padding(11.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -141,23 +161,14 @@ fun VenueSpotlightCard(
             ) {
                 LazyRow(
                     modifier = Modifier.weight(1f).padding(end = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    contentPadding = PaddingValues(vertical = 2.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(venue.amenities) { amenity ->
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = Color.White,
-                            shadowElevation = 4.dp,
-                            border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                            modifier = Modifier
-                                .padding(vertical = 1.dp)
-                                .shadow(
-                                    elevation = 5.dp,
-                                    shape = RoundedCornerShape(8.dp),
-                                    ambientColor = Color(0x280B1220),
-                                    spotColor = Color(0x380B1220)
-                                )
+                            color = Color(0xFFF1F5F9),
+                            shadowElevation = 0.dp,
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -165,7 +176,7 @@ fun VenueSpotlightCard(
                                 horizontalArrangement = Arrangement.spacedBy(3.5.dp)
                             ) {
                                 Icon(Icons.Rounded.Check, null, Modifier.size(11.dp), tint = MColors.Mint)
-                                Text(amenity, fontSize = 10.5.sp, color = MColors.Ink700, fontWeight = FontWeight.SemiBold)
+                                Text(amenity, fontSize = 10.5.sp, color = MColors.Ink700, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             }
                         }
                     }
@@ -173,31 +184,25 @@ fun VenueSpotlightCard(
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = if (availableCount > 0) Color(0xFFF0FDF4) else Color.White,
-                    shadowElevation = 4.dp,
-                    border = BorderStroke(1.dp, if (availableCount > 0) Color(0xFFBBF7D0) else Color(0xFFE4E9F2)),
-                    modifier = Modifier
-                        .padding(vertical = 1.dp)
-                        .shadow(
-                            elevation = 5.dp,
-                            shape = RoundedCornerShape(8.dp),
-                            ambientColor = Color(0x260B1220),
-                            spotColor = Color(0x360B1220)
-                        )
+                    color = if (availableCount > 0) Color(0xFFF0FDF4) else Color(0xFFF8FAFC),
+                    shadowElevation = 0.dp,
+                    border = BorderStroke(1.dp, if (availableCount > 0) Color(0xFFBBF7D0) else Color(0xFFE2E8F0))
                 ) {
                     Text(
                         text = if (availableCount > 0) "$availableCount boş saat" else "Dolu",
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (availableCount > 0) Color(0xFF15803D) else MColors.Ink500,
+                        maxLines = 1,
+                        softWrap = false,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
             }
 
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 3.dp, horizontal = 2.dp)
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                contentPadding = PaddingValues(vertical = 1.dp)
             ) {
                 items(venue.slots, key = { it.id }) { slot ->
                     val booked = "${venue.id}:${slot.id}" in bookedSlotIds
@@ -205,31 +210,23 @@ fun VenueSpotlightCard(
                     Surface(
                         onClick = { onSelect(slot) },
                         enabled = available,
-                        shape = RoundedCornerShape(13.dp),
-                        color = if (available) Color.White else Color(0xFFF7F9FC),
+                        shape = RoundedCornerShape(11.dp),
+                        color = if (available) Color(0xFFF8FAFC) else Color(0xFFF1F5F9),
                         border = BorderStroke(
                             width = 1.dp,
-                            color = if (available) Color(0xFFDCE4F0) else Color(0xFFE8ECF2)
+                            color = if (available) Color(0xFFDCE4F0) else Color(0xFFE2E8F0)
                         ),
-                        shadowElevation = if (available) 6.dp else 2.dp,
-                        modifier = Modifier
-                            .padding(vertical = 2.dp)
-                            .shadow(
-                                elevation = if (available) 8.dp else 3.dp,
-                                shape = RoundedCornerShape(13.dp),
-                                ambientColor = Color(0x320B1220),
-                                spotColor = Color(0x440B1220)
-                            )
+                        shadowElevation = 0.dp
                     ) {
                         Column(
                             modifier = Modifier
-                                .widthIn(min = 84.dp)
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                                .widthIn(min = 82.dp)
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             Text(
                                 text = slot.time,
-                                fontSize = 13.5.sp,
+                                fontSize = 13.sp,
                                 lineHeight = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (available) MColors.Ink900 else MColors.Ink400
@@ -253,30 +250,25 @@ fun VenueSpotlightCard(
                 }
             }
 
-            // Tesis ID, Yol Tarifi ve Paylaşım Satırı
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFFF1F5F9),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-                ) {
-                    Text(
-                        text = venueDisplayId(venue.id),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MColors.BrandDeep,
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                    )
-                }
-
+            // Aksiyon Satırı: Detay & Saatler, Yol Tarifi ve Paylaşım
+            if (onCardClick != null || onDirections != null || onShareVenue != null) {
                 val backendEnabled = LocalBackendRepository.current?.enabled == true
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (onCardClick != null) {
+                        MButton(
+                            text = "Detay & Saatler",
+                            onClick = onCardClick,
+                            modifier = Modifier.weight(1f),
+                            isPrimary = false,
+                            height = 38.dp
+                        )
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
                     if (onDirections != null) {
                         MPillActionButton(
                             text = "Yol Tarifi",
@@ -287,20 +279,17 @@ fun VenueSpotlightCard(
                         )
                     }
                     if (onShareVenue != null) {
-                        Surface(
+                        FilledTonalButton(
                             onClick = onShareVenue,
-                            shape = RoundedCornerShape(10.dp),
-                            color = MColors.Brand,
-                            modifier = Modifier.height(34.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            modifier = Modifier.height(38.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(Icons.Rounded.Share, null, tint = Color.White, modifier = Modifier.size(13.dp))
-                                Text(if (backendEnabled) "Paylaş" else "Paylaş (+2 TKN)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
-                            }
+                            Icon(
+                                Icons.Rounded.Share,
+                                if (backendEnabled) "Paylaş" else "Paylaş (+2 TKN)",
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
                     }
                 }

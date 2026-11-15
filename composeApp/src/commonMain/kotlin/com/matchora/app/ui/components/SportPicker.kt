@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.ChevronRight
@@ -20,7 +21,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,39 +60,48 @@ fun SportPickerField(
         onClick = { requireAccount { expanded = true } },
         modifier = modifier
             .fillMaxWidth()
-            .height(58.dp)
-            .shadow(
-                elevation = 7.dp,
-                shape = RoundedCornerShape(14.dp),
-                ambientColor = Color(0x2C0B1220),
-                spotColor = Color(0x3C0B1220)
-            ),
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Color(0xFFD8E2EE)),
-        color = Color.White,
-        shadowElevation = 5.dp
+            .height(52.dp),
+        shape = RoundedCornerShape(13.dp),
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        color = Color(0xFFF8FAFC),
+        shadowElevation = 1.dp
     ) {
-        Row(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color.White, Color(0xFFF8FAFC))))
-            .padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
             Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = Color(0xFF213E38),
-                shadowElevation = 3.dp,
-                modifier = Modifier.shadow(4.dp, RoundedCornerShape(10.dp), ambientColor = Color(0x330B1220), spotColor = Color(0x440B1220))
+                shape = RoundedCornerShape(9.dp),
+                color = MColors.Ink900
             ) {
-                Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
                     if (selectedSport != null) Text(selectedSport.emoji, fontSize = 16.sp)
-                    else Icon(Icons.Rounded.Sports, null, Modifier.size(17.dp), tint = Color(0xFFE3CE9F))
+                    else Icon(Icons.Rounded.Sports, null, Modifier.size(17.dp), tint = Color(0xFFFFB37B))
                 }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(selectedSport?.label ?: "Tüm sporları keşfet", fontSize = 12.sp, lineHeight = 16.sp,
-                    fontWeight = FontWeight.Bold, color = Color(0xFF213E38), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${sports.size} branş · ara ve seç", fontSize = 10.sp, lineHeight = 14.sp,
-                    color = MColors.Ink500, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(
+                    selectedSport?.label ?: "Tüm sporları keşfet",
+                    fontSize = 12.5.sp,
+                    lineHeight = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MColors.Ink900,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "${sports.size} aktif branş",
+                    fontSize = 10.sp,
+                    lineHeight = 13.sp,
+                    color = MColors.Ink500,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-            Icon(Icons.Rounded.ChevronRight, null, Modifier.size(16.dp), tint = Color(0xFF527267))
+            Icon(Icons.Rounded.KeyboardArrowDown, null, Modifier.size(18.dp), tint = MColors.Ink500)
         }
     }
     if (expanded) SportPickerSheet(
@@ -158,29 +167,12 @@ fun MCompactSportPill(
                         .clickable { onSelect(null) }
                 )
             } else {
-                Surface(
-                    shape = RoundedCornerShape(7.dp),
-                    color = Color(0xFFEAEFF5)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Text(
-                            text = "Seç",
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MColors.Ink700
-                        )
-                        Icon(
-                            imageVector = Icons.Rounded.ChevronRight,
-                            contentDescription = null,
-                            tint = MColors.Ink700,
-                            modifier = Modifier.size(13.dp)
-                        )
-                    }
-                }
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = if (isFiltered) MColors.BrandDeep else MColors.Ink400,
+                    modifier = Modifier.size(16.dp)
+                )
             }
         }
     }

@@ -1,15 +1,13 @@
 package com.matchora.app.ui.components
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -18,7 +16,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,8 +54,6 @@ fun CreateTournamentSheet(
     var liveCapacity by remember { mutableIntStateOf(16) }
     var minRating by remember { mutableIntStateOf(0) }
     var verifiedOnly by remember { mutableStateOf(false) }
-    val supportedFormats = listOf(2, 4, 8, 16, 32).map { "KNOCKOUT" to it } + listOf(2, 4, 6, 8, 10, 12, 16).map { "ROUND_ROBIN" to it }
-    fun formatLabel(option: Pair<String, Int>) = "${option.second} takım · ${if (option.first == "ROUND_ROBIN") "Lig" else "Tek eleme"}"
     var tournamentCategory by remember { mutableStateOf(primarySport.category) }
     var selectedSport by remember { mutableStateOf(primarySport) }
     var rosterSize by remember(selectedSport) { mutableIntStateOf(when (selectedSport) { Sport.FOOTBALL, Sport.BASKETBALL -> 5; Sport.VOLLEYBALL -> 6; Sport.PADEL -> 2; else -> 1 }) }
@@ -83,14 +81,13 @@ fun CreateTournamentSheet(
     val isGaming = (selectedSport.isESport || selectedSport == Sport.CHESS) || (selectedSport == Sport.CUSTOM && customIsGaming)
 
     ModalBottomSheet(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         tonalElevation = 0.dp,
-        scrimColor = androidx.compose.ui.graphics.Color(0xFF0B1220).copy(alpha = .48f),
-
+        scrimColor = Color(0xFF0B1220).copy(alpha = .48f),
         onDismissRequest = onDismiss,
         modifier = Modifier.statusBarsPadding().padding(top = 12.dp),
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color(0xFFFAFAFA),
+        containerColor = Color(0xFFF8FAFC),
         dragHandle = { MPremiumSheetHandle() }
     ) {
         LazyColumn(
@@ -98,174 +95,95 @@ fun CreateTournamentSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
             contentPadding = PaddingValues(bottom = 36.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Başlık
             item {
                 MSheetHeading("Turnuva oluştur", "Rekabeti bir üst seviyeye taşı.", Icons.Rounded.EmojiEvents, onDismiss)
             }
 
+            // Bölüm 1: Turnuva Kimliği & Branş
             item {
-                Surface(shape = RoundedCornerShape(24.dp), color = Color(0xFF20283A)) {
-                    Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Box(Modifier.size(58.dp).background(Color(0xFFFFD48A).copy(alpha = .16f), RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.EmojiEvents, null, Modifier.size(32.dp), tint = Color(0xFFFFD48A))
-                        }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("CANLI KUPA ÖNİZLEMESİ", fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFFD48A))
-                            Text(title.ifBlank { "Turnuvanın adı" }, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text("${selectedSport.emoji} ${selectedSport.label} · $dates", fontSize = 12.sp, color = Color(0xFFD2D8E2))
-                        }
-                    }
-                }
-            }
+                TournamentSectionCard {
+                    TournamentPreviewBanner(
+                        title = title.ifBlank { "Yeni Turnuva" },
+                        sportEmoji = selectedSport.emoji,
+                        sportLabel = if (selectedSport == Sport.CUSTOM && customSportName.isNotBlank()) customSportName else selectedSport.label,
+                        capacity = liveCapacity,
+                        formatStyle = formatStyle,
+                        lockAmount = lockAmount
+                    )
 
-            // Kategori & Branş Seçimi
-            item {
-                Text(
-                    text = "TURNUVA KATEGORİSİ",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                    color = MColors.Ink500
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Kategori Butonları: [🎮 E-Spor] [🏟️ Fiziksel] [✨ Özel Branş] — Light Luxury Segmented Control
-                Surface(
-                    shape = RoundedCornerShape(13.dp),
-                    color = Color(0xFFF1F5F9), // Light Luxury Segmented Track
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(3.dp),
-                        horizontalArrangement = Arrangement.spacedBy(3.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        listOf(
-                            Triple(SportCategory.ESPORTS, "🎮", "E-Spor"),
-                            Triple(SportCategory.PHYSICAL, "🏟️", "Fiziksel"),
-                            Triple(SportCategory.CUSTOM, "✨", "Özel Branş")
-                        ).forEach { (cat, icon, label) ->
-                            val isSel = tournamentCategory == cat
-                            val animatedBg by animateColorAsState(
-                                targetValue = if (isSel) Color.White else Color.Transparent,
-                                animationSpec = tween(180)
-                            )
-                            val animatedTextColor by animateColorAsState(
-                                targetValue = if (isSel) MColors.Brand else Color(0xFF64748B),
-                                animationSpec = tween(180)
-                            )
-
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = animatedBg,
-                                border = if (isSel) BorderStroke(1.dp, Color(0x18000000)) else null,
-                                shadowElevation = if (isSel) 2.dp else 0.dp,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(38.dp)
-                                    .clickable {
-                                        tournamentCategory = cat
-                                        if (cat == SportCategory.PHYSICAL && selectedSport.category != SportCategory.PHYSICAL) {
-                                            selectedSport = Sport.FOOTBALL
-                                            title = "$tournamentArea Halı Saha Kupası"
-                                            format = "16 Takım · Tek Eleme"
-                                        } else if (cat == SportCategory.ESPORTS && selectedSport.category != SportCategory.ESPORTS) {
-                                            selectedSport = Sport.ESPORTS_FC
-                                            title = "FC 25 Kadıköy E-Kupa"
-                                            platform = "PS5 & PC Crossplay"
-                                            format = "16 Takım · 1v1 Tek Maç Eleme"
-                                        } else if (cat == SportCategory.CUSTOM) {
-                                            selectedSport = Sport.CUSTOM
-                                            title = "${customSportName.ifBlank { "Özel Branş" }} Kadıköy Kupası"
-                                        }
-                                    }
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.padding(horizontal = 4.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        Text(icon, fontSize = 12.sp)
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = label,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.SemiBold,
-                                            color = animatedTextColor,
-                                            fontSize = 11.5.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
+                    TournamentFieldLabel("TURNUVA KATEGORİSİ")
+                    MSegmentPillBar(
+                        options = listOf(
+                            MSegmentPillOption(SportCategory.PHYSICAL, "Fiziksel", emoji = "🏟️"),
+                            MSegmentPillOption(SportCategory.ESPORTS, "E-Spor", emoji = "🎮"),
+                            MSegmentPillOption(SportCategory.CUSTOM, "Özel Branş", emoji = "✨")
+                        ),
+                        selectedValue = tournamentCategory,
+                        onSelect = { cat ->
+                            tournamentCategory = cat
+                            if (cat == SportCategory.PHYSICAL && selectedSport.category != SportCategory.PHYSICAL) {
+                                selectedSport = Sport.FOOTBALL
+                                title = "$tournamentArea Halı Saha Kupası"
+                                format = "$liveCapacity Takım · Tek Eleme"
+                            } else if (cat == SportCategory.ESPORTS && selectedSport.category != SportCategory.ESPORTS) {
+                                selectedSport = Sport.ESPORTS_FC
+                                title = "FC 25 Kadıköy E-Kupa"
+                                platform = "PS5 & PC Crossplay"
+                                format = "$liveCapacity Takım · 1v1 Tek Maç Eleme"
+                            } else if (cat == SportCategory.CUSTOM) {
+                                selectedSport = Sport.CUSTOM
+                                title = "${customSportName.ifBlank { "Özel Branş" }} Kadıköy Kupası"
                             }
                         }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                if (tournamentCategory == SportCategory.CUSTOM || selectedSport == Sport.CUSTOM) {
-                    MFloatingInputBox(
-                        label = "Özel Turnuva Branşı / Oyun Adı",
-                        value = customSportName,
-                        onValueChange = {
-                            customSportName = it
-                        },
-                        icon = Icons.Rounded.AutoAwesome
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    MFloatingDropdownBox(
-                        label = "Turnuva Ortamı",
-                        selectedValue = customIsGaming,
-                        options = listOf(false, true),
-                        optionLabel = { if (it) "🎮 Online E-Spor" else "🏟️ Fiziksel Saha / Salon" },
-                        onSelect = { customIsGaming = it },
-                        icon = Icons.Rounded.Category
-                    )
-                } else {
-                    val currentList = if (tournamentCategory == SportCategory.PHYSICAL) physicalSports else esportSports
-                    SportPickerField(
-                        selectedSport = selectedSport,
-                        onSelect = { sport ->
-                            if (sport != null) {
-                                selectedSport = sport
-                                if (sport == Sport.ESPORTS_FC) {
-                                    platform = "PS5 & PC Crossplay"
-                                    format = "16 Takım · 1v1 Tek Maç Eleme"
-                                } else if (sport == Sport.ESPORTS_VALORANT) {
-                                    platform = "PC"
-                                    format = "8 Takım · 5v5 Bracket"
-                                } else if (sport == Sport.ESPORTS_LOL) {
-                                    platform = "PC"
-                                    format = "8 Takım · 5v5 Grup Aşaması"
-                                } else if (sport == Sport.CHESS) {
-                                    platform = "Yüz Yüze & Chess.com"
-                                    format = "32 Sporcu · 7 Tur İsviçre Sistemi"
-                                } else {
-                                    format = "16 Takım · Eleme Usulü"
+                    if (tournamentCategory == SportCategory.CUSTOM || selectedSport == Sport.CUSTOM) {
+                        MFloatingInputBox(
+                            label = "Özel Turnuva Branşı / Oyun Adı",
+                            value = customSportName,
+                            onValueChange = { customSportName = it },
+                            icon = Icons.Rounded.AutoAwesome
+                        )
+                        TournamentFieldLabel("TURNUVA ORTAMI")
+                        MSegmentPillBar(
+                            options = listOf(
+                                MSegmentPillOption(false, "Fiziksel Saha", emoji = "🏟️"),
+                                MSegmentPillOption(true, "Online E-Spor", emoji = "🎮")
+                            ),
+                            selectedValue = customIsGaming,
+                            onSelect = { customIsGaming = it }
+                        )
+                    } else {
+                        val currentList = if (tournamentCategory == SportCategory.PHYSICAL) physicalSports else esportSports
+                        SportPickerField(
+                            selectedSport = selectedSport,
+                            onSelect = { sport ->
+                                if (sport != null) {
+                                    selectedSport = sport
+                                    if (sport == Sport.ESPORTS_FC) {
+                                        platform = "PS5 & PC Crossplay"
+                                        format = "$liveCapacity Takım · 1v1 Tek Maç Eleme"
+                                    } else if (sport == Sport.ESPORTS_VALORANT) {
+                                        platform = "PC"
+                                        format = "$liveCapacity Takım · 5v5 Bracket"
+                                    } else if (sport == Sport.ESPORTS_LOL) {
+                                        platform = "PC"
+                                        format = "$liveCapacity Takım · 5v5 Grup Aşaması"
+                                    } else if (sport == Sport.CHESS) {
+                                        platform = "Yüz Yüze & Chess.com"
+                                        format = "$liveCapacity Sporcu · İsviçre Sistemi"
+                                    } else {
+                                        format = "$liveCapacity Takım · $formatStyle"
+                                    }
                                 }
-                            }
-                        },
-                        sports = currentList,
-                        allowAll = false
-                    )
-                }
-            }
+                            },
+                            sports = currentList,
+                            allowAll = false
+                        )
+                    }
 
-            // Turnuva Adı & Tarihleri
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     MFloatingInputBox(
                         label = "Turnuva Adı",
                         value = title,
@@ -281,187 +199,191 @@ fun CreateTournamentSheet(
                         )
                     )
 
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = Color.White,
-                        shadowElevation = 5.dp,
-                        border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                        modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        MPremiumTextField(
+                            value = dates,
+                            onValueChange = { dates = it },
+                            label = "Tarih Aralığı",
+                            placeholder = "25 - 28 Eki",
+                            modifier = Modifier.weight(1f)
+                        )
+                        MPremiumTextField(
+                            value = organizer,
+                            onValueChange = { organizer = it },
+                            label = "Organizatör",
+                            placeholder = "Kulüp / İsim",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            // Bölüm 2: Format, Kapasite & Saha / Platform
+            item {
+                TournamentSectionCard {
+                    TournamentSectionHeader(Icons.Rounded.AccountTree, "Format ve Organizasyon")
+
+                    TournamentFieldLabel("TURNUVA USULÜ")
+                    MSegmentPillBar(
+                        options = listOf(
+                            MSegmentPillOption("KNOCKOUT", "Tek Eleme", icon = Icons.Rounded.AccountTree),
+                            MSegmentPillOption("ROUND_ROBIN", "Lig Usulü", icon = Icons.Rounded.FormatListNumbered)
+                        ),
+                        selectedValue = formatCode,
+                        onSelect = { code ->
+                            formatCode = code
+                            formatStyle = if (code == "ROUND_ROBIN") "Lig Usulü" else "Tek Eleme"
+                            if (code == "ROUND_ROBIN" && liveCapacity > 16) {
+                                liveCapacity = 16
+                            } else if (code == "KNOCKOUT" && liveCapacity !in listOf(4, 8, 16, 32)) {
+                                liveCapacity = 8
+                            }
+                            format = "$liveCapacity Takım · $formatStyle"
+                        }
+                    )
+
+                    val capacities = if (formatCode == "ROUND_ROBIN") listOf(4, 6, 8, 10, 12, 16) else listOf(4, 8, 16, 32)
+                    TournamentFieldLabel("TAKIM KAPASİTESİ")
+                    TournamentCapacitySelector(
+                        capacities = capacities,
+                        selectedCapacity = liveCapacity,
+                        onSelect = { cap ->
+                            liveCapacity = cap
+                            format = "$cap Takım · $formatStyle"
+                        }
+                    )
+
+                    MFloatingDropdownBox(
+                        label = "Maç kadrosu (takım başı)",
+                        selectedValue = rosterSize,
+                        options = (1..25).toList(),
+                        optionLabel = { "$it sporcu" },
+                        onSelect = { rosterSize = it },
+                        icon = Icons.Rounded.Groups
+                    )
+                    Text(
+                        text = "Kaptan kayıtta bu sayıda oyuncu seçer. Takımdaki diğer sporcular kulüpte kalır.",
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp,
+                        color = MColors.Ink500
+                    )
+
+                    TournamentFieldLabel("TURNUVA KAPSAMI")
+                    MSegmentPillBar(
+                        options = EventNetworkScope.entries.map { MSegmentPillOption(it, it.label) },
+                        selectedValue = tournamentNetworkScope,
+                        onSelect = { tournamentNetworkScope = it },
+                        fontSizeSp = 11f
+                    )
+
+                    MFloatingActionRow(
+                        label = "Turnuva bölgesi",
+                        valueText = "$tournamentCity · $tournamentArea",
+                        icon = Icons.Rounded.LocationOn,
+                        onClick = { showRegion = true }
+                    )
+
+                    if (!isGaming) {
+                        VenueChoiceField(
+                            label = "Turnuva Tesisi / Sahası",
+                            value = tournamentVenue,
+                            onChange = { tournamentVenue = it.take(160) },
+                            previewOptions = venues.filter { matchesTurkishPlace(it.city, tournamentCity) }.map { "${it.name} · ${it.area}" }.distinct(),
+                            city = tournamentCity
+                        )
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                OutlinedTextField(
-                                    textStyle = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                                    value = dates,
-                                    onValueChange = { dates = it },
-                                    label = { Text("Tarih Aralığı") },
-                                    placeholder = { Text("25 - 28 Eki") },
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.weight(1f),
-                                    colors = premiumTextFieldColors()
-                                )
-
-                                MFloatingDropdownBox(
-                                    label = "Format / Kapasite", selectedValue = formatCode to liveCapacity,
-                                    options = supportedFormats, optionLabel = ::formatLabel,
-                                    onSelect = {
-                                        formatCode = it.first
-                                        liveCapacity = it.second
-                                        formatStyle = if (it.first == "ROUND_ROBIN") "Lig Usulü" else "Tek Eleme"
-                                    },
-                                    modifier = Modifier.weight(1.2f)
-                                )
-                            }
-
-                            MFloatingDropdownBox(
-                                label = "Turnuva Usulü",
-                                selectedValue = formatStyle,
-                                options = listOf("Tek Eleme", "Lig Usulü"),
-                                optionLabel = { it },
-                                onSelect = {
-                                    formatStyle = it
-                                    formatCode = if (it == "Lig Usulü") "ROUND_ROBIN" else "KNOCKOUT"
-                                    if (formatCode == "ROUND_ROBIN" && liveCapacity > 16) liveCapacity = 16
-                                },
-                                icon = Icons.Rounded.AccountTree
+                            MPremiumTextField(
+                                value = platform,
+                                onValueChange = { platform = it },
+                                label = "Oyun Platformu",
+                                placeholder = "PS5 / PC / Crossplay",
+                                modifier = Modifier.weight(1f)
                             )
-
-                            MFloatingDropdownBox("Maç kadrosu · takım başına", rosterSize, (1..25).toList(), { "$it sporcu" }, { rosterSize = it }, icon = Icons.Rounded.Groups)
-                            Text("Kaptan kayıtta bu sayıda oyuncu seçer. Takımdaki diğer sporcular kulüpte kalır; turnuva kadrosuna otomatik eklenmez.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
-
-                            MFloatingInputBox(
-                                label = "Organizatör Adı",
-                                value = organizer,
-                                onValueChange = { organizer = it },
-                                placeholder = "Organizatör veya kulüp adı",
-                                icon = Icons.Rounded.VerifiedUser
+                            MPremiumTextField(
+                                value = serverRegion,
+                                onValueChange = { serverRegion = it },
+                                label = "Sunucu / Lobi",
+                                placeholder = "TR Sunucusu · Discord",
+                                modifier = Modifier.weight(1f)
                             )
-
-                            MFloatingDropdownBox(
-                                label = "Turnuva Ağı / Kapsamı",
-                                selectedValue = tournamentNetworkScope,
-                                options = EventNetworkScope.entries,
-                                optionLabel = { it.label },
-                                onSelect = { tournamentNetworkScope = it },
-                                icon = Icons.Rounded.Hub
-                            )
-
-                            if (!isGaming) {
-                                VenueChoiceField(
-                                    "Turnuva Tesisi / Sahası",
-                                    tournamentVenue,
-                                    { tournamentVenue = it.take(160) },
-                                    venues.filter { matchesTurkishPlace(it.city, tournamentCity) }.map { "${it.name} · ${it.area}" }.distinct(),
-                                    tournamentCity
-                                )
-                            }
-
-                            if (isGaming) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    OutlinedTextField(
-                                        textStyle = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                                        value = platform,
-                                        onValueChange = { platform = it },
-                                        label = { Text("Oyun Platformu") },
-                                        placeholder = { Text("PS5 / PC / Crossplay") },
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.weight(1f),
-                                        colors = premiumTextFieldColors()
-                                    )
-
-                                    OutlinedTextField(
-                                        textStyle = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                                        value = serverRegion,
-                                        onValueChange = { serverRegion = it },
-                                        label = { Text("Sunucu / İletişim") },
-                                        placeholder = { Text("TR Sunucusu · Discord") },
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.weight(1f),
-                                        colors = premiumTextFieldColors()
-                                    )
-                                }
-                            }
                         }
                     }
                 }
             }
 
-            item { MFloatingActionRow("Turnuva bölgesi", "$tournamentCity · $tournamentArea", Icons.Rounded.LocationOn, onClick = { showRegion = true }) }
+            // Bölüm 3: Katılım Şartları & Ödül Havuzu
             item {
-                MSubCard {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        MFloatingDropdownBox("Her oyuncu için en düşük MMR", minRating,
-                            listOf(0, 1000, 1200, 1500, 1800, 2000), { if (it == 0) "MMR sınırı yok" else "$it MMR" }, { minRating = it })
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Telefonu doğrulanmış kadro", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                            Switch(verifiedOnly, { verifiedOnly = it })
-                        }
-                        Text("Koşullar kayıtta ve fikstür oluşturulurken her oyuncu için denetlenir. Ödül notu otomatik ödeme oluşturmaz.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
-                    }
-                }
-            }
+                TournamentSectionCard {
+                    TournamentSectionHeader(Icons.Rounded.EmojiEvents, "Ödül Havuzu ve Katılım Kriteri")
 
-            // Ödül Havuzu & Şartlar
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        MPremiumTextField(
+                            value = prizeToken,
+                            onValueChange = { prizeToken = it },
+                            label = "Token Ödülü",
+                            placeholder = "500 TKN",
+                            modifier = Modifier.weight(1f)
+                        )
+                        MPremiumTextField(
+                            value = prizeCash,
+                            onValueChange = { prizeCash = it },
+                            label = "Sponsor / Ek Ödül",
+                            placeholder = "Kupa & Madalya",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    TournamentFieldLabel("MİNİMUM MMR SINIRI")
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(listOf(0, 1000, 1200, 1500, 1800, 2000)) { mmr ->
+                            MChip(
+                                text = if (mmr == 0) "MMR Sınırı Yok" else "$mmr+ MMR",
+                                selected = minRating == mmr,
+                                onClick = { minRating = mmr }
+                            )
+                        }
+                    }
+
                     Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = Color.White,
-                        shadowElevation = 5.dp,
-                        border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFF8FAFC),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            Icon(
+                                imageVector = Icons.Rounded.VerifiedUser,
+                                contentDescription = null,
+                                tint = MColors.BrandDeep,
+                                modifier = Modifier.size(18.dp)
+                            )
                             Text(
-                                text = "Ödül havuzu",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MColors.Gold
+                                text = "Telefonu doğrulanmış kadro",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MColors.Ink900,
+                                modifier = Modifier.weight(1f)
                             )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                OutlinedTextField(
-                                    textStyle = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                                    value = prizeToken,
-                                    onValueChange = { prizeToken = it },
-                                    label = { Text("Token Ödülü") },
-                                    placeholder = { Text("500 TKN") },
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.weight(1f),
-                                    colors = premiumTextFieldColors()
-                                )
-
-                                OutlinedTextField(
-                                    textStyle = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                                    value = prizeCash,
-                                    onValueChange = { prizeCash = it },
-                                    label = { Text("Ek Ödül") },
-                                    placeholder = { Text("TKN 10.000") },
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.weight(1f),
-                                    colors = premiumTextFieldColors()
-                                )
-                            }
+                            Switch(
+                                checked = verifiedOnly,
+                                onCheckedChange = { verifiedOnly = it }
+                            )
                         }
                     }
 
@@ -470,7 +392,7 @@ fun CreateTournamentSheet(
                         value = requirement,
                         onValueChange = { requirement = it },
                         placeholder = "1.500+ MMR veya Açık Katılım",
-                        subtitle = "Turnuva kurallarını ve katılım kriterini özetle",
+                        subtitle = "Koşullar kayıtta ve fikstürde denetlenir. Ödül notu otomatik ödeme oluşturmaz.",
                         icon = Icons.Rounded.Gavel,
                         badgeText = "Kural & Not",
                         suggestions = listOf(
@@ -485,12 +407,18 @@ fun CreateTournamentSheet(
             // Turnuvayı Başlat Butonu
             item {
                 formError?.let { error ->
-                    Text(error, fontSize = 11.sp, color = MColors.Rose, modifier = Modifier.padding(bottom = 8.dp))
+                    Text(
+                        text = error,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MColors.Rose,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
                 }
                 MButton(
                     text = if (tokenBalance < lockAmount) "Token yükle · $lockAmount TKN gerekli" else "Turnuvayı yayınla · $lockAmount TKN kilitle",
                     onClick = {
-val validationError = when {
+                        val validationError = when {
                             title.isBlank() -> "Turnuva adını gir."
                             organizer.isBlank() -> "Organizatör adını gir."
                             selectedSport == Sport.CUSTOM && customSportName.isBlank() -> "Özel branş adını gir."
@@ -545,4 +473,189 @@ val validationError = when {
         }
     }
     if (showRegion) CityAndLocationSelectorSheet(tournamentCity, tournamentArea, false, { showRegion = false }, { city, area, _ -> tournamentCity = city; tournamentArea = area })
+}
+
+@Composable
+private fun TournamentSectionCard(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White,
+        shadowElevation = 1.dp,
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp),
+            content = content
+        )
+    }
+}
+
+@Composable
+private fun TournamentPreviewBanner(
+    title: String,
+    sportEmoji: String,
+    sportLabel: String,
+    capacity: Int,
+    formatStyle: String,
+    lockAmount: Int
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xFF162032),
+        border = BorderStroke(1.dp, Color(0xFF2B3B54)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.linearGradient(listOf(Color(0xFF1F2D42), Color(0xFF162032))))
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(Color(0xFFFFD48A).copy(alpha = 0.14f), RoundedCornerShape(11.dp))
+                    .border(1.dp, Color(0xFFFFD48A).copy(alpha = 0.30f), RoundedCornerShape(11.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Rounded.EmojiEvents, contentDescription = null, modifier = Modifier.size(21.dp), tint = Color(0xFFFFD48A))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "$sportEmoji $sportLabel · $capacity Takım · $formatStyle",
+                    fontSize = 11.5.sp,
+                    color = Color(0xFFCBD5E1),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Surface(
+                shape = RoundedCornerShape(9.dp),
+                color = Color(0xFFFFD48A).copy(alpha = 0.16f),
+                border = BorderStroke(1.dp, Color(0xFFFFD48A).copy(alpha = 0.35f))
+            ) {
+                Text(
+                    text = "$lockAmount TKN Kilit",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFFFFD48A),
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TournamentSectionHeader(icon: ImageVector, title: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(9.dp),
+            color = Color(0xFFFFF3EC),
+            border = BorderStroke(1.dp, MColors.Brand.copy(alpha = 0.2f)),
+            modifier = Modifier.size(28.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = MColors.BrandDeep, modifier = Modifier.size(15.dp))
+            }
+        }
+        Text(
+            text = title,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = MColors.Ink900
+        )
+    }
+}
+
+@Composable
+private fun TournamentFieldLabel(text: String) {
+    Text(
+        text = text,
+        fontSize = 10.5.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.8.sp,
+        color = MColors.Ink500
+    )
+}
+
+@Composable
+private fun TournamentCapacitySelector(
+    capacities: List<Int>,
+    selectedCapacity: Int,
+    onSelect: (Int) -> Unit
+) {
+    if (capacities.size <= 4) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            capacities.forEach { cap ->
+                CapacityPill(
+                    label = "$cap Takım",
+                    selected = selectedCapacity == cap,
+                    onClick = { onSelect(cap) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    } else {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(capacities) { cap ->
+                CapacityPill(
+                    label = "$cap Takım",
+                    selected = selectedCapacity == cap,
+                    onClick = { onSelect(cap) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CapacityPill(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        color = if (selected) MColors.Ink900 else Color(0xFFF8FAFC),
+        border = BorderStroke(1.dp, if (selected) MColors.Ink900 else Color(0xFFE2E8F0)),
+        modifier = modifier.height(36.dp)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        ) {
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (selected) Color.White else MColors.Ink700,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
+    }
 }

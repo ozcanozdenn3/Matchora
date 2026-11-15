@@ -31,7 +31,7 @@ import com.matchora.app.ui.theme.MColors
 // taahhüt kilidi, katılma başvurusu ve organizatör onay akışı.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun EventDetailSheet(
     event: SportEvent,
@@ -199,67 +199,86 @@ fun EventDetailSheet(
                 item { MButton(if (hasResult) "Maç sonucu ve değerlendirme" else "Sonuç bildir ve değerlendir", onOpenResult, icon = Icons.Rounded.Scoreboard, isPrimary = false) }
             }
 
-            if (isHost && event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING, EventStatus.FULL, EventStatus.IN_PROGRESS)) {
+            val isActiveHostEvent = isHost && event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING, EventStatus.FULL, EventStatus.IN_PROGRESS)
+            if (isActiveHostEvent) {
                 item {
-                    MCard(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Organizatör işlemleri", style = MaterialTheme.typography.titleSmall)
+                    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("👑", fontSize = 18.sp)
+                                    Column {
+                                        Text("Organizatör İşlemleri", style = MaterialTheme.typography.titleSmall, color = MColors.Ink900)
+                                        Text("Bu ilanın kaptanısın · Başvuruları yönet ve düzenle", fontSize = 11.sp, color = MColors.Ink500)
+                                    }
+                                }
+                                MBadge("Kaptan", MColors.BrandDeep, MColors.BrandTint)
+                            }
                             if (canManageRoster) {
                                 MButton(
                                     text = "İlan Yönetim Paneli ($pendingRequestsCount Başvuru)",
                                     onClick = onOpenManageRequests,
                                     icon = Icons.Rounded.ManageAccounts,
-                                    isPrimary = true
+                                    isPrimary = true,
+                                    height = 44.dp
                                 )
                             }
-                            if (event.status == EventStatus.IN_PROGRESS || !backendMode || event.startsAtEpochMillis?.let { now < it + event.durationMin * 60000 } == true) {
-                                MButton(
-                                    text = if (event.status == EventStatus.IN_PROGRESS) "Maçı tamamla" else "Maçı başlat",
-                                    onClick = { hostAction = if (event.status == EventStatus.IN_PROGRESS) "complete" else "start" },
-                                    isPrimary = false
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (event.status == EventStatus.IN_PROGRESS || !backendMode || event.startsAtEpochMillis?.let { now < it + event.durationMin * 60000 } == true) {
+                                    MPillActionButton(
+                                        text = if (event.status == EventStatus.IN_PROGRESS) "Maçı tamamla" else "Maçı başlat",
+                                        icon = Icons.Rounded.CheckCircle,
+                                        tone = MPillTone.BRAND,
+                                        compact = true,
+                                        onClick = { hostAction = if (event.status == EventStatus.IN_PROGRESS) "complete" else "start" }
+                                    )
+                                }
+                                if (mayCheckIn) {
+                                    MPillActionButton(
+                                        text = "Saha check-in kodu",
+                                        icon = Icons.Rounded.QrCode,
+                                        tone = MPillTone.NEUTRAL,
+                                        compact = true,
+                                        onClick = onCheckIn
+                                    )
+                                }
+                                BackendEventEditing(event)
+                                MPillActionButton(
+                                    text = "Maçı iptal et",
+                                    icon = Icons.Rounded.Cancel,
+                                    tone = MPillTone.DANGER,
+                                    compact = true,
+                                    onClick = { hostAction = "cancel" }
                                 )
                             }
-                            if (mayCheckIn) MButton("Saha check-in kodu", onCheckIn, isPrimary = false, icon = Icons.Rounded.QrCode)
-                            BackendEventEditing(event)
-                            MButton(
-                                text = "Maçı iptal et",
-                                onClick = { hostAction = "cancel" },
-                                isPrimary = false,
-                                isDestructive = true,
-                                icon = Icons.Rounded.Cancel
-                            )
                         }
                     }
                 }
-            }
-
-            // Kaptan / Organizatör Bilgilendirme Rozeti
-            if (isHost) {
+            } else if (isHost) {
                 item {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = Color(0xFFFFF7ED),
-                        border = BorderStroke(1.dp, MColors.Brand.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, MColors.Brand.copy(alpha = 0.35f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text("👑", fontSize = 20.sp)
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("👑", fontSize = 18.sp)
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Bu İlanın Kaptanısın",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    color = MColors.Brand
-                                )
-                                Text(
-                                    text = "Başvuruları inceleyebilir, onaylayıp reddedebilir veya mesaj atabilirsin.",
-                                    fontSize = 11.sp,
-                                    color = MColors.Ink600
-                                )
+                                Text("Bu İlanın Kaptanısın", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MColors.Brand)
+                                Text("Başvuruları inceleyebilir, onaylayıp reddedebilir veya mesaj atabilirsin.", fontSize = 11.sp, color = MColors.Ink600)
                             }
                         }
                     }

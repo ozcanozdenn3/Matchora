@@ -3,7 +3,9 @@ package com.matchora.app.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.animateContentSize
 import androidx.compose.runtime.getValue
 import androidx.compose.animation.fadeIn
@@ -16,6 +18,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,9 +30,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -51,9 +57,9 @@ import com.matchora.app.ui.theme.MGradients
 @Composable
 fun MCard(
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = 22.dp,
-    elevation: Dp = 6.dp,
-    borderColor: Color = Color(0xFFE4E9F2),
+    cornerRadius: Dp = 18.dp,
+    elevation: Dp = 2.dp,
+    borderColor: Color = Color(0xFFE2E8F0),
     backgroundColor: Color = Color.White,
     borderWidth: Dp = 1.dp,
     onClick: (() -> Unit)? = null,
@@ -66,8 +72,8 @@ fun MCard(
         .shadow(
             elevation = elevation,
             shape = shape,
-            ambientColor = Color(0x280B1220),
-            spotColor = Color(0x380B1220)
+            ambientColor = Color(0x140B1220),
+            spotColor = Color(0x1E0B1220)
         )
         .clip(shape)
         .background(backgroundColor)
@@ -246,8 +252,8 @@ fun MModuleCard(
 fun MSubCard(
     modifier: Modifier = Modifier,
     backgroundColor: Color = Color.White,
-    borderColor: Color = Color(0xFFE4E9F2),
-    cornerRadius: Dp = 15.dp,
+    borderColor: Color = Color(0xFFE2E8F0),
+    cornerRadius: Dp = 14.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -256,10 +262,10 @@ fun MSubCard(
         .fillMaxWidth()
         .padding(vertical = 2.dp)
         .shadow(
-            elevation = 6.dp,
+            elevation = 1.dp,
             shape = shape,
-            ambientColor = Color(0x280B1220),
-            spotColor = Color(0x380B1220)
+            ambientColor = Color(0x100B1220),
+            spotColor = Color(0x140B1220)
         )
         .clip(shape)
         .background(backgroundColor)
@@ -436,19 +442,22 @@ fun MChip(
     modifier: Modifier = Modifier,
     emoji: String? = null
 ) {
-    val chipColor by animateColorAsState(if (selected) MColors.BrandTint else Color(0xFFF8FAFC), label = "filter_color")
+    val chipColor by animateColorAsState(
+        targetValue = if (selected) MColors.Ink900 else Color(0xFFF8FAFC),
+        label = "filter_color"
+    )
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(11.dp),
         color = chipColor,
         border = BorderStroke(
-            width = if (selected) 1.5.dp else 1.dp,
-            color = if (selected) MColors.Brand else Color(0xFFE2E8F0)
+            width = 1.dp,
+            color = if (selected) MColors.Ink900 else Color(0xFFE2E8F0)
         ),
-        shadowElevation = if (selected) 2.dp else 0.dp,
+        shadowElevation = if (selected) 1.dp else 0.dp,
         modifier = modifier.clickable(onClick = onClick)
     ) {
         Row(
-            modifier = Modifier.heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.heightIn(min = 36.dp).padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (emoji != null) {
@@ -457,9 +466,9 @@ fun MChip(
             }
             Text(
                 text = text,
-                style = MaterialTheme.typography.labelMedium,
+                fontSize = 12.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-                color = if (selected) MColors.BrandDeep else MColors.Ink700,
+                color = if (selected) Color.White else MColors.Ink700,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -479,7 +488,7 @@ fun MButton(
     isPrimary: Boolean = true,
     isDestructive: Boolean = false,
     enabled: Boolean = true,
-    height: Dp = 50.dp
+    height: Dp = 46.dp
 ) {
     val interaction = remember { MutableInteractionSource() }
     val bg = when {
@@ -501,18 +510,18 @@ fun MButton(
             .heightIn(min = height)
             .shadow(
                 elevation = if (isPrimary && enabled) 2.dp else 0.dp,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 ambientColor = if (isPrimary) MColors.Brand.copy(alpha = 0.25f) else Color.Transparent,
                 spotColor = if (isPrimary) MColors.Brand.copy(alpha = 0.35f) else Color.Transparent
             )
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(Brush.linearGradient(listOf(if (isPrimary && enabled && !isDestructive) Color(0xFFD84D19) else bg, bg)))
-            .border(1.dp, borderCol, RoundedCornerShape(16.dp))
+            .border(1.dp, borderCol, RoundedCornerShape(14.dp))
             .clickable(interactionSource = interaction, indication = ripple(), enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
@@ -521,7 +530,7 @@ fun MButton(
                     imageVector = icon,
                     contentDescription = null,
                     tint = contentColor,
-                    modifier = Modifier.size(19.dp)
+                    modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
             }
@@ -605,48 +614,160 @@ fun MTopBar(
                     }
                 }
 
-                // Sağ Taraf: Giriş Yapıldıysa Token Pill; Misafir ise Dengeli & Sade Giriş Butonu
+                // Sağ Taraf: Giriş Yapıldıysa Premium Token Kapsülü; Misafir ise Eşleşen Giriş Kapsülü
                 if (isLoggedIn) {
                     Surface(
                         onClick = onOpenWallet,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         color = MColors.Ink900,
-                        shadowElevation = 2.dp
+                        shadowElevation = 2.dp,
+                        border = BorderStroke(1.dp, Color(0xFFFFB68F).copy(alpha = 0.42f))
                     ) {
                         Row(
-                            Modifier.height(36.dp).padding(horizontal = 11.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            modifier = Modifier
+                                .background(Brush.linearGradient(listOf(Color(0xFF1F2D42), MColors.Ink900)))
+                                .height(38.dp)
+                                .padding(start = 7.dp, end = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(Icons.Rounded.Toll, null, tint = Color(0xFFFFB68F), modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(5.dp))
-                            Text("$tokenBalance", style = MaterialTheme.typography.titleSmall, color = Color.White)
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .background(Color(0xFFFFB68F).copy(alpha = 0.16f), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color(0xFFFFB68F).copy(alpha = 0.35f), RoundedCornerShape(8.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Toll,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFFC599),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                            Row(
+                                verticalAlignment = Alignment.Bottom,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Text(
+                                    text = "$tokenBalance",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                                Text(
+                                    text = "TKN",
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.4.sp,
+                                    color = Color(0xFFFFB68F),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(bottom = 1.dp)
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .background(Color(0xFF283A54), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Add,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFFC599),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
                         }
                     }
                 } else {
                     Surface(
                         onClick = onOpenAuth,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         color = MColors.Ink900,
-                        shadowElevation = 2.dp
+                        shadowElevation = 2.dp,
+                        border = BorderStroke(1.dp, Color(0xFFFFB68F).copy(alpha = 0.35f))
                     ) {
                         Row(
-                            Modifier.height(36.dp).padding(horizontal = 11.dp),
+                            modifier = Modifier
+                                .background(Brush.linearGradient(listOf(Color(0xFF1F2D42), MColors.Ink900)))
+                                .height(38.dp)
+                                .padding(horizontal = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(Icons.Rounded.PersonOutline, contentDescription = null, tint = Color(0xFFFFB68F), modifier = Modifier.size(16.dp))
-                            Text("Giriş", style = MaterialTheme.typography.titleSmall, fontSize = 12.5.sp, color = Color.White)
+                            Icon(Icons.Rounded.PersonOutline, contentDescription = null, tint = Color(0xFFFFC599), modifier = Modifier.size(16.dp))
+                            Text("Giriş", style = MaterialTheme.typography.titleSmall, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
                 }
 
-                IconButton(onClick = onOpenMenu, modifier = Modifier.size(40.dp)) {
-                    Icon(
-                        imageVector = Icons.Rounded.GridView,
-                        contentDescription = "Menü",
-                        tint = if (isMenuActive) MColors.BrandDeep else MColors.Ink700,
-                        modifier = Modifier.size(22.dp)
-                    )
+                val menuInteraction = remember { MutableInteractionSource() }
+                val isMenuPressed by menuInteraction.collectIsPressedAsState()
+                val menuHighlighted = isMenuActive || isMenuPressed
+                val menuTint by animateColorAsState(
+                    targetValue = if (menuHighlighted) MColors.Brand else MColors.Ink700,
+                    animationSpec = tween(180),
+                    label = "menuIconTint"
+                )
+                val menuScale by animateFloatAsState(
+                    targetValue = if (menuHighlighted) 1.12f else 1f,
+                    animationSpec = spring(dampingRatio = 0.65f, stiffness = 520f),
+                    label = "menuIconScale"
+                )
+                val menuIndicatorWidth by animateDpAsState(
+                    targetValue = if (menuHighlighted) 12.dp else 0.dp,
+                    animationSpec = tween(180),
+                    label = "menuIndicatorWidth"
+                )
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .pressMotion(menuInteraction)
+                        .clip(CircleShape)
+                        .clickable(
+                            interactionSource = menuInteraction,
+                            indication = null,
+                            onClick = onOpenMenu
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.GridView,
+                            contentDescription = "Menü",
+                            tint = menuTint,
+                            modifier = Modifier
+                                .size(22.dp)
+                                .graphicsLayer {
+                                    scaleX = menuScale
+                                    scaleY = menuScale
+                                    alpha = 0.99f
+                                }
+                                .drawWithCache {
+                                    onDrawWithContent {
+                                        drawContent()
+                                        if (menuHighlighted) {
+                                            drawRect(MGradients.Brand, blendMode = BlendMode.SrcAtop)
+                                        }
+                                    }
+                                }
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Box(
+                            modifier = Modifier
+                                .width(menuIndicatorWidth)
+                                .height(2.5.dp)
+                                .clip(CircleShape)
+                                .background(MGradients.Brand)
+                        )
+                    }
                 }
                 IconButton(onClick = onOpenNotifications, modifier = Modifier.size(40.dp)) {
                     BadgedBox(badge = { if (unreadNotifications > 0) Badge(containerColor = MColors.BrandDeep) }) {

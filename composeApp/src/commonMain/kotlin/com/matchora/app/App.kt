@@ -17,8 +17,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -1014,7 +1017,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     isGpsActive = isGpsLocationActive,
                     tokenBalance = tokenBalance,
                     unreadNotifications = if (isLoggedIn) unreadNotificationsCount else 0,
-                    isMenuActive = currentTab in setOf(2, 3),
+                    isMenuActive = currentTab in setOf(2, 3) || showMenuSheet,
                     isLoggedIn = isLoggedIn,
                     onOpenAuth = { showAuthSheet = true },
                     onOpenWallet = { requireAccount { showWalletSheet = true  }},
@@ -2271,14 +2274,16 @@ private fun FloatingPlayButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val interaction = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
+            .pressMotion(interaction)
             .size(72.dp)
             .shadow(4.dp, CircleShape)
             .clip(CircleShape)
             .background(MGradients.Brand)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interaction,
                 indication = null,
                 onClick = onClick
             ),
@@ -2314,24 +2319,35 @@ private fun DockNavItem(
     badgeCount: Int = 0,
     onClick: () -> Unit
 ) {
-    val activeColor = MColors.BrandDeep
+    val activeColor = MColors.Brand
     val inactiveColor = MColors.Ink400
+    val interaction = remember { MutableInteractionSource() }
 
     val animatedTint by animateColorAsState(
         targetValue = if (isSelected) activeColor else inactiveColor,
-        animationSpec = tween(160),
+        animationSpec = tween(180),
         label = "navTint"
+    )
+    val iconScale by animateFloatAsState(
+        targetValue = if (isSelected) 1.12f else 1f,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = 520f),
+        label = "navIconScale"
+    )
+    val indicatorWidth by animateDpAsState(
+        targetValue = if (isSelected) 14.dp else 0.dp,
+        animationSpec = tween(180),
+        label = "navIndicatorWidth"
     )
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (isSelected) MColors.BrandTint else Color.Transparent, RoundedCornerShape(12.dp))
+            .pressMotion(interaction)
             .semantics { selected = isSelected }
             .clickable(
                 role = Role.Tab,
                 onClick = onClick,
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interaction,
                 indication = null
             )
             .heightIn(min = 54.dp)
@@ -2361,7 +2377,21 @@ private fun DockNavItem(
                 imageVector = icon,
                 contentDescription = label,
                 tint = animatedTint,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier
+                    .size(22.dp)
+                    .graphicsLayer {
+                        scaleX = iconScale
+                        scaleY = iconScale
+                        alpha = 0.99f
+                    }
+                    .drawWithCache {
+                        onDrawWithContent {
+                            drawContent()
+                            if (isSelected) {
+                                drawRect(MGradients.Brand, blendMode = BlendMode.SrcAtop)
+                            }
+                        }
+                    }
             )
         }
         Text(
@@ -2374,6 +2404,14 @@ private fun DockNavItem(
             maxLines = 1,
             softWrap = false,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(2.dp))
+        Box(
+            modifier = Modifier
+                .width(indicatorWidth)
+                .height(2.5.dp)
+                .clip(CircleShape)
+                .background(MGradients.Brand)
         )
     }
 }

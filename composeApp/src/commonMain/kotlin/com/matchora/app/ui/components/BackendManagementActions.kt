@@ -9,7 +9,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.matchora.app.data.*
 import com.matchora.app.state.*
 import com.matchora.app.ui.theme.MColors
@@ -240,15 +243,23 @@ fun BackendCommunityActions(community: CommunityInfo) {
     if (archiveCommunity) AlertDialog(onDismissRequest = { archiveCommunity = false }, title = { Text("Topluluk kapatılsın mı?") }, text = { Text("Üyelikler ve başvurular kapanacak. Gelecekteki özel maçlar iptal edilip taahhütler iade edilir. Devam eden özel maç varsa önce sonuçlandırmalısın.") },
         confirmButton = { TextButton(onClick = { command("community.archive", apiPayload("communityId" to community.id)); archiveCommunity = false }) { Text("Topluluğu kapat", color = MColors.Rose) } },
         dismissButton = { TextButton(onClick = { archiveCommunity = false }) { Text("Vazgeç") } })
-    if (owned) FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        MPillActionButton("Düzenle", { edit = true }, icon = Icons.Rounded.Edit, tone = MPillTone.NEUTRAL, compact = true)
-        MPillActionButton("Üyeler", { remove = true }, icon = Icons.Rounded.Groups, tone = MPillTone.NEUTRAL, compact = true)
-        MPillActionButton("Yöneticiliği devret", { transfer = true }, icon = Icons.Rounded.SwapHoriz, tone = MPillTone.NEUTRAL, compact = true)
-        MPillActionButton("Sporcu davet et", { invite = true }, icon = Icons.Rounded.PersonAdd, tone = MPillTone.NEUTRAL, compact = true)
-        MPillActionButton("Topluluğu kapat", { archiveCommunity = true }, icon = Icons.Rounded.DeleteOutline, tone = MPillTone.DANGER, compact = true)
+    if (owned) MSubCard(backgroundColor = Color.White, borderColor = Color(0xFFE2E8F0)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Rounded.ManageAccounts, null, Modifier.size(16.dp), tint = MColors.BrandDeep)
+                Text("Yönetim ve Moderasyon", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
+            }
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MPillActionButton("Düzenle", { edit = true }, icon = Icons.Rounded.Edit, tone = MPillTone.NEUTRAL, compact = true)
+                MPillActionButton("Üyeler", { remove = true }, icon = Icons.Rounded.Groups, tone = MPillTone.NEUTRAL, compact = true)
+                MPillActionButton("Yöneticiliği devret", { transfer = true }, icon = Icons.Rounded.SwapHoriz, tone = MPillTone.NEUTRAL, compact = true)
+                MPillActionButton("Sporcu davet et", { invite = true }, icon = Icons.Rounded.PersonAdd, tone = MPillTone.NEUTRAL, compact = true)
+                MPillActionButton("Topluluğu kapat", { archiveCommunity = true }, icon = Icons.Rounded.DeleteOutline, tone = MPillTone.DANGER, compact = true)
+            }
+        }
     }
     if (edit) {
         val original = remember { snapshot?.a("communities")?.firstOrNull { it.s("id") == community.id } }
