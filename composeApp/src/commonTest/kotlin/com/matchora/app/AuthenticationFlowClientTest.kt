@@ -9,13 +9,33 @@ class AuthenticationFlowClientTest {
     private class Storage : SessionPersistence { var value: String? = null; override fun read() = value; override fun write(value: String?) { this.value = value } }
     private fun response(status: Int = 200, value: JsonObject) = ApiHttpResponse(status, value.toString().encodeToByteArray())
     private val session = apiPayload("userId" to "user", "accessToken" to "matchora-session", "refreshToken" to "refresh")
-    @Test fun androidNeverOffersAppleAndBothPlatformsOfferEmail() {
-        assertEquals(listOf("google", "email"), supportedSignInProviders("android"))
-        assertEquals(listOf("apple", "google", "email"), supportedSignInProviders("ios"))
+    @Test fun androidNeverOffersAppleAndBothPlatformsOfferPhone() {
+        assertEquals(listOf("google", "phone"), supportedSignInProviders("android"))
+        assertEquals(listOf("apple", "google", "phone"), supportedSignInProviders("ios"))
     }
     @Test fun emailInputIsNormalizedAndPhoneOrControlCharactersCannotStartEmailLogin() {
         assertEquals("person@example.com", normalizedAuthEmail(" Person@Example.COM "))
         for (value in listOf("5321234567", "person@", "person\u0000@example.com", "person @example.com")) assertNull(normalizedAuthEmail(value))
+    }
+    @Test fun countryPhonePickerNormalizesLocalAndInternationalNumbersWithoutManualCountryCode() {
+        val turkey = defaultPhoneCountry
+        assertEquals("+905350705672", normalizePhoneWithCountry(turkey, "5350705672"))
+        assertEquals("+905350705672", normalizePhoneWithCountry(turkey, "0535 070 56 72"))
+        assertNull(normalizePhoneWithCountry(turkey, "535070567"))
+
+        val germany = phoneCountryCodes.first { it.iso == "DE" }
+        assertEquals("+491512345678", normalizePhoneWithCountry(germany, "1512345678"))
+        assertEquals("+491512345678", normalizePhoneWithCountry(germany, "0151 234 5678"))
+
+        val uk = phoneCountryCodes.first { it.iso == "GB" }
+        assertEquals("+447911123456", normalizePhoneWithCountry(uk, "07911123456"))
+
+        val (extractedCountry, extractedLocal) = extractCountryAndLocalInput(turkey, "+49 1512345678")
+        assertEquals("DE", extractedCountry.iso)
+        assertEquals("1512345678", extractedLocal)
+
+        val localized = formatFirebasePhoneAuthError("SMS unable to be sent until this region enabled by the app developer.")
+        assertTrue(localized.contains("SMS region policy"))
     }
     @Test fun emailCodeIsVerifiedBeforeAnySessionOrPassportIsAccepted() = runBlocking {
         val storage = Storage(); val requests = mutableListOf<ApiHttpRequest>()

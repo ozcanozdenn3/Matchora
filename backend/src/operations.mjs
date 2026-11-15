@@ -5,10 +5,23 @@ import { ensure, keys, text, integer, choice, json } from './errors.mjs';
 import { row, audit, notify, adminRequired } from './model.mjs';
 import { publicPlayer, dateLabel } from './queries.mjs';
 import { SPORTS } from './sports.mjs';
+import { canonicalTurkishCity } from './turkish-locale.mjs';
 
 const encode=JSON.stringify;
 export function assertVenueOpen(venue){ensure(!json(venue.payload).archived,409,'VENUE_ARCHIVED','Bu tesis kapatıldı; yeni işlem yapılamaz.');}
 export function venueAddress(value){const address=text(value??'','Açık tesis adresi',0,300);ensure(!address||address.length>=10,400,'INVALID_INPUT','Açık tesis adresi en az 10 karakter olmalı.');return address;}
+export async function venuePhotoUploadIds(ctx,value,existing=[]){
+  const list=value==null?existing:value;
+  ensure(Array.isArray(list)&&list.length<=4&&list.every(uploadId=>typeof uploadId==='string'&&/^[a-fA-F0-9-]{36}$/.test(uploadId)),400,'INVALID_INPUT','Tesis fotoğrafları en fazla 4 adet olmalı.');
+  const unique=[...new Set(list.map(uploadId=>uploadId.toLowerCase()))];
+  ensure(unique.length===list.length,400,'INVALID_INPUT','Aynı tesis fotoğrafı birden fazla eklenemez.');
+  const preserved=new Set((existing??[]).map(uploadId=>uploadId.toLowerCase()));
+  for(const uploadId of unique){
+    const upload=await row(ctx,'uploads','id',uploadId);
+    ensure(upload.status==='ready'&&(upload.owner_id===ctx.actor.id||preserved.has(uploadId)),403,'FORBIDDEN','Tesis fotoğrafı kullanılamıyor.');
+  }
+  return unique;
+}
 function expectedVersion(data,value){ensure(integer(value,'Sürüm',1)===(data.version??1),409,'VERSION_CONFLICT','Kayıt değişti. Yenile ve tekrar dene.');}
 async function ownedVenue(ctx,venueId){
   const venue=await row(ctx,'venues','id',venueId);
@@ -69,15 +82,17 @@ export async function venueReviews(ctx,venueId,filters={}) {
 
 export const operationHandlers = {
   'venue.update':async(ctx,p)=>{
-    keys(p,['venueId','expectedVersion','name','city','area','address','sports','amenities','courts','cancellationHours','approximateLocation','phone','description']);
+    keys(p,['venueId','expectedVersion','name','city','area','address','sports','amenities','courts','cancellationHours','approximateLocation','phone','description','photoUploadIds']);
     const venue=await ownedVenue(ctx,p.venueId),data=json(venue.payload);assertVenueOpen(venue);expectedVersion(data,p.expectedVersion);
     ensure(Array.isArray(p.sports)&&p.sports.length>0&&p.sports.length<=20&&new Set(p.sports).size===p.sports.length);
     const amenities=p.amenities??data.amenities??[];ensure(Array.isArray(amenities)&&amenities.length<=30);
-    const next={...data,name:text(p.name,'Tesis adı',3,100),city:text(p.city,'İl',2,60),area:text(p.area,'Bölge',2,80),address:venueAddress(p.address===undefined?data.address:p.address),
+    const photoUploadIds=await venuePhotoUploadIds(ctx,p.photoUploadIds,data.photoUploadIds??[]);
+    const next={...data,name:text(p.name,'Tesis adı',3,100),city:canonicalTurkishCity(text(p.city,'İl',2,60)),area:text(p.area,'Bölge',2,80),address:venueAddress(p.address===undefined?data.address:p.address),
       sports:p.sports.map(s=>choice(s,SPORTS,'Branş')),amenities:amenities.map(a=>text(a,'Olanak',1,60)),courts:integer(p.courts,'Saha sayısı',1,50),cancellationHours:integer(p.cancellationHours,'İptal süresi',0,168),
       approximateLocation:p.approximateLocation===undefined?data.approximateLocation:coarseMemoryLocation(p.approximateLocation),
       phone:p.phone===undefined?(data.phone??''):text(p.phone,'Telefon',0,40),
       description:p.description===undefined?(data.description??''):text(p.description,'Açıklama',0,1000),
+      photoUploadIds,
       version:(data.version??1)+1};
     const changesLocation=next.city!==data.city||next.area!==data.area||next.address!==(data.address??'')||next.courts!==data.courts||JSON.stringify([...next.sports].sort())!==JSON.stringify([...(data.sports??[])].sort());
     if(changesLocation)ensure(!await ctx.db.get("SELECT b.id FROM bookings b JOIN venue_slots s ON s.id=b.slot_id WHERE s.venue_id=? AND b.status IN ('pending','confirmed') LIMIT 1",[venue.id]),409,'ACTIVE_BOOKING','Aktif rezervasyon varken tesisin konumu, branşı veya saha sayısı değiştirilemez.');
@@ -88,7 +103,7 @@ export const operationHandlers = {
     const bookings=await ctx.db.all("SELECT b.*,s.starts_at,s.ends_at,p.status AS payment_status FROM bookings b JOIN venue_slots s ON s.id=b.slot_id JOIN venue_payments p ON p.booking_id=b.id WHERE s.venue_id=? AND b.status IN ('pending','confirmed')",[venue.id]);
     ensure(!bookings.some(b=>b.payment_status==='paid'),409,'PAID_BOOKING','Ödenmiş aktif rezervasyonları sonuçlandır veya gerçek iadelerini kaydet.');
     ensure(!bookings.some(b=>Number(b.starts_at)<=ctx.now&&Number(b.ends_at)>ctx.now),409,'ACTIVE_BOOKING','Devam eden rezervasyon bitince tesisi kapatabilirsin.');
-    for(const booking of bookings.filter(b=>Number(b.starts_at)>ctx.now)){
+    for(const booking of bookings){
       await ctx.db.run("UPDATE bookings SET status='cancelled' WHERE id=?",[booking.id]);await ctx.db.run("UPDATE venue_payments SET status='cancelled' WHERE booking_id=?",[booking.id]);
       await notify(ctx,booking.user_id,'matches','Tesis rezervasyonu iptal edildi',`${data.name} yeni rezervasyonlara kapatıldı. Tahsilat yapılmamış rezervasyonun sonlandırıldı.`,'RESERVATIONS',booking.id,`venue-archive:${venue.id}:${booking.id}`);
       await audit(ctx,'booking.cancel',booking.id,{reason:'venue.archive',venueId:venue.id});
@@ -167,7 +182,7 @@ export const operationHandlers = {
     await ctx.db.run("UPDATE venue_payments SET status='refunded',provider_ref=? WHERE booking_id=?", [reference, booking.id]);
     await ctx.db.run("UPDATE bookings SET status='cancelled' WHERE id=?", [booking.id]);
     await audit(ctx, 'booking.refund.record', booking.id, { reference, paymentReference: payment.provider_ref ?? null, amountMinor: Number(booking.amount_minor) });
-    await notify(ctx, booking.user_id, 'wallet', 'Tesis iade kaydı oluşturdu', `${json(venue.payload).name} · Referans ${reference}`, 'ACCOUNT', booking.id, `refund:${booking.id}`);
+    await notify(ctx, booking.user_id, 'wallet', 'Tesis iade kaydı oluşturdu', `${json(venue.payload).name} · Referans ${reference}`, 'RESERVATIONS', booking.id, `refund:${booking.id}`);
     return { recorded: true, method: 'offline_refund_record' };
   },
   'admin.operator.assign': async (ctx, p) => {

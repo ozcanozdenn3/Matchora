@@ -233,7 +233,7 @@ test('admin report context covers memories, teams, venues and venue reviews', as
   const reviewId = (await f.cmd(f.host, 'venue.review.save', { bookingId, rating: 4, comment: 'İncelenecek tesis değerlendirmesi.' })).result.id;
 
   const targets = [
-    ['memory', memoryId, f.guest, { title: 'Bildirilen kayıt', description: 'İncelenecek spor anısı', status: 'pending' }],
+    ['memory', memoryId, f.guest, { title: 'Bildirilen kayıt', description: 'İncelenecek spor anısı', status: 'approved' }],
     ['team', teamId, f.guest, { title: 'İncelenecek takım', description: 'Takım açıklaması.', status: '' }],
     ['venue', venueId, f.guest, { title: 'İncelenecek tesis', description: '', status: '' }],
     ['venue_review', reviewId, f.host, { title: 'Bildirilen kayıt', description: 'İncelenecek tesis değerlendirmesi.', status: 'pending' }]

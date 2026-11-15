@@ -725,20 +725,14 @@ fun ExploreMenuSheet(
                             },
                             shape = RoundedCornerShape(18.dp),
                             color = Color.White,
-                            shadowElevation = 6.dp,
+                            shadowElevation = 2.dp,
                             border = BorderStroke(
                                 width = if (isSel) 1.5.dp else 1.dp,
-                                color = if (isSel) MColors.Brand.copy(alpha = 0.45f) else Color(0xFFE4E9F2)
+                                color = if (isSel) MColors.Brand.copy(alpha = 0.55f) else Color(0xFFE2E8F0)
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 2.dp)
-                                .shadow(
-                                    elevation = 8.dp,
-                                    shape = RoundedCornerShape(18.dp),
-                                    ambientColor = Color(0x280B1220),
-                                    spotColor = Color(0x380B1220)
-                                )
                         ) {
                             Column(
                                 modifier = Modifier
@@ -752,18 +746,17 @@ fun ExploreMenuSheet(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Surface(
-                                        shape = RoundedCornerShape(14.dp),
+                                        shape = RoundedCornerShape(13.dp),
                                         color = if (isSel) MColors.BrandTint else Color(0xFFF8FAFC),
-                                        shadowElevation = 3.dp,
                                         border = BorderStroke(1.dp, if (isSel) MColors.Brand.copy(alpha = 0.25f) else Color(0xFFE2E8F0)),
-                                        modifier = Modifier.size(44.dp)
+                                        modifier = Modifier.size(42.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
                                                 imageVector = icon,
                                                 contentDescription = null,
                                                 tint = MColors.BrandDeep,
-                                                modifier = Modifier.size(22.dp)
+                                                modifier = Modifier.size(21.dp)
                                             )
                                         }
                                     }
@@ -775,8 +768,8 @@ fun ExploreMenuSheet(
                                         ) {
                                             Text(
                                                 text = title,
-                                                fontSize = 16.sp,
-                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 15.5.sp,
+                                                fontWeight = FontWeight.Bold,
                                                 color = MColors.Ink900
                                             )
                                             if (isSel) {
@@ -805,16 +798,15 @@ fun ExploreMenuSheet(
                                     Surface(
                                         shape = RoundedCornerShape(10.dp),
                                         color = if (isSel) MColors.BrandTint else Color(0xFFF8FAFC),
-                                        shadowElevation = 2.dp,
                                         border = BorderStroke(1.dp, if (isSel) MColors.Brand.copy(alpha = 0.2f) else Color(0xFFE2E8F0)),
-                                        modifier = Modifier.size(32.dp)
+                                        modifier = Modifier.size(30.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
                                                 imageVector = Icons.Rounded.ChevronRight,
                                                 contentDescription = null,
                                                 tint = if (isSel) MColors.BrandDeep else MColors.Ink500,
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(17.dp)
                                             )
                                         }
                                     }
@@ -824,14 +816,13 @@ fun ExploreMenuSheet(
                                     tags.forEach { tag ->
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
-                                            color = Color.White,
-                                            shadowElevation = 2.dp,
-                                            border = BorderStroke(1.dp, Color(0xFFE4E9F2))
+                                            color = Color(0xFFF8FAFC),
+                                            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
                                         ) {
                                             Text(
                                                 text = tag,
                                                 fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
+                                                fontWeight = FontWeight.SemiBold,
                                                 color = MColors.Ink700,
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                             )

@@ -45,7 +45,7 @@ actual fun openLocationDirections(latitude: Double?, longitude: Double?, query: 
     UIApplication.sharedApplication.openURL(url, emptyMap<Any?, Any>(), null)
     return true
 }
-actual fun openEventCalendar(event: SportEvent): Boolean {
+actual fun openEventCalendar(event: SportEvent, includeInviteLink: Boolean): Boolean {
     val start = event.startsAtEpochMillis ?: return false
     val top = eventPresenter() ?: return false
     val store = EKEventStore()
@@ -54,8 +54,8 @@ actual fun openEventCalendar(event: SportEvent): Boolean {
         location = if (isOnlineMeeting(event)) event.venue else "${event.venue}, ${event.area}, ${event.city}"
         startDate = NSDate.dateWithTimeIntervalSince1970(start / 1000.0)
         endDate = NSDate.dateWithTimeIntervalSince1970(start / 1000.0 + event.durationMin * 60)
-        notes = eventCalendarNotes(event)
-        URL = NSURL.URLWithString("matchora://event/${event.id}")
+        notes = calendarNotesForViewer(event, includeInviteLink)
+        if (includeInviteLink) URL = NSURL.URLWithString("matchora://event/${event.id}")
     }
     val editor = EKEventEditViewController()
     editor.eventStore = store; editor.event = nativeEvent

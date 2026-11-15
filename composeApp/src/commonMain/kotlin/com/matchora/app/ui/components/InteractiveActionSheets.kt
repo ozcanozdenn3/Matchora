@@ -258,8 +258,8 @@ fun PlayerProfileSheet(
     isInvitedToTeam: Boolean = false,
     sport: Sport = Sport.FOOTBALL,
     onDismiss: () -> Unit,
-    onChallenge: () -> Unit,
-    onInviteTeam: () -> Unit,
+    onChallenge: (() -> Unit)? = null,
+    onInviteTeam: (() -> Unit)? = null,
     onDirectMessage: () -> Unit = {}
 ) {
     val isCurrentUser = player.id == DemoData.ME
@@ -274,13 +274,18 @@ fun PlayerProfileSheet(
             detailsBusy = true; detailsError = null; details = null
             try { details = backend.playerDetails(backend.serverUserId(player.id), sport.name) }
             catch (cancel: CancellationException) { throw cancel }
-            catch (error: Exception) { detailsError = error.message ?: "Sporcu ayrıntıları alınamadı." }
+            catch (error: Exception) { detailsError = (error as? BackendFailure)?.message ?: "Sporcu ayrıntıları alınamadı." }
             finally { detailsBusy = false }
         }
     }
+    val serverPlayer = details?.o("player")
+    val selectedSkill = serverPlayer?.a("skills")?.firstOrNull { it.s("sport") == sport.name }
+    val isVerifiedAthlete = if (isPreview) player.verified else ("PHOTO" in serverPlayer?.ss("verifications").orEmpty()) || player.verified
+    val displayArea = if (isPreview) player.area else serverPlayer?.s("area")?.ifBlank { null } ?: player.area
+    val displayMatches = if (isPreview) player.verifiedMatches else serverPlayer?.i("verifiedMatches", player.verifiedMatches) ?: player.verifiedMatches
+    val displayRating = if (isPreview) rating else selectedSkill?.i("rating", rating) ?: rating
     val chemistryScore = if (isPreview) player.chemistry else (details?.get("chemistry") as? JsonPrimitive)?.intOrNull
     val sharedMatches = if (isPreview) player.playedTogether else (details?.get("playedTogether") as? JsonPrimitive)?.intOrNull
-    val selectedSkill = details?.o("player")?.a("skills")?.firstOrNull { it.s("sport") == sport.name }
     val activeRole = if (isPreview) player.position ?: player.level.label else selectedSkill?.s("position")?.ifBlank { null }
         ?: SkillLevel.entries.firstOrNull { it.name == selectedSkill?.s("level") }?.label ?: "Sporcu"
     val reliabilityLabel = if (isPreview) player.reliabilityLabel else details?.o("player")?.takeIf { it.b("reliabilityVisible", false) }?.let { value -> (value["reliability"] as? JsonPrimitive)?.intOrNull?.let { "%$it" } } ?: "—"
@@ -341,14 +346,16 @@ fun PlayerProfileSheet(
                                 Column {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(name, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        if (player.verified) {
+                                        if (isVerifiedAthlete) {
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Icon(Icons.Rounded.Verified, null, tint = MColors.Mint, modifier = Modifier.size(16.dp))
                                         }
                                     }
                                     Spacer(modifier = Modifier.height(2.dp))
+                                    val locationSegment = displayArea.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+                                    val rankSegment = if (rank > 0) " · $rank. sırada" else ""
                                     Text(
-                                        text = "${sport.emoji} ${sport.label} · ${player.area} · $rank. sırada",
+                                        text = "${sport.emoji} ${sport.label}$locationSegment$rankSegment",
                                         fontSize = 12.sp,
                                         color = Color(0xFFD0D9E4),
                                         maxLines = 1,
@@ -373,7 +380,7 @@ fun PlayerProfileSheet(
                                         .padding(horizontal = 10.dp, vertical = 5.dp)
                                 ) {
                                     Text(
-                                        text = "$rating MMR",
+                                        text = "$displayRating MMR",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
                                         color = Color.White
@@ -409,7 +416,7 @@ fun PlayerProfileSheet(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp)
                         ) {
-                            Text("${player.verifiedMatches}", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = MColors.Brand)
+                            Text("$displayMatches", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = MColors.Brand)
                             Spacer(modifier = Modifier.height(2.dp))
                             Text("DOĞR. MAÇ", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.Ink600, maxLines = 1)
                         }
@@ -615,59 +622,72 @@ fun PlayerProfileSheet(
 
             // 6. Aksiyon Butonları
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = {
-                            onDirectMessage()
-                            onDismiss()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth().height(46.dp)
+                if (isCurrentUser) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MColors.SurfaceMuted,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Rounded.ChatBubbleOutline, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Direkt Mesaj Gönder 💬", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(
+                            text = "Kendi sporcu profilin",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MColors.Ink600,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+                        )
                     }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutlinedButton(
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MButton(
+                            text = "Direkt Mesaj Gönder 💬",
                             onClick = {
-                                onChallenge()
+                                onDirectMessage()
                                 onDismiss()
                             },
-                            shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.dp, Color(0x25000000)),
-                            modifier = Modifier.weight(1f).height(44.dp)
-                        ) {
-                            Text("Meydan Oku ⚔️", fontWeight = FontWeight.Bold, color = MColors.Ink900, fontSize = 12.sp)
-                        }
+                            icon = Icons.Rounded.ChatBubbleOutline
+                        )
 
-                        OutlinedButton(
-                            onClick = {
-                                onInviteTeam()
-                                onDismiss()
-                            },
-                            enabled = !isInvitedToTeam && !isCurrentUser,
-                            shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.dp, MColors.Brand),
-                            modifier = Modifier.weight(1f).height(44.dp)
-                        ) {
-                            Text(
-                                when {
-                                    isCurrentUser -> "Kendi profilin"
-                                    isInvitedToTeam -> "Davet gönderildi ✓"
-                                    else -> "Takıma Davet Et 🛡️"
-                                },
-                                fontWeight = FontWeight.Bold,
-                                color = if (isInvitedToTeam) MColors.Mint else MColors.Brand,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                        if (onChallenge != null || onInviteTeam != null) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                if (onChallenge != null) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            onChallenge()
+                                            onDismiss()
+                                        },
+                                        shape = RoundedCornerShape(14.dp),
+                                        border = BorderStroke(1.dp, Color(0x25000000)),
+                                        modifier = Modifier.weight(1f).height(44.dp)
+                                    ) {
+                                        Text("Meydan Oku ⚔️", fontWeight = FontWeight.Bold, color = MColors.Ink900, fontSize = 12.sp)
+                                    }
+                                }
+
+                                if (onInviteTeam != null) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            onInviteTeam()
+                                            onDismiss()
+                                        },
+                                        enabled = !isInvitedToTeam,
+                                        shape = RoundedCornerShape(14.dp),
+                                        border = BorderStroke(1.dp, MColors.Brand),
+                                        modifier = Modifier.weight(1f).height(44.dp)
+                                    ) {
+                                        Text(
+                                            if (isInvitedToTeam) "Davet gönderildi ✓" else "Takıma Davet Et 🛡️",
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isInvitedToTeam) MColors.Mint else MColors.Brand,
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -746,17 +766,14 @@ fun VenueBookingSheet(
             Text("Tesiste ödeme · toplam ₺${slot.priceLabel}. Kişi başı hesap, paylaşım önerisidir; rezervasyon toplam ücret üzerinden yapılır.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
 
             // Onay Butonu
-            Button(
+            MButton(
+                text = "Toplam ₺${slot.priceLabel} · Yerimi ayır",
                 onClick = {
                     onConfirmBooking(splitPlayers, slot.priceTry, selectedMethod)
                     onDismiss()
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth().height(48.dp)
-            ) {
-                Text("Toplam ₺${slot.priceLabel} · Yerimi ayır", color = Color.White, fontWeight = FontWeight.Bold)
-            }
+                icon = Icons.Rounded.EventAvailable
+            )
         }
     }
 }
@@ -784,7 +801,8 @@ fun TournamentDetailSheet(
         tournament.status.contains("son ", ignoreCase = true)
     val canRegister = statusAllowsRegistration && tournament.participants < tournament.capacity
     val canCancelTournament = isOrganizer && tournament.organizerLockTokens > 0 &&
-        !tournament.status.contains("iptal", ignoreCase = true)
+        !tournament.status.contains("iptal", ignoreCase = true) &&
+        !tournament.status.contains("tamamland", ignoreCase = true)
     val statusColor = when {
         tournament.status.contains("iptal", ignoreCase = true) -> MColors.Rose
         statusAllowsRegistration -> MColors.Mint
@@ -986,7 +1004,7 @@ fun TournamentDetailSheet(
                             Text("👑", fontSize = 20.sp)
                             Column {
                                 Text("Turnuva Yönetim Paneli", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF92400E))
-                                Text("Bu turnuvanın organizatörüsün · ${tournament.registrations.size} kayıtlı takım · 25 TKN güvence kilitli.", fontSize = 11.sp, color = Color(0xFFB45309))
+                                Text("Bu turnuvanın organizatörüsün · ${tournament.registrations.size} kayıtlı takım · ${tournament.organizerLockTokens} TKN güvence kilitli.", fontSize = 11.sp, color = Color(0xFFB45309))
                             }
                         }
                     }
@@ -1244,71 +1262,82 @@ fun TournamentDetailSheet(
                 }
             }
 
-            // 5. Kayıt durumu
+            // 5. Kayıt durumu & organizatör kontrolü
             if (tournament.championTeamId != null) item {
                 Text("🏆 Şampiyon: ${tournament.registrations.firstOrNull { it.teamId == tournament.championTeamId }?.name ?: "Turnuva tamamlandı"}", color = MColors.Brand, fontWeight = FontWeight.Bold)
             }
-            item { BackendTournamentActions(tournament) }
+            if (canCancelTournament || (tournament.creatorId == DemoData.ME && tournament.status !in listOf("Tamamlandı", "İptal edildi"))) {
+                item {
+                    MCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Organizatör yönetimi", style = MaterialTheme.typography.titleSmall, color = MColors.Ink900)
+                            BackendTournamentActions(tournament)
+                            if (canCancelTournament) {
+                                MButton(
+                                    text = "Turnuvayı iptal et · ${tournament.organizerLockTokens} TKN iade",
+                                    onClick = { showCancelConfirmation = true },
+                                    isPrimary = false,
+                                    isDestructive = true,
+                                    icon = Icons.Rounded.Cancel,
+                                    height = 44.dp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             item {
-                Button(
+                MButton(
+                    text = when {
+                        tournament.status.contains("iptal", ignoreCase = true) -> "Turnuva iptal edildi"
+                        isRegistered && canRegister -> "Başka takım / kadro kaydet"
+                        isRegistered -> "Kaydın alındı ✓"
+                        tournament.participants >= tournament.capacity -> "Kontenjan doldu"
+                        !statusAllowsRegistration -> "Kayıt süreci kapalı"
+                        else -> "Turnuvaya kaydol 🏆"
+                    },
                     onClick = {
                         onRegisterTeam()
                         onDismiss()
                     },
-                    enabled = canRegister,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MColors.Brand,
-                        disabledContainerColor = MColors.SurfaceMuted
-                    ),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth().height(48.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            when {
-                                tournament.status.contains("iptal", ignoreCase = true) -> "Turnuva iptal edildi"
-                                isRegistered && canRegister -> "Başka takım / kadro kaydet"
-                                isRegistered -> "Kaydın alındı ✓"
-                                tournament.participants >= tournament.capacity -> "Kontenjan doldu"
-                                !statusAllowsRegistration -> "Kayıt süreci kapalı"
-                                else -> "Turnuvaya kaydol 🏆"
-                            },
-                            color = if (canRegister) Color.White else MColors.Ink600,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-            }
-
-            if (canCancelTournament) {
-                item {
-                    OutlinedButton(
-                        onClick = { showCancelConfirmation = true },
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, MColors.Rose.copy(alpha = 0.4f)),
-                        modifier = Modifier.fillMaxWidth().height(44.dp)
-                    ) {
-                        Text("Turnuvayı iptal et · ${tournament.organizerLockTokens} TKN iade", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MColors.Rose)
-                    }
-                }
+                    enabled = canRegister
+                )
             }
 
             if (isRegistered && statusAllowsRegistration) {
                 item {
-                    OutlinedButton(
-                        onClick = { showWithdrawConfirmation = true },
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, MColors.Line),
-                        modifier = Modifier.fillMaxWidth().height(44.dp)
-                    ) {
-                        Text("Kaydı geri çek", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MColors.Ink600)
-                    }
+                    MButton(
+                        text = "Kaydı geri çek",
+                        onClick = {
+                            showWithdrawConfirmation = true
+                        },
+                        isPrimary = false,
+                        isDestructive = true,
+                        height = 44.dp
+                    )
                 }
             }
+        }
+
+        if (showWithdrawConfirmation) {
+            AlertDialog(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                containerColor = androidx.compose.ui.graphics.Color(0xFFFAFBFC),
+                tonalElevation = 0.dp,
+                onDismissRequest = { showWithdrawConfirmation = false },
+                title = { Text("Turnuva kaydı silinsin mi?") },
+                text = { Text("Takımının turnuva kaydı geri çekilecek ve kontenjan diğer takımlara açılacak.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showWithdrawConfirmation = false
+                        onWithdrawRegistration()
+                        onDismiss()
+                    }) { Text("Kaydı Geri Çek", color = MColors.Rose) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showWithdrawConfirmation = false }) { Text("Vazgeç") }
+                }
+            )
         }
 
         if (showCancelConfirmation) {
@@ -1329,28 +1358,6 @@ fun TournamentDetailSheet(
                 },
                 dismissButton = {
                     TextButton(onClick = { showCancelConfirmation = false }) { Text("Vazgeç") }
-                }
-            )
-        }
-
-        if (showWithdrawConfirmation) {
-            AlertDialog(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-        containerColor = androidx.compose.ui.graphics.Color(0xFFFAFBFC),
-        tonalElevation = 0.dp,
-
-                onDismissRequest = { showWithdrawConfirmation = false },
-                title = { Text("Kaydını geri çek?") },
-                text = { Text("Turnuva başvurun iptal edilecek. Kayıtlar açık olduğu sürece yeniden katılabilirsin.") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showWithdrawConfirmation = false
-                        onWithdrawRegistration()
-                        onDismiss()
-                    }) { Text("Kaydı geri çek", color = MColors.Rose) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showWithdrawConfirmation = false }) { Text("Vazgeç") }
                 }
             )
         }

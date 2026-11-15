@@ -72,6 +72,8 @@ fun EventDetailSheet(
 ) {
     var showMatchScoreDetail by remember { mutableStateOf(false) }
     var hostAction by remember { mutableStateOf<String?>(null) }
+    var confirmMemberAction by remember { mutableStateOf<String?>(null) }
+    var directionsError by remember { mutableStateOf(false) }
     var removalTarget by remember { mutableStateOf<Player?>(null) }
     var showRemoved by remember { mutableStateOf(false) }
     var selectedPlayerProfile by remember { mutableStateOf<Player?>(null) }
@@ -106,8 +108,65 @@ fun EventDetailSheet(
         AlertDialog(onDismissRequest = { hostAction = null },
             title = { Text(when (action) { "start" -> "Maç başlatılsın mı?"; "complete" -> "Maç tamamlansın mı?"; else -> "Maç iptal edilsin mi?" }) },
             text = { Text(when (action) { "start" -> "Katılımcı kadrosunu kontrol ederek maçı başlat."; "complete" -> "Tamamladıktan sonra sonucu ve fair play değerlendirmesini bildirebilirsin."; else -> "Karşılaşma iptal edilir ve kendi taahhüt kilidin varsa iade edilir." }) },
-            confirmButton = { TextButton(onClick = { hostAction = null; when (action) { "start" -> onStartEvent(); "complete" -> onCompleteEvent(); else -> onCancelEvent() } }) { Text("Onayla") } },
+            confirmButton = { TextButton(onClick = { hostAction = null; when (action) { "start" -> onStartEvent(); "complete" -> onCompleteEvent(); else -> onCancelEvent() } }) { Text(if (action == "cancel") "Maçı İptal Et" else "Onayla", color = if (action == "cancel") MColors.Rose else MColors.BrandDeep) } },
             dismissButton = { TextButton(onClick = { hostAction = null }) { Text("Vazgeç") } })
+    }
+    confirmMemberAction?.let { action ->
+        AlertDialog(
+            onDismissRequest = { confirmMemberAction = null },
+            title = {
+                Text(
+                    when (action) {
+                        "cancel_request" -> "Başvuru iptal edilsin mi?"
+                        "leave_event" -> "Maç kadrosundan ayrıl?"
+                        else -> "Bekleme listesinden ayrıl?"
+                    }
+                )
+            },
+            text = {
+                Text(
+                    when (action) {
+                        "cancel_request" -> "Katılım başvurun iptal edilir ve kilitli taahhüdün varsa iade edilir."
+                        "leave_event" -> if (!backendMode || (event.startsInMin ?: 0) >= 180) {
+                            "Kadrodan ayrılacaksın ve taahhüdün iade edilecek."
+                        } else {
+                            "Başlangıca 3 saatten az kaldığı için geç iptal sayılır ve taahhüt iade edilmez."
+                        }
+                        else -> "Bekleme sıranı bırakacaksın; yer açılırsa tekrar sıraya girmen gerekir."
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmMemberAction = null
+                        when (action) {
+                            "cancel_request" -> onCancelRequest()
+                            "leave_event" -> onToggleJoin()
+                            else -> onToggleWaitlist()
+                        }
+                    }
+                ) {
+                    Text(
+                        when (action) {
+                            "cancel_request" -> "Başvuruyu İptal Et"
+                            "leave_event" -> "Kadrodan Ayrıl"
+                            else -> "Listeden Ayrıl"
+                        },
+                        color = MColors.Rose
+                    )
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmMemberAction = null }) { Text("Vazgeç") } }
+        )
+    }
+    if (directionsError) {
+        AlertDialog(
+            onDismissRequest = { directionsError = false },
+            title = { Text("Yol tarifi açılamadı") },
+            text = { Text("Harita uygulaması açılamadı. Tesis adresini elle arayabilirsin.") },
+            confirmButton = { TextButton(onClick = { directionsError = false }) { Text("Tamam") } }
+        )
     }
 
     ModalBottomSheet(
@@ -145,11 +204,30 @@ fun EventDetailSheet(
                     MCard(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Organizatör işlemleri", style = MaterialTheme.typography.titleSmall)
-                            if (event.status == EventStatus.IN_PROGRESS || !backendMode || event.startsAtEpochMillis?.let { now < it + event.durationMin * 60000 } == true) MButton(if (event.status == EventStatus.IN_PROGRESS) "Maçı tamamla" else "Maçı başlat", {
-                                hostAction = if (event.status == EventStatus.IN_PROGRESS) "complete" else "start"
-                            }, isPrimary = false)
+                            if (canManageRoster) {
+                                MButton(
+                                    text = "İlan Yönetim Paneli ($pendingRequestsCount Başvuru)",
+                                    onClick = onOpenManageRequests,
+                                    icon = Icons.Rounded.ManageAccounts,
+                                    isPrimary = true
+                                )
+                            }
+                            if (event.status == EventStatus.IN_PROGRESS || !backendMode || event.startsAtEpochMillis?.let { now < it + event.durationMin * 60000 } == true) {
+                                MButton(
+                                    text = if (event.status == EventStatus.IN_PROGRESS) "Maçı tamamla" else "Maçı başlat",
+                                    onClick = { hostAction = if (event.status == EventStatus.IN_PROGRESS) "complete" else "start" },
+                                    isPrimary = false
+                                )
+                            }
                             if (mayCheckIn) MButton("Saha check-in kodu", onCheckIn, isPrimary = false, icon = Icons.Rounded.QrCode)
-                            TextButton(onClick = { hostAction = "cancel" }) { Text("Maçı iptal et", color = MColors.Rose) }
+                            BackendEventEditing(event)
+                            MButton(
+                                text = "Maçı iptal et",
+                                onClick = { hostAction = "cancel" },
+                                isPrimary = false,
+                                isDestructive = true,
+                                icon = Icons.Rounded.Cancel
+                            )
                         }
                     }
                 }
@@ -223,7 +301,7 @@ fun EventDetailSheet(
                             }
                             if (!isOnlineMeeting(event)) {
                                 OutlinedButton(
-                                    onClick = { openEventDirections(event) },
+                                    onClick = { if (!openEventDirections(event)) directionsError = true },
                                     shape = RoundedCornerShape(10.dp),
                                     contentPadding = PaddingValues(horizontal = 9.dp, vertical = 4.dp),
                                     modifier = Modifier.height(32.dp)
@@ -527,7 +605,7 @@ fun EventDetailSheet(
                                     Text("Rol: ${pendingRequest.requestedPosition ?: "Oyuncu"} · ${event.commitmentTokens} TKN kilitte", fontSize = 10.sp, color = MColors.Ink600)
                                 }
                             }
-                            TextButton(onClick = onCancelRequest) {
+                            TextButton(onClick = { confirmMemberAction = "cancel_request" }) {
                                 Text("İptal Et", fontSize = 11.sp, color = MColors.Rose, fontWeight = FontWeight.Bold)
                             }
                         }
@@ -539,13 +617,7 @@ fun EventDetailSheet(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (isHost) {
-                        // KAPTAN GÖRÜNÜMÜ: Yönetim Paneli
-                        if (canManageRoster) MButton(
-                            text = "⚙️ İlan Yönetim Paneli ($pendingRequestsCount Başvuru)",
-                            onClick = onOpenManageRequests,
-                            isPrimary = true
-                        )
-
+                        // KAPTAN GÖRÜNÜMÜ: Sohbet erişimi (diğer kontroller üst panelde)
                         MButton(
                             text = "💬 Etkinlik Sohbetine Git",
                             onClick = onOpenChat,
@@ -567,14 +639,16 @@ fun EventDetailSheet(
                             isPrimary = false
                         )
 
-                        if (canManageRoster && !isCheckedIn) OutlinedButton(
-                            onClick = onToggleJoin,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MColors.Rose)
-                        ) {
-                            Text(if (!backendMode || (event.startsInMin ?: 0) >= 180) "Maç kadrosundan ayrıl · taahhüt iade edilir" else "Maç kadrosundan ayrıl · geç iptal, taahhüt iade edilmez")
-                        }
+                        if (canManageRoster && !isCheckedIn) MButton(
+                            text = if (!backendMode || (event.startsInMin ?: 0) >= 180) {
+                                "Maç kadrosundan ayrıl · taahhüt iade"
+                            } else {
+                                "Maç kadrosundan ayrıl · geç iptal"
+                            },
+                            onClick = { confirmMemberAction = "leave_event" },
+                            isPrimary = false,
+                            isDestructive = true
+                        )
                     } else if (isRemovedByHost) {
                         Text("Organizatör katılımını sonlandırdı. Yeniden katılım için organizatörün izin vermesi gerekiyor.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
                     } else if (!active || !preStart || event.isTeamEvent) {
@@ -591,7 +665,7 @@ fun EventDetailSheet(
                             Text("Bekleme sırasında yer açıldı. Teklif süresi dolmadan yanıtla.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
                             MButton(text = if (event.approvalRequired) "Kadro başvurusu gönder · organizatör onayı gerekir" else "Açılan yeri kabul et (${event.commitmentTokens} TKN kilit)", onClick = onAcceptWaitlistOffer)
                         }
-                        MButton(text = "Bekleme listesinden ayrıl", onClick = onToggleWaitlist, isPrimary = false)
+                        MButton(text = "Bekleme listesinden ayrıl", onClick = { confirmMemberAction = "leave_waitlist" }, isPrimary = false)
                     } else if (event.status == EventStatus.FULL || displayedFreeSpots == 0) {
                         MButton(text = "Bekleme listesine katıl", onClick = onToggleWaitlist, isPrimary = true)
                     } else if (event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING)) {
@@ -648,53 +722,54 @@ fun EventDetailSheet(
                         Text("Bu karşılaşma artık katılım almıyor.", fontSize = 12.sp, color = MColors.Ink500)
                     }
 
-                    // Benzersiz İlan ID Kartı ve Paylaşım
-                    var copiedToast by remember { mutableStateOf(false) }
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFFF8FAFC),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                    // Benzersiz İlan ID Kartı ve Paylaşım (yalnızca ilanı açan kişi görebilir)
+                    if (isHost) {
+                        var copiedToast by remember { mutableStateOf(false) }
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFF8FAFC),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         ) {
-                            Column {
-                                Text("BENZERSİZ İLAN ID", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.Ink400, letterSpacing = 0.5.sp)
-                                Text(eventDisplayId(event.id), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = MColors.BrandDeep)
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-                                FilledTonalButton(
-                                    onClick = {
-                                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(event.id))
-                                        copiedToast = true
-                                    },
-                                    shape = RoundedCornerShape(10.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                                ) {
-                                    Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(13.dp))
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(if (copiedToast) "Kopyalandı" else "Kopyala", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("BENZERSİZ İLAN ID", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.Ink400, letterSpacing = 0.5.sp)
+                                    Text(eventDisplayId(event.id), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = MColors.BrandDeep)
                                 }
-                                Button(
-                                    onClick = onShare,
-                                    colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
-                                    shape = RoundedCornerShape(10.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                                ) {
-                                    Icon(Icons.Rounded.Share, null, modifier = Modifier.size(13.dp))
-                                    Spacer(Modifier.width(4.dp))
-                                    Text("Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                                    FilledTonalButton(
+                                        onClick = {
+                                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(event.id))
+                                            copiedToast = true
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(13.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(if (copiedToast) "Kopyalandı" else "Kopyala", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Button(
+                                        onClick = onShare,
+                                        colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.Share, null, modifier = Modifier.size(13.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(if (backendMode) "Paylaş" else "Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
                     }
 
-                    EventDeviceActions(event)
-                    BackendEventEditing(event)
+                    EventDeviceActions(event, showDirections = false)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End
@@ -719,15 +794,19 @@ fun EventDetailSheet(
             isInvitedToTeam = false,
             sport = event.sport,
             onDismiss = { selectedPlayerProfile = null },
-            onChallenge = {
-                val target = player
-                selectedPlayerProfile = null
-                onChallengePlayer?.invoke(target)
+            onChallenge = onChallengePlayer?.let { cb ->
+                {
+                    val target = player
+                    selectedPlayerProfile = null
+                    cb(target)
+                }
             },
-            onInviteTeam = {
-                val target = player
-                selectedPlayerProfile = null
-                onInvitePlayerToTeam?.invoke(target)
+            onInviteTeam = onInvitePlayerToTeam?.let { cb ->
+                {
+                    val target = player
+                    selectedPlayerProfile = null
+                    cb(target)
+                }
             },
             onDirectMessage = { selectedPlayerProfile = null; onDirectMessagePlayer(player) }
         )

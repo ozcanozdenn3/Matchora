@@ -28,7 +28,7 @@ actual suspend fun executeApiRequest(request: ApiHttpRequest): ApiHttpResponse =
     val connection = URL(request.url).openConnection() as HttpURLConnection
     try {
         connection.requestMethod = request.method
-        connection.connectTimeout = 10000; connection.readTimeout = 15000; connection.instanceFollowRedirects = false
+        connection.connectTimeout = 15000; connection.readTimeout = 35000; connection.instanceFollowRedirects = false
         request.headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
         request.body?.let { bytes -> connection.doOutput = true; connection.setFixedLengthStreamingMode(bytes.size); connection.outputStream.use { it.write(bytes) } }
         val status = connection.responseCode

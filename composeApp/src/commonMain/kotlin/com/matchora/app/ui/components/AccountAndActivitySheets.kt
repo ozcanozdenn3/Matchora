@@ -52,6 +52,7 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
     var message by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Teknik sorun") }
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmLogout by remember { mutableStateOf(false) }
     var deletionRequested by remember { mutableStateOf(false) }
     val repository = LocalBackendRepository.current
     val snapshot by (repository?.snapshots ?: kotlinx.coroutines.flow.MutableStateFlow<kotlinx.serialization.json.JsonObject?>(null)).collectAsState()
@@ -104,9 +105,9 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
                 PreferenceRow("Kampanyalar", "İsteğe bağlı duyuru ve teklifler", notifications.marketing) { onNotifications(notifications.copy(marketing = it)) }
             }
             2 -> {
-                MFloatingDropdownBox("Konu", category, listOf("Teknik sorun", "Hesap", "Ödeme", "Maç ve güvenlik"), { it }, { category = it })
-                OutlinedTextField(subject, { subject = it.take(100) }, label = { Text("Başlık") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(14.dp))
-                OutlinedTextField(message, { message = it.take(1000) }, label = { Text("Nasıl yardımcı olalım?") }, modifier = Modifier.fillMaxWidth(), minLines = 3, shape = RoundedCornerShape(14.dp))
+                MFloatingDropdownBox("Konu", category, listOf("Teknik sorun", "Hesap", "Ödeme", "Maç ve güvenlik"), { it }, { category = it }, icon = Icons.Rounded.SupportAgent)
+                MFloatingInputBox("Başlık", subject, { subject = it.take(100) }, placeholder = "Kısaca konuyu belirt", icon = Icons.Rounded.Title)
+                MFloatingInputBox("Nasıl yardımcı olalım?", message, { message = it.take(1000) }, placeholder = "Yaşadığın durumu veya talebini detaylıca yaz...", icon = Icons.Rounded.EditNote, singleLine = false, minLines = 3, maxLines = 5)
                 MButton("Destek talebini kaydet", { onSupport(subject.trim(), message.trim(), category); subject = ""; message = "" }, enabled = subject.trim().length >= 3 && message.trim().length >= 10)
                 SettingsGroup("Taleplerin") {
                     if (supportRequests.isEmpty() && reports.isEmpty()) Text("Henüz bir talep yok.", color = MColors.Ink500)
@@ -129,29 +130,71 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
             AppLinkButton(AppLink.DELETION)
             AppLinkButton(AppLink.SUPPORT)
         }
-        if (snapshot?.s("role") == "admin") TextButton(onClick = { showModeration = true }) { Text("Operasyon merkezi") }
-        if (snapshot?.s("role") in listOf("admin", "venue_owner")) TextButton(onClick = { showVenueOperator = true }) { Text("Tesis yönetimi") }
-        OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) { Text("Oturumu kapat") }
+        if (snapshot?.s("role") == "admin") {
+            MPremiumMenuRow(
+                text = "Operasyon merkezi",
+                subtitle = "Tesis başvuruları, destek ve moderasyon kayıtları",
+                icon = Icons.Rounded.AdminPanelSettings,
+                onClick = { showModeration = true }
+            )
+        }
+        if (snapshot?.s("role") in listOf("admin", "venue_owner")) {
+            MPremiumMenuRow(
+                text = "Tesis yönetimi",
+                subtitle = "Saha saatleri, rezervasyonlar ve tesis bilgileri",
+                icon = Icons.Rounded.Stadium,
+                onClick = { showVenueOperator = true }
+            )
+        }
+        OutlinedButton(onClick = { confirmLogout = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Oturumu kapat", color = MColors.Rose, fontWeight = FontWeight.Bold) }
         if (repository?.enabled == true) {
-            TextButton(onClick = { deletionScope.launch {
-                exporting = true
-                try { shareAccountExport(repository.exportAccount().toString()) }
-                catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-                catch (error: Exception) { deletionError = error.message }
-                finally { exporting = false }
-            } }, enabled = !exporting) { Text(if (exporting) "Verilerin hazırlanıyor…" else "Verilerimi dışa aktar") }
-            TextButton(onClick = { deletionScope.launch {
-                runCatching { repository.activeSessions().a("items") }.onSuccess { sessions = it }.onFailure { deletionError = it.message }
-            } }) { Text("Açık oturumlarımı yönet") }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MPillActionButton(
+                    text = if (exporting) "Hazırlanıyor…" else "Verilerimi dışa aktar",
+                    icon = Icons.Rounded.Download,
+                    tone = MPillTone.NEUTRAL,
+                    compact = true,
+                    enabled = !exporting,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        deletionScope.launch {
+                            exporting = true
+                            try { shareAccountExport(repository.exportAccount().toString()) }
+                            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                            catch (error: Exception) { deletionError = (error as? BackendFailure)?.message ?: "Verilerin dışa aktarılamadı." }
+                            finally { exporting = false }
+                        }
+                    }
+                )
+                MPillActionButton(
+                    text = "Açık oturumlarım",
+                    icon = Icons.Rounded.Devices,
+                    tone = MPillTone.NEUTRAL,
+                    compact = true,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        deletionScope.launch {
+                            runCatching { repository.activeSessions().a("items") }.onSuccess { sessions = it }.onFailure { deletionError = (it as? BackendFailure)?.message ?: "Oturumlar yüklenemedi." }
+                        }
+                    }
+                )
+            }
         }
         TextButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth(), enabled = if (repository?.enabled == true) !pendingDeletion else !deletionRequested) { Text(if (pendingDeletion || deletionRequested) "Hesap silme talebi kaydedildi" else "Hesabımı silmek istiyorum", color = MColors.Rose) }
         if (pendingDeletion) TextButton(onClick = { deletionScope.launch {
             runCatching { repository?.command("account.delete.cancel", com.matchora.app.data.apiPayload(), repository.requestKey("cancel-deletion")) }
-                .onFailure { deletionError = it.message }
+                .onFailure { deletionError = (it as? BackendFailure)?.message ?: "Silme talebi geri çekilemedi." }
         } }) { Text("Silme talebini geri çek") }
     }
     if (showModeration) ModerationSheet { showModeration = false }
     if (showVenueOperator) VenueOperatorSheet { showVenueOperator = false }
+    if (confirmLogout) AlertDialog(
+        onDismissRequest = { confirmLogout = false },
+        title = { Text("Oturum kapatılsın mı?") },
+        text = { Text("Tekrar giriş yaparak hesabına ve verilerine erişebilirsin.") },
+        confirmButton = { TextButton(onClick = { confirmLogout = false; onLogout() }) { Text("Çıkış Yap", color = MColors.Rose) } },
+        dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("Vazgeç") } }
+    )
     if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false }, title = { Text("Hesap silme talebi") },
         text = { Text(if (repository?.enabled == true) "Hesabın ve kişisel verilerin sunucuda silinmek üzere sıraya alınır. İşlem tamamlanmadan bu ekrandan talebini geri çekebilirsin. Saklanması gereken işlem kayıtları anonim hesap kimliğiyle tutulur." else "Önizlemede yalnızca talep kaydı oluşturulur.") },
         confirmButton = { TextButton(onClick = { onRequestDeletion(); deletionRequested = true; confirmDelete = false }) { Text("Talep oluştur", color = MColors.Rose) } },
@@ -162,8 +205,8 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
             Text(if (session.b("current")) "Bu cihaz" else "Diğer oturum", Modifier.weight(1f))
             if (!session.b("current")) TextButton(onClick = { deletionScope.launch {
                 runCatching { repository?.command("account.session.revoke", apiPayload("sessionId" to session.s("id")), repository.requestKey("revoke")) }
-                    .onSuccess { sessions = items.filter { it.s("id") != session.s("id") } }.onFailure { deletionError = it.message }
-            } }) { Text("Kapat") }
+                    .onSuccess { sessions = items.filter { it.s("id") != session.s("id") } }.onFailure { deletionError = (it as? BackendFailure)?.message ?: "Oturum kapatılamadı." }
+            } }) { Text("Kapat", color = MColors.Rose) }
         } } } }, confirmButton = { TextButton(onClick = { sessions = null }) { Text("Tamam") } }) }
 }
 
@@ -180,7 +223,7 @@ private fun PreferenceRow(title: String, detail: String, checked: Boolean, onCha
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun MyActivitySheet(events: List<SportEvent>, joinedIds: Set<String>, waitlistedIds: Set<String>,
     pendingRequests: List<JoinRequest>, reservations: List<VenuePayment>, onOpenEvent: (SportEvent) -> Unit,
@@ -209,12 +252,19 @@ fun MyActivitySheet(events: List<SportEvent>, joinedIds: Set<String>, waitlisted
                         Text(payment.venue, style = MaterialTheme.typography.titleMedium)
                         Text(payment.description, style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
                         Text("₺${payment.amountLabel} · ${payment.method} · ${payment.status.label}", color = MColors.BrandDeep, style = MaterialTheme.typography.labelMedium)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (payment.bookingStatus == "completed" && payment.status == PaymentStatus.PAID) TextButton(onClick = { review = payment }) { Text("Tesisi değerlendir") }
-                            if (payment.status != PaymentStatus.CANCELLED && payment.bookingStatus != "completed" && onCreateListingForReservation != null) {
-                                TextButton(onClick = { onCreateListingForReservation(payment) }) { Text("Bu saat için maç ilanı aç") }
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (payment.bookingStatus == "completed" && payment.status == PaymentStatus.PAID) {
+                                MPillActionButton("Tesisi değerlendir", icon = Icons.Rounded.StarOutline, tone = MPillTone.NEUTRAL, compact = true, onClick = { review = payment })
                             }
-                            if (payment.status == PaymentStatus.PENDING) TextButton(onClick = { cancel = payment }) { Text("Rezervasyonu iptal et", color = MColors.Rose) }
+                            if (payment.status != PaymentStatus.CANCELLED && payment.status != PaymentStatus.REFUNDED && payment.bookingStatus != "completed" && onCreateListingForReservation != null) {
+                                MPillActionButton("Bu saat için maç ilanı aç", icon = Icons.Rounded.Add, tone = MPillTone.BRAND, compact = true, onClick = { onCreateListingForReservation(payment) })
+                            }
+                            if (payment.status == PaymentStatus.PENDING) {
+                                MPillActionButton("Rezervasyonu iptal et", icon = Icons.Rounded.Close, tone = MPillTone.DANGER, compact = true, onClick = { cancel = payment })
+                            }
                         }
                     }
                 } }
@@ -222,7 +272,7 @@ fun MyActivitySheet(events: List<SportEvent>, joinedIds: Set<String>, waitlisted
         }
     }
     review?.let { VenueReviewEditorSheet(it) { review = null } }
-    cancel?.let { payment -> AlertDialog(onDismissRequest = { cancel = null }, title = { Text("Rezervasyon iptal edilsin mi?") }, text = { Text("${payment.venue} rezervasyonunu iptal edeceksin.") }, confirmButton = { TextButton(onClick = { onCancelReservation(payment); cancel = null }) { Text("İptal et") } }, dismissButton = { TextButton(onClick = { cancel = null }) { Text("Vazgeç") } }) }
+    cancel?.let { payment -> AlertDialog(onDismissRequest = { cancel = null }, title = { Text("Rezervasyon iptal edilsin mi?") }, text = { Text("${payment.venue} rezervasyonunu iptal edeceksin.") }, confirmButton = { TextButton(onClick = { onCancelReservation(payment); cancel = null }) { Text("İptal et", color = MColors.Rose) } }, dismissButton = { TextButton(onClick = { cancel = null }) { Text("Vazgeç") } }) }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -293,23 +343,34 @@ fun ContactVerificationSheet(initialPhone: String, onRecordRequest: (String) -> 
     var busy by remember { mutableStateOf(false) }
     var challengeId by remember { mutableStateOf("") }
     var previewCode by remember { mutableStateOf<String?>(if (backend == null) "2026" else null) }
-    var phone by remember { mutableStateOf(initialPhone.removePrefix("+90")) }
+    val initialSplit = remember(initialPhone) { splitE164Phone(initialPhone) }
+    var selectedCountry by remember(initialPhone) { mutableStateOf(initialSplit.first) }
+    var phone by remember(initialPhone) { mutableStateOf(initialSplit.second) }
     var step by remember { mutableIntStateOf(0) }
     var code by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    val normalizedPhone = normalizePhoneWithCountry(selectedCountry, phone)
     ActivitySheet("İletişim doğrulaması", "Sahada güvenle buluş", onDismiss, Icons.Rounded.PhoneIphone) {
         when (step) {
             0 -> {
                 Text("Cep telefonu numaranı doğrulama akışına ekle. Numaran sporcu kartında herkese açık gösterilmez.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
-                OutlinedTextField(phone, { phone = it.filter(Char::isDigit).take(10) }, prefix = { Text("+90 ") }, label = { Text("Cep telefonu") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(16.dp), colors = premiumTextFieldColors())
+                PhoneNumberFieldWithCountryPicker(
+                    selectedCountry = selectedCountry,
+                    onSelectCountry = { selectedCountry = it; error = null },
+                    localPhone = phone,
+                    onLocalPhoneChange = { phone = it; error = null },
+                    label = "Cep telefonu",
+                    enabled = !busy
+                )
                 MButton("Doğrulama koduna geç", {
+                    val targetPhone = normalizedPhone ?: return@MButton
                     if (backend == null) step = 1 else scope.launch {
                         busy = true
-                        try { val response = backend.startContactOtp(phone); challengeId = response.getValue("challengeId").jsonPrimitive.content; previewCode = response["developmentCode"]?.jsonPrimitive?.contentOrNull; step = 1 }
-                        catch (e: Exception) { error = e.message }
+                        try { val response = backend.startContactOtp(targetPhone); challengeId = response.getValue("challengeId").jsonPrimitive.content; previewCode = response["developmentCode"]?.jsonPrimitive?.contentOrNull; step = 1 }
+                        catch (e: Exception) { error = (e as? BackendFailure)?.message ?: "Doğrulama kodu gönderilemedi." }
                         finally { busy = false }
                     }
-                }, enabled = normalizeTurkishPhone(phone) != null && !busy)
+                }, enabled = normalizedPhone != null && !busy)
                 error?.let { Text(it, color = MColors.Rose) }
             }
             1 -> {
@@ -319,11 +380,11 @@ fun ContactVerificationSheet(initialPhone: String, onRecordRequest: (String) -> 
                 MButton("Doğrulama talebini kaydet", {
                     if (backend == null) {
                         if (code != "2026") error = "Kod eşleşmedi. Tekrar dene."
-                        else { onRecordRequest(normalizeTurkishPhone(phone).orEmpty()); step = 2 }
+                        else { onRecordRequest(normalizedPhone.orEmpty()); step = 2 }
                     } else scope.launch {
                         busy = true
                         try { backend.verifyContactOtp(challengeId, code); step = 2 }
-                        catch (e: Exception) { error = e.message }
+                        catch (e: Exception) { error = (e as? BackendFailure)?.message ?: "Kod doğrulanamadı." }
                         finally { busy = false }
                     }
                 }, enabled = code.length == (if (backend == null) 4 else 6) && !busy)

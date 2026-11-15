@@ -24,14 +24,20 @@ fun VenueChoiceField(label: String, value: String, onChange: (String) -> Unit, p
     val wire = if (backend != null) backend.snapshots.collectAsState().value else null
     val manual = "Başka saha / yer gir" to ""
     val places = if (backend == null) previewOptions.map { it to it } else wire?.a("venues").orEmpty()
-        .filter { city.isBlank() || it.s("city").isBlank() || it.s("city") == city }
+        .filter { city.isBlank() || it.s("city").isBlank() || com.matchora.app.state.matchesTurkishPlace(it.s("city"), city) }
         .map { "${it.s("name")} · ${it.s("area")}" to venueChoiceValue(it.s("name"), it.s("area"), it.s("address")) }.distinct()
     val selected = places.firstOrNull { value == it.second || value == it.first }
         ?: if (backend == null) value to value else manual
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         MFloatingDropdownBox(label, selected, if (backend == null) places else places + manual,
             { it.first }, { onChange(it.second) })
-        if (backend != null && selected == manual) OutlinedTextField(value, { onChange(it.take(160)) }, label = { Text("Saha / buluşma yeri") },
-            singleLine = true, modifier = Modifier.fillMaxWidth(), colors = premiumTextFieldColors())
+        if (backend != null && selected == manual) {
+            MPremiumTextField(
+                value = value,
+                onValueChange = { onChange(it.take(160)) },
+                label = "Saha / buluşma yeri",
+                placeholder = "Saha adı, tesis veya açık konum"
+            )
+        }
     }
 }

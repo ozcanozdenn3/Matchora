@@ -116,20 +116,13 @@ fun ManageTeamRequestsSheet(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.clickable { selectedPlayerProfile = req.player }
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(42.dp)
-                                            .clip(CircleShape)
-                                            .background(req.player.color.copy(alpha = 0.2f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = req.player.name.take(1),
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 16.sp,
-                                            color = req.player.color
-                                        )
-                                    }
+                                    UserAvatar(
+                                        userId = req.player.id,
+                                        name = req.player.name,
+                                        modifier = Modifier.size(42.dp),
+                                        fallbackColor = req.player.color.copy(alpha = 0.2f),
+                                        fallbackTextColor = req.player.color
+                                    )
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -192,48 +185,55 @@ fun ManageTeamRequestsSheet(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             // Aksiyon Butonları
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Button(
-                                    onClick = { onApprove(req) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = MColors.Mint),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(38.dp)
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text("✓ Kadroya Al", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    OutlinedButton(
+                                        onClick = { selectedPlayerProfile = req.player },
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = BorderStroke(1.dp, MColors.Mint),
+                                        modifier = Modifier.weight(1f).height(38.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.VerifiedUser, null, tint = MColors.Mint, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Pasaport", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MColors.Mint, maxLines = 1)
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = { onDirectMessage(req.player) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = BorderStroke(1.dp, MColors.Brand),
+                                        modifier = Modifier.weight(1f).height(38.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.Chat, null, tint = MColors.Brand, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Mesaj", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MColors.Brand, maxLines = 1)
+                                    }
                                 }
 
-                                OutlinedButton(
-                                    onClick = { onReject(req) },
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, Color(0x20000000)),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(38.dp)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text("✕ Reddet", color = MColors.Ink700, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                }
+                                    Button(
+                                        onClick = { onApprove(req) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = MColors.Mint),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.weight(1f).height(40.dp)
+                                    ) {
+                                        Text("✓ Kadroya Al", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                                    }
 
-                                OutlinedButton(
-                                    onClick = { onDirectMessage(req.player) },
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, MColors.Brand),
-                                    modifier = Modifier.height(38.dp)
-                                ) {
-                                    Icon(Icons.Rounded.Chat, contentDescription = "Mesaj", tint = MColors.Brand, modifier = Modifier.size(16.dp))
-                                }
-
-                                OutlinedButton(
-                                    onClick = { selectedPlayerProfile = req.player },
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, MColors.Mint),
-                                    modifier = Modifier.height(38.dp)
-                                ) {
-                                    Text("🪪 Pasaport", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MColors.Mint)
+                                    OutlinedButton(
+                                        onClick = { onReject(req) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = BorderStroke(1.dp, MColors.Rose.copy(alpha = 0.45f)),
+                                        modifier = Modifier.weight(1f).height(40.dp)
+                                    ) {
+                                        Text("✕ Reddet", color = MColors.Rose, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                                    }
                                 }
                             }
                         }
@@ -252,12 +252,8 @@ fun ManageTeamRequestsSheet(
             player = player,
             sport = team.sport,
             onDismiss = { selectedPlayerProfile = null },
-            onChallenge = {
-                selectedPlayerProfile = null
-            },
-            onInviteTeam = {
-                selectedPlayerProfile = null
-            },
+            onChallenge = null,
+            onInviteTeam = null,
             onDirectMessage = {
                 selectedPlayerProfile = null
                 onDirectMessage(player)

@@ -28,6 +28,8 @@ class PassportDraftTest {
         assertNull(normalizeTurkishPhone("1234567890"))
         assertNotNull(draft().copy(email = "a@b").preferencesError())
         assertNotNull(draft().copy(phone = "123").preferencesError())
+        assertNull(draft().copy(phone = "+491512345678").preferencesError())
+        assertEquals("+491512345678", draft().copy(phone = "+491512345678").toProfile().phone)
     }
 
     @Test fun selectedDaysRequireAnOrderedTimeWindow() {

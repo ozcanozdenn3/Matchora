@@ -4,6 +4,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -194,26 +196,19 @@ fun MFloatingInputBox(
     val interactionSource = remember { MutableInteractionSource() }
 
     Surface(
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         color = Color.White,
-        shadowElevation = 6.dp,
+        shadowElevation = if (isFocused) 3.dp else 1.dp,
         border = BorderStroke(
-            width = 1.dp,
+            width = if (isFocused) 1.5.dp else 1.dp,
             color = when {
-                isError -> MColors.Rose.copy(alpha = 0.65f)
-                isFocused -> MColors.Brand.copy(alpha = 0.55f)
-                else -> Color(0xFFE4E9F2)
+                isError -> MColors.Rose.copy(alpha = 0.7f)
+                isFocused -> MColors.Brand
+                else -> Color(0xFFE2E8F0)
             }
         ),
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp)
-            .shadow(
-                elevation = 8.dp,
-                shape = RoundedCornerShape(18.dp),
-                ambientColor = Color(0x2E0B1220),
-                spotColor = Color(0x400B1220)
-            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null
@@ -224,32 +219,24 @@ fun MFloatingInputBox(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.White, Color(0xFFFCFDFE))
-                    )
-                )
                 .padding(horizontal = 13.dp, vertical = 11.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
-            // Kutu Başlığı (örn. İlan Başlığı, Kısa Açıklama)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(9.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Surface(
-                    shape = RoundedCornerShape(9.dp),
-                    color = MColors.Ink900,
-                    shadowElevation = 3.dp,
-                    border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.14f)),
-                    modifier = Modifier.size(28.dp)
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isFocused) MColors.BrandTint else Color(0xFFF1F5F9),
+                    modifier = Modifier.size(26.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            tint = Color(0xFFFFB37B),
+                            tint = if (isFocused) MColors.BrandDeep else MColors.Ink700,
                             modifier = Modifier.size(15.dp)
                         )
                     }
@@ -257,58 +244,57 @@ fun MFloatingInputBox(
                 Text(
                     text = label,
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MColors.Ink900
+                    fontWeight = FontWeight.Bold,
+                    color = MColors.Ink900,
+                    modifier = Modifier.weight(1f)
+                )
+                if (!badgeText.isNullOrBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isError) MColors.RoseTint else MColors.BrandTint
+                    ) {
+                        Text(
+                            text = badgeText,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isError) MColors.Rose else MColors.BrandDeep,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    color = MColors.Ink500
                 )
             }
 
-            // İçeriği Boş Yüzen Beyaz Yazı Kutusu
             Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = Color.White,
-                shadowElevation = if (isFocused) 6.dp else 4.dp,
+                shape = RoundedCornerShape(12.dp),
+                color = if (isFocused) Color.White else Color(0xFFF8FAFC),
                 border = BorderStroke(
-                    width = if (isFocused) 1.5.dp else 1.dp,
+                    width = 1.dp,
                     color = when {
-                        isError -> MColors.Rose.copy(alpha = 0.75f)
-                        isFocused -> MColors.Brand
-                        else -> Color(0xFFDCE4F0)
+                        isError -> MColors.Rose.copy(alpha = 0.55f)
+                        isFocused -> MColors.Brand.copy(alpha = 0.45f)
+                        else -> Color(0xFFE2E8F0)
                     }
                 ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(
-                        elevation = if (isFocused) 7.dp else 5.dp,
-                        shape = RoundedCornerShape(14.dp),
-                        ambientColor = Color(0x280B1220),
-                        spotColor = Color(0x380B1220)
-                    )
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(
                             horizontal = 12.dp,
-                            vertical = if (singleLine) 11.dp else 12.dp
+                            vertical = if (singleLine) 10.dp else 11.dp
                         ),
                     verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
-                    horizontalArrangement = Arrangement.spacedBy(9.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .padding(top = if (singleLine) 0.dp else 2.dp)
-                            .width(3.dp)
-                            .height(if (singleLine) 18.dp else 36.dp)
-                            .background(
-                                color = when {
-                                    isError -> MColors.Rose
-                                    isFocused || value.isNotEmpty() -> MColors.Brand
-                                    else -> Color(0xFFDCE4F0)
-                                },
-                                shape = RoundedCornerShape(999.dp)
-                            )
-                    )
-
                     BasicTextField(
                         value = value,
                         onValueChange = onValueChange,
@@ -332,10 +318,40 @@ fun MFloatingInputBox(
                                 contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
+                                if (value.isEmpty() && placeholder.isNotEmpty()) {
+                                    Text(
+                                        text = placeholder,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.Normal,
+                                            lineHeight = 19.sp,
+                                            color = MColors.Ink400
+                                        ),
+                                        maxLines = if (singleLine) 1 else maxLines,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                                 innerTextField()
                             }
                         }
                     )
+                    if (singleLine && value.isNotEmpty() && isFocused) {
+                        Surface(
+                            onClick = { onValueChange("") },
+                            shape = CircleShape,
+                            color = Color(0xFFE2E8F0),
+                            modifier = Modifier.size(18.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Temizle",
+                                    tint = MColors.Ink700,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -343,8 +359,7 @@ fun MFloatingInputBox(
 }
 
 /**
- * Kart üzerinde yüzen gölgeli açılır seçim menüsü (Seviye Aralığı, Süre, Paylaşım Ağı, Maç Formatı vb.).
- * Çoklu buton ve metin kalabalığını azaltırken tüm seçenekleri eksiksiz korur.
+ * Kart üzerinde şık, okunaklı ve sade açılır seçim menüsü (Seviye Aralığı, Süre, Paylaşım Ağı, Maç Formatı vb.).
  */
 @Composable
 fun <T> MFloatingDropdownBox(
@@ -362,27 +377,18 @@ fun <T> MFloatingDropdownBox(
     Box(modifier = modifier.fillMaxWidth()) {
         Surface(
             onClick = { requireAccount { expanded = true } },
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(15.dp),
             color = Color.White,
-            shadowElevation = if (expanded) 8.dp else 5.dp,
+            shadowElevation = if (expanded) 3.dp else 1.dp,
             border = BorderStroke(
                 width = if (expanded) 1.5.dp else 1.dp,
-                color = if (expanded) MColors.Brand.copy(alpha = 0.65f) else Color(0xFFE4E9F2)
+                color = if (expanded) MColors.Brand.copy(alpha = 0.65f) else Color(0xFFE2E8F0)
             ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 2.dp)
-                .shadow(
-                    elevation = if (expanded) 9.dp else 7.dp,
-                    shape = RoundedCornerShape(16.dp),
-                    ambientColor = Color(0x2A0B1220),
-                    spotColor = Color(0x3C0B1220)
-                )
+            modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFFCFDFE))))
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -395,16 +401,15 @@ fun <T> MFloatingDropdownBox(
                     if (icon != null) {
                         Surface(
                             shape = RoundedCornerShape(9.dp),
-                            color = MColors.Ink900,
-                            shadowElevation = 3.dp,
-                            border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.14f)),
+                            color = Color(0xFFFFF3EC),
+                            border = BorderStroke(1.dp, MColors.Brand.copy(alpha = 0.2f)),
                             modifier = Modifier.size(28.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = icon,
                                     contentDescription = null,
-                                    tint = Color(0xFFFFB37B),
+                                    tint = MColors.BrandDeep,
                                     modifier = Modifier.size(15.dp)
                                 )
                             }
@@ -413,7 +418,7 @@ fun <T> MFloatingDropdownBox(
                     Text(
                         text = label,
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontWeight = FontWeight.Bold,
                         color = MColors.Ink900,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -423,18 +428,11 @@ fun <T> MFloatingDropdownBox(
                 Spacer(Modifier.width(8.dp))
 
                 Surface(
-                    shape = RoundedCornerShape(11.dp),
-                    color = Color.White,
-                    shadowElevation = 3.dp,
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (expanded) MColors.BrandTint else Color(0xFFF8FAFC),
                     border = BorderStroke(
                         width = 1.dp,
-                        color = if (expanded) MColors.Brand.copy(alpha = 0.55f) else Color(0xFFDCE4F0)
-                    ),
-                    modifier = Modifier.shadow(
-                        elevation = 4.dp,
-                        shape = RoundedCornerShape(11.dp),
-                        ambientColor = Color(0x200B1220),
-                        spotColor = Color(0x300B1220)
+                        color = if (expanded) MColors.Brand.copy(alpha = 0.45f) else Color(0xFFE2E8F0)
                     )
                 ) {
                     Row(
@@ -467,9 +465,9 @@ fun <T> MFloatingDropdownBox(
             onDismissRequest = { expanded = false },
             containerColor = Color.White,
             shape = RoundedCornerShape(16.dp),
-            shadowElevation = 10.dp,
-            border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-            modifier = Modifier.widthIn(min = 210.dp)
+            shadowElevation = 8.dp,
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+            modifier = Modifier.widthIn(min = 210.dp).heightIn(max = 320.dp)
         ) {
             options.forEach { option ->
                 val isSelected = option == selectedValue
@@ -518,7 +516,7 @@ fun <T> MFloatingDropdownBox(
 }
 
 /**
- * Kart üzerinde yüzen gölgeli tek satırlık seçici/tetikleyici (örn. Şehir · İlçe seçimi).
+ * Kart üzerinde şık, okunaklı ve sade tek satırlık seçici/tetikleyici (örn. Şehir · İlçe seçimi).
  */
 @Composable
 fun MFloatingActionRow(
@@ -531,24 +529,15 @@ fun MFloatingActionRow(
     val requireAccount = LocalRequireAccount.current
     Surface(
         onClick = { requireAccount(onClick) },
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(15.dp),
         color = Color.White,
-        shadowElevation = 5.dp,
-        border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp)
-            .shadow(
-                elevation = 7.dp,
-                shape = RoundedCornerShape(16.dp),
-                ambientColor = Color(0x2A0B1220),
-                spotColor = Color(0x3C0B1220)
-            )
+        shadowElevation = 1.dp,
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        modifier = modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFFCFDFE))))
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -560,16 +549,15 @@ fun MFloatingActionRow(
             ) {
                 Surface(
                     shape = RoundedCornerShape(9.dp),
-                    color = MColors.Ink900,
-                    shadowElevation = 3.dp,
-                    border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.14f)),
+                    color = Color(0xFFFFF3EC),
+                    border = BorderStroke(1.dp, MColors.Brand.copy(alpha = 0.2f)),
                     modifier = Modifier.size(28.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            tint = Color(0xFFFFB37B),
+                            tint = MColors.BrandDeep,
                             modifier = Modifier.size(15.dp)
                         )
                     }
@@ -577,7 +565,7 @@ fun MFloatingActionRow(
                 Text(
                     text = label,
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontWeight = FontWeight.Bold,
                     color = MColors.Ink900,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -587,16 +575,9 @@ fun MFloatingActionRow(
             Spacer(Modifier.width(8.dp))
 
             Surface(
-                shape = RoundedCornerShape(11.dp),
-                color = Color.White,
-                shadowElevation = 3.dp,
-                border = BorderStroke(1.dp, Color(0xFFDCE4F0)),
-                modifier = Modifier.shadow(
-                    elevation = 4.dp,
-                    shape = RoundedCornerShape(11.dp),
-                    ambientColor = Color(0x200B1220),
-                    spotColor = Color(0x300B1220)
-                )
+                shape = RoundedCornerShape(10.dp),
+                color = Color(0xFFF8FAFC),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -628,13 +609,59 @@ fun MFloatingActionRow(
 @Composable
 fun premiumTextFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedContainerColor = Color.White,
-    unfocusedContainerColor = Color.White,
+    unfocusedContainerColor = Color(0xFFFCFDFE),
     focusedBorderColor = MColors.BrandDeep,
     unfocusedBorderColor = Color(0xFFDCE4F0),
     focusedLabelColor = MColors.BrandDeep,
     unfocusedLabelColor = MColors.Ink500,
     cursorColor = MColors.BrandDeep
 )
+
+@Composable
+fun MPremiumTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    placeholder: String? = null,
+    singleLine: Boolean = true,
+    minLines: Int = 1,
+    maxLines: Int = if (singleLine) 1 else 4,
+    isError: Boolean = false,
+    readOnly: Boolean = false,
+    leadingIcon: ImageVector? = null
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        placeholder = if (placeholder != null) {
+            { Text(placeholder, color = MColors.Ink400) }
+        } else null,
+        leadingIcon = if (leadingIcon != null) {
+            {
+                Icon(
+                    imageVector = leadingIcon,
+                    contentDescription = null,
+                    tint = MColors.BrandDeep,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        } else null,
+        singleLine = singleLine,
+        minLines = minLines,
+        maxLines = maxLines,
+        isError = isError,
+        readOnly = readOnly,
+        shape = RoundedCornerShape(14.dp),
+        colors = premiumTextFieldColors(),
+        textStyle = MaterialTheme.typography.bodyMedium.copy(
+            fontWeight = FontWeight.Medium,
+            color = MColors.Ink900
+        ),
+        modifier = modifier
+    )
+}
 
 /** Triggered when the user taps the already-selected bottom navigation tab to scroll to top. */
 val LocalScrollToTopTrigger = compositionLocalOf { 0 }

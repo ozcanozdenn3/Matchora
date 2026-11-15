@@ -28,14 +28,14 @@ actual fun openLocationDirections(latitude: Double?, longitude: Double?, query: 
     AndroidBackendRuntime.context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$address")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     true
 }.getOrDefault(false)
-actual fun openEventCalendar(event: SportEvent): Boolean = runCatching {
+actual fun openEventCalendar(event: SportEvent, includeInviteLink: Boolean): Boolean = runCatching {
     val start = requireNotNull(event.startsAtEpochMillis)
     AndroidBackendRuntime.context.startActivity(Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI).apply {
         putExtra(CalendarContract.Events.TITLE, event.title)
         putExtra(CalendarContract.Events.EVENT_LOCATION, if (isOnlineMeeting(event)) event.venue else "${event.venue}, ${event.area}, ${event.city}")
         putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start)
         putExtra(CalendarContract.EXTRA_EVENT_END_TIME, start + event.durationMin * 60_000L)
-        putExtra(CalendarContract.Events.DESCRIPTION, eventCalendarNotes(event))
+        putExtra(CalendarContract.Events.DESCRIPTION, calendarNotesForViewer(event, includeInviteLink))
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     })
 }.isSuccess

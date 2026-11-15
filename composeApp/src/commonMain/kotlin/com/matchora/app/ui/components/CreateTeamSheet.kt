@@ -306,7 +306,7 @@ fun CreateTeamSheet(
                     onClick = {
 if (teamName.isNotBlank()) {
                             val newTeam = TeamProfile(
-                                id = "team_${teamName.hashCode()}",
+                                id = "team_${teamName.hashCode().toUInt().toString(16)}",
                                 name = teamName.trim(),
                                 sport = selectedSport,
                                 area = selectedArea,

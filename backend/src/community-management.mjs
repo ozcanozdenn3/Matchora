@@ -2,6 +2,7 @@ import { id } from './auth.mjs';
 import { ensure, keys, text, choice, json, integer } from './errors.mjs';
 import { row, encode, audit, release, cancelEvent, offerWaitlist, notify } from './model.mjs';
 import { SPORTS } from './sports.mjs';
+import { canonicalTurkishCity } from './turkish-locale.mjs';
 
 export async function closeCommunityParticipation(ctx, community, userId) {
     const events = await ctx.db.all("SELECT * FROM events WHERE starts_at>? AND status IN ('PUBLISHED','FILLING','FULL')", [ctx.now]);
@@ -32,11 +33,13 @@ export const communityManagementHandlers = {
     const members=await ctx.db.all("SELECT user_id FROM community_members WHERE community_id=? AND status='joined'",[community.id]);
     await ctx.db.run('UPDATE communities SET payload=? WHERE id=?',[encode({...data,archived:true,version:(data.version??1)+1}),community.id]);
     await ctx.db.run("UPDATE community_members SET status='left' WHERE community_id=?",[community.id]);
+    const communityThread=await ctx.db.get('SELECT id FROM threads WHERE pair_key=?',[`community:${community.id}`]);
+    if(communityThread)await ctx.db.run('DELETE FROM thread_members WHERE thread_id=?',[communityThread.id]);
     for(const member of members)if(member.user_id!==ctx.actor.id)await notify(ctx,member.user_id,'social','Topluluk kapatıldı',data.name,'NETWORK',community.id,`community-archive:${community.id}:${member.user_id}`);
     await audit(ctx,'community.archive',community.id);return{archived:true};
   },
   'community.update': async (ctx, p) => {
-    keys(p, ['communityId', 'expectedVersion', 'name', 'description', 'access', 'sport', 'sports']);
+    keys(p, ['communityId', 'expectedVersion', 'name', 'description', 'access', 'sport', 'sports', 'city', 'area']);
     const community = await row(ctx, 'communities', 'id', p.communityId), data = json(community.payload);
     ensure(!data.archived,409,'COMMUNITY_ARCHIVED','Bu topluluk kapatıldı.');
     ensure(community.owner_id === ctx.actor.id, 403, 'FORBIDDEN', 'Topluluk yöneticisi olmalısın.');
@@ -44,7 +47,7 @@ export const communityManagementHandlers = {
     const primarySport = p.sport ? choice(p.sport, SPORTS, 'Branş') : (Array.isArray(p.sports) && p.sports[0] ? choice(p.sports[0], SPORTS, 'Branş') : data.sport);
     const sportsList = Array.isArray(p.sports) && p.sports.length ? p.sports.map(s => choice(s, SPORTS, 'Branş')) : (data.sports ?? [primarySport]);
     ensure(sportsList.length <= 20);
-    const next = { ...data, name: text(p.name, 'Topluluk adı', 3, 80), description: text(p.description ?? '', 'Açıklama', 0, 1000), sport: primarySport, sports: [...new Set([primarySport, ...sportsList])], version: (data.version ?? 1) + 1 };
+    const next = { ...data, ...(p.city !== undefined ? { city: canonicalTurkishCity(text(p.city, 'İl', 2, 60)) } : {}), ...(p.area !== undefined ? { area: text(p.area, 'Bölge', 2, 60) } : {}), name: text(p.name, 'Topluluk adı', 3, 80), description: text(p.description ?? '', 'Açıklama', 0, 1000), sport: primarySport, sports: [...new Set([primarySport, ...sportsList])], version: (data.version ?? 1) + 1 };
     const access = choice(p.access, ['OPEN', 'APPROVAL', 'INVITE'], 'Katılım');
     await ctx.db.run('UPDATE communities SET access=?,payload=? WHERE id=?', [access, encode(next), community.id]);
     await ctx.db.run('UPDATE threads SET title=? WHERE pair_key=?', [next.name, `community:${community.id}`]);

@@ -3,6 +3,8 @@ package com.matchora.app
 import com.matchora.app.data.*
 import com.matchora.app.state.*
 import com.matchora.app.ui.components.*
+import com.matchora.app.ui.screens.resolveChatParticipantPlayer
+import com.matchora.app.ui.screens.resolvePassportDisplayState
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import kotlin.test.*
@@ -83,5 +85,75 @@ class SocialClientTest {
         assertEquals("join", snapshot.waitlistAction("other-event"))
         assertEquals(true, snapshot.history.single().won)
         assertEquals("8 Kas", snapshot.reliabilityHistory.single().time)
+    }
+
+    @Test fun liveGuestPassportNeverLeaksDemoIdentityOrRecords() {
+        val guest = UserProfile("Misafir Sporcu", "Ankara", "Çankaya", "", 2000, "", "", emptyList(), emptySet(), 100, 0f, 0, 0, null, null, "", emptyList())
+        val state = resolvePassportDisplayState(
+            user = guest,
+            isLoggedIn = false,
+            liveMode = true,
+            historyOverride = emptyList(),
+            reliabilityOverride = emptyList(),
+            badgesOverride = emptyList(),
+            missionsOverride = emptyList()
+        )
+        assertEquals("Misafir Sporcu", state.effectiveUser.name)
+        assertEquals("Ankara", state.effectiveUser.city)
+        assertEquals("Çankaya", state.effectiveUser.area)
+        assertTrue(state.history.isEmpty())
+        assertTrue(state.reliabilityRecords.isEmpty())
+        assertTrue(state.badges.none { it.earned })
+        assertTrue(state.allMissions.all { it.progress == 0 })
+    }
+
+    @Test fun liveChatParticipantResolutionAvoidsStaticDemoStatsAndUsesRealIds() {
+        val demoPeerName = DemoData.players.first().name
+        val uncached = resolveChatParticipantPlayer(
+            name = demoPeerName,
+            threadId = "thread-1",
+            backendMode = true,
+            livePlayers = emptyList(),
+            directOtherUserId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            fallbackArea = "Çankaya"
+        )
+        assertEquals("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", uncached.id)
+        assertEquals(0, uncached.verifiedMatches)
+        assertEquals(false, uncached.reliabilityVisible)
+        assertEquals(false, uncached.verified)
+        assertEquals("", uncached.bio)
+
+        val livePlayer = uncached.copy(verifiedMatches = 19, reliability = 97, rating = 1520, verified = true, bio = "Canlı profil")
+        val resolved = resolveChatParticipantPlayer(
+            name = demoPeerName,
+            threadId = "thread-1",
+            backendMode = true,
+            livePlayers = listOf(livePlayer),
+            directOtherUserId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            fallbackArea = "Çankaya"
+        )
+        assertEquals(1520, resolved.rating)
+        assertEquals("Canlı profil", resolved.bio)
+    }
+
+    @Test fun liveMemoryFeedPaginationMergesAdditionalPagesCleanly() = runBlocking {
+        val repository = BackendRepository("https://api.example.invalid", "local", transport = { request ->
+            response(when {
+                request.url.contains("after=page-2") -> apiPayload(
+                    "items" to (25..30).map { idx -> mapOf("id" to "mem-$idx", "authorId" to "u1", "authorName" to "Sporcu", "sport" to "FOOTBALL", "venue" to "Saha", "area" to "Kadıköy", "city" to "İstanbul", "caption" to "Kare $idx") },
+                    "nextCursor" to null
+                )
+                else -> apiPayload(
+                    "items" to (1..24).map { idx -> mapOf("id" to "mem-$idx", "authorId" to "u1", "authorName" to "Sporcu", "sport" to "FOOTBALL", "venue" to "Saha", "area" to "Kadıköy", "city" to "İstanbul", "caption" to "Kare $idx") },
+                    "nextCursor" to "page-2"
+                )
+            })
+        }, persistence = MemorySession())
+        repository.selectMemoryFeed("nearby", "İstanbul", "Kadıköy", null, null, "seed")
+        assertEquals(24, repository.memoryFeed.value!!.a("items").size)
+        assertEquals("page-2", repository.memoryFeed.value!!.s("nextCursor"))
+        repository.loadMoreMemories()
+        assertEquals(30, repository.memoryFeed.value!!.a("items").size)
+        assertEquals("", repository.memoryFeed.value!!.s("nextCursor"))
     }
 }

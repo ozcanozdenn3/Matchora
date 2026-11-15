@@ -12,7 +12,7 @@ import { runJobs } from '../src/jobs.mjs';
 test('PostgreSQL engine applies migrations repeatedly, isolates mobile roles, and executes real domain commands',async t=>{
  const pg=new PGlite();t.after(()=>pg.close());
  await pg.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
- for(let n=0;n<2;n++)for(const name of ['001_core.sql','003_integrations.sql','005_product_workflows.sql','006_push_delivery.sql','007_social_completion.sql','008_venue_applications.sql','009_multi_court_slots.sql','010_private_event_locations.sql','002_postgres_security.sql'])await pg.exec(await readFile(new URL(`../migrations/${name}`,import.meta.url),'utf8'));
+ for(let n=0;n<2;n++)for(const name of ['001_core.sql','003_integrations.sql','005_product_workflows.sql','006_push_delivery.sql','007_social_completion.sql','008_venue_applications.sql','009_multi_court_slots.sql','010_private_event_locations.sql','011_indexes_and_sync.sql','002_postgres_security.sql'])await pg.exec(await readFile(new URL(`../migrations/${name}`,import.meta.url),'utf8'));
  const pool={query:async(sql,params)=>{const result=await pg.query(sql,params);return{rows:result.rows,rowCount:result.affectedRows};},connect:async()=>({query:async(sql,params)=>{const result=await pg.query(sql,params);return{rows:result.rows,rowCount:result.affectedRows};},release(){}})};
  const store=new PostgresStore(pool),config=configFromEnv({DEV_AUTH_ENABLED:'true',CHECKIN_SECRET:'x'.repeat(32)}),auth=new Auth(store,config),service=new MatchoraService(store,config,null);
  const session=await auth.devLogin({identity:'postgres-user'}),actor=await auth.actor(session.accessToken);

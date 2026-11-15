@@ -13,3 +13,4 @@ DROP TRIGGER IF EXISTS wallet_immutable ON wallet_entries;
 CREATE TRIGGER wallet_immutable BEFORE UPDATE OR DELETE ON wallet_entries FOR EACH ROW EXECUTE FUNCTION matchora_immutable_row();
 DROP TRIGGER IF EXISTS audit_immutable ON audit_log;
 CREATE TRIGGER audit_immutable BEFORE UPDATE OR DELETE ON audit_log FOR EACH ROW EXECUTE FUNCTION matchora_immutable_row();
+INSERT INTO schema_migrations(version,applied_at) VALUES(2,0) ON CONFLICT(version) DO NOTHING;

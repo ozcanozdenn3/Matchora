@@ -80,34 +80,17 @@ fun SubmitJoinRequestSheet(
                 onDismiss = onDismiss
             )
 
-            // Pozisyon / Rol Seçimi (Yüzen Gölgeli Açılır Menü)
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color.White,
-                shadowElevation = 5.dp,
-                border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(
-                        elevation = 7.dp,
-                        shape = RoundedCornerShape(20.dp),
-                        ambientColor = Color(0x280B1220),
-                        spotColor = Color(0x380B1220)
-                    )
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    MFloatingDropdownBox(
-                        label = "Oynamak İstediğin Rol",
-                        selectedValue = selectedPosition,
-                        options = suggestedPositions,
-                        optionLabel = { it },
-                        onSelect = { selectedPosition = it },
-                        icon = Icons.Rounded.Sports
-                    )
-                }
-            }
+            // Pozisyon / Rol Seçimi
+            MFloatingDropdownBox(
+                label = "Oynamak İstediğin Rol",
+                selectedValue = selectedPosition,
+                options = suggestedPositions,
+                optionLabel = { it },
+                onSelect = { selectedPosition = it },
+                icon = Icons.Rounded.Sports
+            )
 
-            // Kaptana / Organizatöre Not (Premium Yüzen Açıklama Kutusu)
+            // Kaptana / Organizatöre Not
             MFloatingInputBox(
                 label = "Organizatöre Kısa Not",
                 value = applicantNote,
@@ -118,28 +101,16 @@ fun SubmitJoinRequestSheet(
                 badgeText = "Opsiyonel",
                 singleLine = false,
                 minLines = 2,
-                maxLines = 3,
-                suggestions = listOf(
-                    "Forma hazır, vaktinde sahadayım",
-                    "Bölgedeyim, hemen katılabilirim",
-                    "Ekipmanım tam, her mevkide oynarım"
-                )
+                maxLines = 3
             )
 
-            // Taahhüt Kilidi Bilgilendirme Kapsülü (Yüzen Beyaz Ada)
+            // Taahhüt Kilidi Bilgilendirme Kapsülü
             Surface(
                 shape = RoundedCornerShape(16.dp),
                 color = Color.White,
-                shadowElevation = 5.dp,
-                border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(
-                        elevation = 7.dp,
-                        shape = RoundedCornerShape(16.dp),
-                        ambientColor = Color(0x260B1220),
-                        spotColor = Color(0x360B1220)
-                    )
+                shadowElevation = 1.dp,
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier.padding(13.dp),
@@ -197,7 +168,8 @@ fun SubmitJoinRequestSheet(
                 }
             }
 
-            Button(
+            MButton(
+                text = if (hasEnoughTokens) "Katılım İsteğini Gönder (${event.commitmentTokens} TKN Kilitlensin)" else "Önce Token Yükle",
                 onClick = {
                     if (hasEnoughTokens) {
                         onSubmitRequest(selectedPosition, applicantNote)
@@ -206,19 +178,9 @@ fun SubmitJoinRequestSheet(
                         onOpenTopUp()
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = if (hasEnoughTokens) MColors.Brand else Color(0xFF94A3B8)),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth().height(48.dp)
-            ) {
-                Icon(Icons.Rounded.Send, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (hasEnoughTokens) "Katılım İsteğini Gönder (10 TKN Kilitlensin)" else "Önce Token Yükle",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
-                )
-            }
+                icon = Icons.Rounded.Send,
+                isPrimary = hasEnoughTokens
+            )
         }
     }
 }

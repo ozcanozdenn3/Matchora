@@ -32,8 +32,11 @@ export async function upload(ctx,storage,bytes,mime){
 export async function readUpload(ctx,storage,uploadId){
  const item=await row(ctx,'uploads','id',uploadId);ensure(item.status==='ready',404,'NOT_FOUND','Fotoğraf bulunamadı.');let allowed=item.owner_id===ctx.actor?.id;
  if(!allowed&&ctx.actor?.role==='admin')allowed=!!await ctx.db.get("SELECT id FROM memories WHERE upload_id=? AND status='pending'",[item.id]);
+ if(!allowed&&ctx.actor?.role==='admin')allowed=!!await ctx.db.get("SELECT id FROM support_requests WHERE category='Fotoğraf doğrulaması' AND status='open' AND message LIKE ?",[`%${item.id}%`]);
+ if(!allowed&&ctx.actor?.role==='admin'){const apps=await ctx.db.all("SELECT payload FROM venue_applications WHERE status='pending' AND payload LIKE ?",[`%${item.id}%`]);allowed=apps.some(a=>(json(a.payload).photoUploadIds??[]).includes(item.id));}
  if(!allowed){const memory=await ctx.db.get("SELECT id,author_id FROM memories WHERE upload_id=? AND status='approved'",[item.id]);allowed=!!memory;if(memory&&ctx.actor&&await ctx.db.get('SELECT user_id FROM blocks WHERE (user_id=? AND target_id=?) OR (user_id=? AND target_id=?)',[ctx.actor.id,memory.author_id,memory.author_id,ctx.actor.id]))allowed=false;}
  if(!allowed){const profiles=await ctx.db.all("SELECT p.payload FROM profiles p JOIN users u ON u.id=p.user_id WHERE u.status='active' AND p.payload LIKE ?",[`%${item.id}%`]);allowed=profiles.some(p=>json(p.payload).avatarUploadId===item.id);}
+ if(!allowed){const venues=await ctx.db.all("SELECT v.payload FROM venues v JOIN users u ON u.id=v.owner_id WHERE u.status='active' AND u.role IN ('admin','venue_owner') AND v.payload LIKE ?",[`%${item.id}%`]);allowed=venues.some(v=>{const d=json(v.payload);return (!d.archived||ctx.actor?.role==='admin')&&(d.photoUploadIds??[]).includes(item.id);});}
  if(!allowed&&ctx.actor){for(const m of await ctx.db.all('SELECT id,thread_id FROM messages WHERE upload_id=?',[item.id])){try{const message=await visibleMessage(ctx,m.id);if(message.deleted_at)continue;allowed=true;break;}catch{}}}
  ensure(allowed,404,'NOT_FOUND','Fotoğraf bulunamadı.');return{bytes:await storage.get(item.object_key),mime:item.mime};
 }

@@ -43,6 +43,7 @@ fun CreateTournamentSheet(
     newTournamentId: () -> String = { "tr_${(1000..9999).random()}" },
     onRequestTokens: () -> Unit = {},
     currentCity: String = "İstanbul", currentArea: String = "Kadıköy",
+    venues: List<VenueInfo> = emptyList(),
     primarySport: Sport = Sport.FOOTBALL
 ) {
     val backend = LocalBackendRepository.current
@@ -171,7 +172,7 @@ fun CreateTournamentSheet(
                                         tournamentCategory = cat
                                         if (cat == SportCategory.PHYSICAL && selectedSport.category != SportCategory.PHYSICAL) {
                                             selectedSport = Sport.FOOTBALL
-                                            title = "Kadıköy Halı Saha Sonbahar Kupası"
+                                            title = "$tournamentArea Halı Saha Kupası"
                                             format = "16 Takım · Tek Eleme"
                                         } else if (cat == SportCategory.ESPORTS && selectedSport.category != SportCategory.ESPORTS) {
                                             selectedSport = Sport.ESPORTS_FC
@@ -269,14 +270,14 @@ fun CreateTournamentSheet(
                         label = "Turnuva Adı",
                         value = title,
                         onValueChange = { title = it },
-                        placeholder = "Örn: FC 25 Kadıköy E-Kupa",
+                        placeholder = "Örn: FC 25 $tournamentCity E-Kupa",
                         subtitle = "Resmi kupa veya topluluk ligi başlığı",
                         icon = Icons.Rounded.EmojiEvents,
                         badgeText = "Zorunlu",
                         suggestions = listOf(
-                            "${selectedSport.label} Kadıköy Kupası",
+                            "${selectedSport.label} $tournamentArea Kupası",
                             "${selectedSport.label} Hafta Sonu Ligi",
-                            "Şehir Şampiyonluk Turnuvası"
+                            "$tournamentCity Şampiyonluk Turnuvası"
                         )
                     )
 
@@ -322,11 +323,11 @@ fun CreateTournamentSheet(
                             MFloatingDropdownBox(
                                 label = "Turnuva Usulü",
                                 selectedValue = formatStyle,
-                                options = listOf("Tek Eleme", "Lig Usulü", "Grup + Eleme", "İsviçre Sistemi"),
+                                options = listOf("Tek Eleme", "Lig Usulü"),
                                 optionLabel = { it },
                                 onSelect = {
                                     formatStyle = it
-                                    formatCode = if (it == "Lig Usulü" || it == "İsviçre Sistemi") "ROUND_ROBIN" else "KNOCKOUT"
+                                    formatCode = if (it == "Lig Usulü") "ROUND_ROBIN" else "KNOCKOUT"
                                     if (formatCode == "ROUND_ROBIN" && liveCapacity > 16) liveCapacity = 16
                                 },
                                 icon = Icons.Rounded.AccountTree
@@ -357,7 +358,7 @@ fun CreateTournamentSheet(
                                     "Turnuva Tesisi / Sahası",
                                     tournamentVenue,
                                     { tournamentVenue = it.take(160) },
-                                    emptyList(),
+                                    venues.filter { matchesTurkishPlace(it.city, tournamentCity) }.map { "${it.name} · ${it.area}" }.distinct(),
                                     tournamentCity
                                 )
                             }

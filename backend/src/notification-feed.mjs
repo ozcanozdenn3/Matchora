@@ -1,6 +1,6 @@
 import { ensure,choice,json } from './errors.mjs';
 import { sealCursor,openCursor } from './opaque-cursor.mjs';
-const filters={all:null,matches:['matches','emergencyFill','weeklyDigest','rematch'],squads:['teams','challenges','waitlist'],wallet:['wallet']};
+const filters={all:null,matches:['matches','emergencyFill','weeklyDigest','rematch'],squads:['teams','challenges','waitlist','social'],wallet:['wallet']};
 export async function notificationPage(ctx,p={}){
  ensure(ctx.actor,401,'UNAUTHENTICATED','Bildirimler için giriş yap.');
  const filter=choice(p.filter??'all',Object.keys(filters),'Bildirim filtresi'),cursor=p.after?openCursor(ctx,'notifications',p.after):null;

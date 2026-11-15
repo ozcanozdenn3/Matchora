@@ -44,6 +44,8 @@ test('private photo forwarding requires access to its source; approved public me
  await assert.rejects(f.cmd(f.other,'chat.send',{threadId:second,text:'İzinsiz',uploadId:upload,forwardId:message}),e=>e.code==='FORBIDDEN');
  await f.cmd(f.guest,'chat.send',{threadId:second,text:'İletilen',uploadId:upload,forwardId:message});
  const memory=(await f.cmd(f.host,'memory.create',{caption:'Anı',sport:'FOOTBALL',venue:'Saha',area:'Kadıköy',city:'İstanbul',uploadId:upload})).result.id;
+ await f.store.run("UPDATE memories SET status='pending' WHERE id=?",[memory]);
+ await assert.rejects(f.cmd(f.other,'chat.send',{threadId:second,text:'Bekleyen',uploadId:upload,forwardId:memory}),e=>e.code==='NOT_FOUND');
  await f.cmd(f.admin,'admin.memory.review',{memoryId:memory,approved:true,reason:'Uygun fotoğraf'});
  await f.cmd(f.other,'chat.send',{threadId:second,text:'Vitrinden',uploadId:upload,forwardId:memory});
 });
@@ -85,6 +87,7 @@ test('moderators can inspect pending showcase photos without granting access to 
  const f=await fixture(t),sharp=(await import('sharp')).default,bytes=await sharp({create:{width:4,height:4,channels:3,background:'white'}}).jpeg().toBuffer(),upload=(await f.service.upload(f.host,bytes,'image/jpeg')).id;
  await assert.rejects(f.service.mediaFile(f.admin,upload),e=>e.code==='NOT_FOUND');
  await f.cmd(f.host,'memory.create',{caption:'İnceleme',sport:'FOOTBALL',venue:'Saha',area:'Kadıköy',city:'İstanbul',uploadId:upload});
+ await f.store.run("UPDATE memories SET status='pending' WHERE upload_id=?",[upload]);
  assert.ok((await f.service.mediaFile(f.admin,upload)).bytes.length>0);
  await assert.rejects(f.service.mediaFile(f.guest,upload),e=>e.code==='NOT_FOUND');
 });

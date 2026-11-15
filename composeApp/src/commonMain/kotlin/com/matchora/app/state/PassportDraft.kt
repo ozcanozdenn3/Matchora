@@ -1,5 +1,6 @@
 package com.matchora.app.state
 
+import com.matchora.app.data.normalizeAuthPhone
 import com.matchora.app.domain.Sport
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
@@ -34,7 +35,7 @@ data class PassportDraft(
     }
 
     fun preferencesError(): String? = when {
-        phone.isNotBlank() && normalizeTurkishPhone(phone) == null -> "Telefon numaranı 5 ile başlayan 10 hane olarak gir."
+        phone.isNotBlank() && normalizePassportPhone(phone) == null -> "Telefon numaranı geçerli formatta gir."
         email.isNotBlank() && !Regex("[^\\s@]+@[^\\s@]+\\.[^\\s@]+").matches(email.trim()) -> "E-posta adresini kontrol et."
         days.isNotEmpty() && clockMinutes(startTime) >= clockMinutes(endTime) -> "Bitiş saati başlangıçtan sonra olmalı."
         else -> null
@@ -44,13 +45,16 @@ data class PassportDraft(
         require(identityError() == null && preferencesError() == null)
         require(position in positionsForSport(sport))
         return UserProfile(name.trim(), city.trim(), district.trim(), bio.trim(), birthYear.toInt(),
-            normalizeTurkishPhone(phone).orEmpty(), email.trim(),
+            normalizePassportPhone(phone).orEmpty(), email.trim(),
             listOf(SportSkill(sport, level, 1000, 0, 0, null, position)),
             emptySet(), 0, 0f, 0, 0, campus.trim().ifBlank { null }, company.trim().ifBlank { null },
             "$dominantFoot · $dominantHand", days.sortedBy { passportDays.indexOf(it) }.map { "$it $startTime–$endTime" },
             jerseyNumber = jerseyNumber.toIntOrNull())
     }
 }
+
+private fun normalizePassportPhone(value: String): String? =
+    if (value.trim().startsWith("+")) normalizeAuthPhone(value) else normalizeTurkishPhone(value)
 
 val passportDays = listOf("Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz")
 fun currentYear(): Int = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).year

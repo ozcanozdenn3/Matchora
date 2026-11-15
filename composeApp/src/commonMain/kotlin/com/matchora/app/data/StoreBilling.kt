@@ -25,7 +25,7 @@ object StoreBilling {
         if ((!store.b("enabled") && !allowSalesDisabled) || key.isBlank()) throw BackendFailure("STORE_UNAVAILABLE", "Mağaza henüz yapılandırılmadı.")
         if (!Purchases.isConfigured) Purchases.configure(PurchasesConfiguration.Builder(key).apply { appUserId = user }.build())
         else if (Purchases.sharedInstance.appUserID != user) suspendCoroutine<Unit> { continuation ->
-            Purchases.sharedInstance.logIn(user, onError = { continuation.resumeWithException(BackendFailure("STORE_IDENTITY", it.message)) }, onSuccess = { _, _ -> continuation.resume(Unit) })
+            Purchases.sharedInstance.logIn(user, onError = { continuation.resumeWithException(BackendFailure("STORE_IDENTITY", "Mağaza hesabı eşleştirilemedi. Lütfen tekrar dene.")) }, onSuccess = { _, _ -> continuation.resume(Unit) })
         }
         if (owner != user) { products.clear(); owner = user }
     }
@@ -35,7 +35,7 @@ object StoreBilling {
         val ids = mapping.values.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }.distinct()
         if (ids.isEmpty()) throw BackendFailure("STORE_PRODUCTS_PENDING", "Mağaza ürünleri henüz tanımlanmadı.")
         val listings = suspendCoroutine<List<StoreProduct>> { continuation ->
-            Purchases.sharedInstance.getProducts(ids, onError = { continuation.resumeWithException(BackendFailure("STORE_PRODUCTS", it.message)) }, onSuccess = { continuation.resume(it) })
+            Purchases.sharedInstance.getProducts(ids, onError = { continuation.resumeWithException(BackendFailure("STORE_PRODUCTS", "Mağaza ürün bilgileri alınamadı. Bağlantını kontrol et.")) }, onSuccess = { continuation.resume(it) })
         }
         products.clear()
         for ((sku, value) in mapping) listings.find { it.id == (value as? kotlinx.serialization.json.JsonPrimitive)?.content }?.let { products[sku] = it }
@@ -46,8 +46,8 @@ object StoreBilling {
         bind(backend)
         val product = products[sku] ?: throw BackendFailure("STORE_PRODUCT_UNAVAILABLE", "Bu ürün mağazadan yüklenemedi. Tekrar dene.")
         suspendCoroutine<Unit> { continuation ->
-            Purchases.sharedInstance.purchase(product, onError = { error, cancelled ->
-                continuation.resumeWithException(BackendFailure(if (cancelled) "PURCHASE_CANCELLED" else "PURCHASE_FAILED", if (cancelled) "Satın alma iptal edildi." else error.message))
+            Purchases.sharedInstance.purchase(product, onError = { _, cancelled ->
+                continuation.resumeWithException(BackendFailure(if (cancelled) "PURCHASE_CANCELLED" else "PURCHASE_FAILED", if (cancelled) "Satın alma iptal edildi." else "Satın alma tamamlanamadı. Lütfen tekrar dene."))
             }, onSuccess = { _, _ -> continuation.resume(Unit) })
         }
         synchronize(backend)
@@ -56,7 +56,7 @@ object StoreBilling {
         backend.refreshConfiguration()
         bind(backend, allowSalesDisabled = true)
         suspendCoroutine<Unit> { continuation -> Purchases.sharedInstance.restorePurchases(onError = {
-            continuation.resumeWithException(BackendFailure("RESTORE_FAILED", it.message))
+            continuation.resumeWithException(BackendFailure("RESTORE_FAILED", "Satın alımlar geri yüklenemedi. Lütfen tekrar dene."))
         }, onSuccess = { continuation.resume(Unit) }) }
         synchronize(backend)
     }

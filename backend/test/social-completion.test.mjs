@@ -123,15 +123,17 @@ test('feed eligibility respects moderation, blocks, inactive authors and own pen
  assert.ok(!(await f.service.memories(null,{mode:'top'})).items.some(v=>v.id===inactive.id));
 });
 
-test('editing own memories preserves identity, changes the region index and returns to moderation',async t=>{
- const f=await fixture(t),memory=await photo(f);
+test('editing own memories preserves identity, updates the region index and keeps approved posts visible',async t=>{
+ const f=await fixture(t),memory=await photo(f),rejected=await photo(f,{status:'rejected'});
  const payload={memoryId:memory.id,expectedVersion:1,caption:'Yeni not',venue:'Yeni saha',city:'Ankara',area:'Çankaya',approximateLocation:{latitude:39.93,longitude:32.85}};
  await assert.rejects(f.cmd(f.guest,'memory.update',payload),fails('FORBIDDEN'));
  await f.cmd(f.host,'memory.update',payload);
- assert.equal((await f.service.memories(null,{mode:'newest'})).items.length,0);
- const own=(await f.service.memories(f.host,{mode:'mine'})).items[0];assert.equal(own.id,memory.id);assert.equal(own.version,2);assert.equal(own.status,'pending');assert.equal(own.city,'Ankara');
+ assert.equal((await f.service.memories(null,{mode:'newest'})).items.length,1);
+ const own=(await f.service.memories(f.host,{mode:'mine'})).items.find(m=>m.id===memory.id);assert.equal(own.id,memory.id);assert.equal(own.version,2);assert.equal(own.status,'approved');assert.equal(own.city,'Ankara');
  assert.equal((await f.store.get('SELECT city FROM memory_locations WHERE memory_id=?',[memory.id])).city,'ankara');
  await assert.rejects(f.cmd(f.host,'memory.update',payload),fails('VERSION_CONFLICT'));
+ await f.cmd(f.host,'memory.update',{memoryId:rejected.id,expectedVersion:1,caption:'Düzeltildi'});
+ assert.equal((await f.service.memories(f.host,{mode:'mine'})).items.find(m=>m.id===rejected.id).status,'pending');
 });
 
 test('memory create and edit validate the raw point and persist only coarse public coordinates',async t=>{

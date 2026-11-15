@@ -1,3 +1,4 @@
+import { saveMeetingLocation } from './event-locations.mjs';
 import { tournamentRules, assertTournamentRoster } from './tournament-rules.mjs';
 import { tournamentDetails } from './tournament-details.mjs';
 import { scheduleChallenge, assertTeamOpen } from './team-matches.mjs';
@@ -5,6 +6,7 @@ import { randomInt } from 'node:crypto';
 import { id } from './auth.mjs';
 import { ensure, keys, text, integer, choice, json } from './errors.mjs';
 import { SPORTS } from './sports.mjs';
+import { canonicalTurkish, canonicalTurkishCity, sameTurkishPlace } from './turkish-locale.mjs';
 import { row, profile, captain, hold, release, notify, audit, encode, cancelEvent } from './model.mjs';
 async function teamThread(ctx, teamId, title, userId) {let thread=await ctx.db.get('SELECT id FROM threads WHERE team_id=?',[teamId]);if(!thread){thread={id:id()};await ctx.db.run('INSERT INTO threads(id,kind,team_id,title,created_at) VALUES(?,?,?,?,?)',[thread.id,'TEAM',teamId,title,ctx.now]);}await ctx.db.run('INSERT INTO thread_members(thread_id,user_id) VALUES(?,?) ON CONFLICT(thread_id,user_id) DO NOTHING',[thread.id,userId]);}
 async function addTeamMember(ctx,team,userId){const member=await ctx.db.get("SELECT user_id FROM team_members WHERE team_id=? AND user_id=? AND status='joined'",[team.id,userId]);if(member)return;const count=await ctx.db.get("SELECT COUNT(*) AS n FROM team_members WHERE team_id=? AND status='joined'",[team.id]);ensure(count.n<50,409,'TEAM_FULL','Takım kadrosu en fazla 50 sporcu olabilir.');await ctx.db.run("INSERT INTO team_members(team_id,user_id,role,status) VALUES(?,?,?,?) ON CONFLICT(team_id,user_id) DO UPDATE SET status='joined'",[team.id,userId,'member','joined']);await teamThread(ctx,team.id,json(team.payload).name,userId);await ctx.db.run("UPDATE join_requests SET status='approved' WHERE scope='team' AND scope_id=? AND user_id=? AND status='pending'",[team.id,userId]);await ctx.db.run("UPDATE team_invites SET status='accepted' WHERE team_id=? AND user_id=? AND status='pending'",[team.id,userId]);}
@@ -16,8 +18,13 @@ export async function createFixture(ctx,tournament,home,away,startsAt,venue,roun
  await assertTournamentRoster(ctx,tournament,teams.find(t=>t.id===home),homeIds);
  await assertTournamentRoster(ctx,tournament,teams.find(t=>t.id===away),awayIds);
  const title=`${json(teams.find(t=>t.id===home).payload).name} – ${json(teams.find(t=>t.id===away).payload).name}`;
- const eventId=id(),fixtureId=id(),payload={title,sport:tournament.sport,venue,city:json(tournament.payload).city??'İstanbul',area:json(tournament.payload).area??'Merkez',mode:'COMPETITIVE',levelRange:'Turnuva',minReliability:0,verifiedOnly:false,description:'Turnuva fikstürü',isTeamEvent:true,homeTeamId:home,awayTeamId:away,tournamentId:tournament.id};
- await ctx.db.run('INSERT INTO events(id,host_id,sport,status,capacity,starts_at,ends_at,commitment,city,district,payload,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',[eventId,tournament.creator_id,tournament.sport,'PUBLISHED',homeIds.length+awayIds.length,startsAt,startsAt+3600000,0,payload.city,payload.area,encode(payload),ctx.now]);
+ const tourneyCity=canonicalTurkishCity(json(tournament.payload).city??'İstanbul');
+ const matchingVenue=(await ctx.db.all('SELECT id,payload FROM venues')).map(v=>({id:v.id,data:json(v.payload)})).find(v=>!v.data.archived&&canonicalTurkish(v.data.name)===canonicalTurkish(venue)&&(sameTurkishPlace(v.data.city,tourneyCity)||v.data.approximateLocation));
+ const pt=matchingVenue?.data?.approximateLocation??null;
+ const lat=pt?Math.round(Number(pt.latitude)*100)/100:null,lon=pt?Math.round(Number(pt.longitude)*100)/100:null;
+ const eventId=id(),fixtureId=id(),payload={title,sport:tournament.sport,venue,venueId:matchingVenue?.id??null,city:tourneyCity,area:matchingVenue?.data?.area??json(tournament.payload).area??'Merkez',mode:'COMPETITIVE',levelRange:'Turnuva',minReliability:0,verifiedOnly:false,description:'Turnuva fikstürü',isTeamEvent:true,homeTeamId:home,awayTeamId:away,tournamentId:tournament.id};
+ await ctx.db.run('INSERT INTO events(id,host_id,sport,status,capacity,starts_at,ends_at,commitment,city,district,latitude,longitude,payload,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[eventId,tournament.creator_id,tournament.sport,'PUBLISHED',homeIds.length+awayIds.length,startsAt,startsAt+3600000,0,payload.city,payload.area,lat,lon,encode(payload),ctx.now]);
+ if(pt)await saveMeetingLocation(ctx,eventId,pt);
  const threadId=id();await ctx.db.run('INSERT INTO threads(id,kind,event_id,title,created_at) VALUES(?,?,?,?,?)',[threadId,'EVENT',eventId,title,ctx.now]);
  for(const userId of [...homeIds,...awayIds]){await ctx.db.run('INSERT INTO event_members(event_id,user_id,status,side,joined_at) VALUES(?,?,?,?,?)',[eventId,userId,'joined',homeIds.includes(userId)?'home':'away',ctx.now]);await ctx.db.run('INSERT INTO thread_members(thread_id,user_id) VALUES(?,?)',[threadId,userId]);}
  await ctx.db.run('INSERT INTO tournament_fixtures(id,tournament_id,round,home_team,away_team,event_id) VALUES(?,?,?,?,?,?)',[fixtureId,tournament.id,round,home,away,eventId]);return fixtureId;

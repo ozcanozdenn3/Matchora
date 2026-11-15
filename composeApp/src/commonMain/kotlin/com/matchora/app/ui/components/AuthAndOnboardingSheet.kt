@@ -43,7 +43,7 @@ import com.matchora.app.ui.theme.MColors
 import com.matchora.app.ui.theme.MGradients
 import kotlinx.coroutines.delay
 
-enum class AuthStage { LOGIN_OPTIONS, EMAIL_INPUT, EMAIL_OTP, PASSPORT_SETUP, LEGAL_REVIEW }
+enum class AuthStage { LOGIN_OPTIONS, PHONE_INPUT, PHONE_OTP, PASSPORT_SETUP, LEGAL_REVIEW }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,8 +67,10 @@ fun AuthAndOnboardingSheet(
     var authError by remember { mutableStateOf<String?>(null) }
     var stage by remember { mutableStateOf(initialStage) }
     var provider by remember { mutableStateOf(if (storePlatform == "ios") "Apple" else "Google") }
-    var email by remember { mutableStateOf("") }
-    var sentEmail by remember { mutableStateOf("") }
+    var selectedCountry by remember { mutableStateOf(defaultPhoneCountry) }
+    var phone by remember { mutableStateOf("") }
+    var sentPhone by remember { mutableStateOf("") }
+    var challengeId by remember { mutableStateOf("") }
     var resendSeconds by remember { mutableIntStateOf(0) }
     LaunchedEffect(resendSeconds) { if (resendSeconds > 0) { delay(1000); resendSeconds-- } }
     var code by remember { mutableStateOf("") }
@@ -132,23 +134,38 @@ fun AuthAndOnboardingSheet(
             finally { busy = false }
         }
     }
-    fun sendEmailCode() {
+    fun sendPhoneCode() {
         if (busy || externallyBusy) return
-        val address = normalizedAuthEmail(email) ?: return
-        if (sentEmail == address && resendSeconds > 0) return
-        if (backend == null) { authError = "E-posta giriş servisi henüz bağlanmadı."; return }
+        val normalized = normalizePhoneWithCountry(selectedCountry, phone) ?: return
+        if (sentPhone == normalized && resendSeconds > 0) return
+        if (backend == null) { authError = "Giriş servisi henüz bağlanmadı."; return }
         scope.launch {
             busy = true; authError = null; otpError = null
             try {
                 if (backend.configuration == null) backend.refreshConfiguration()
-                val response = backend.startEmailOtp(address)
-                sentEmail = address; resendSeconds = response.i("resendAfterSeconds", 60)
-                code = ""; provider = "E-posta"; stage = AuthStage.EMAIL_OTP
+                if (isNativePhoneAuthSupported) {
+                    val verification = startNativePhoneVerification(normalized)
+                    sentPhone = normalized
+                    challengeId = verification.verificationId
+                    resendSeconds = 60
+                    code = if (verification.verificationId.startsWith("instant:")) verification.verificationId.removePrefix("instant:") else ""
+                    provider = "Telefon"
+                    stage = AuthStage.PHONE_OTP
+                } else {
+                    val response = backend.startPhoneOtp(normalized)
+                    sentPhone = normalized
+                    challengeId = response.s("challengeId")
+                    resendSeconds = response.i("resendAfterSeconds", 60)
+                    code = response.s("developmentCode")
+                    provider = "Telefon"
+                    stage = AuthStage.PHONE_OTP
+                }
             } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
             catch (error: Exception) {
                 authError = when {
                     error is BackendFailure && error.code == "AUTH_CANCELLED" -> null
                     error is BackendFailure && error.code == "CONFIGURATION_REQUIRED" -> "Giriş servisi henüz bağlanmadı. Lütfen daha sonra tekrar dene."
+                    error is BackendFailure && error.code == "FIREBASE_PHONE_ERROR" -> formatFirebasePhoneAuthError(error.message)
                     else -> error.message
                 }
             }
@@ -186,21 +203,43 @@ fun AuthAndOnboardingSheet(
                     } }, enabled = legalAccepted && !busy && !externallyBusy)
                 }
                 AuthStage.LOGIN_OPTIONS -> LoginOptionsView(
-                    { enter("Apple") }, { enter("Google") }, { authError = null; stage = AuthStage.EMAIL_INPUT },
+                    { enter("Apple") }, { enter("Google") }, { authError = null; stage = AuthStage.PHONE_INPUT },
                     { onContinueAsGuest() }, onDismiss, busy = busy || externallyBusy)
-                AuthStage.EMAIL_INPUT -> EmailInputView(email, { email = it; authError = null },
-                    { stage = AuthStage.LOGIN_OPTIONS; authError = null }, ::sendEmailCode,
-                    busy = busy || externallyBusy, cooldown = if (normalizedAuthEmail(email) == sentEmail) resendSeconds else 0)
-                AuthStage.EMAIL_OTP -> EmailOtpView(sentEmail, code, otpError,
-                    { code = it; otpError = null }, { stage = AuthStage.EMAIL_INPUT; authError = null }, {
+                AuthStage.PHONE_INPUT -> PhoneInputView(
+                    selectedCountry = selectedCountry,
+                    onSelectCountry = { selectedCountry = it; authError = null },
+                    phone = phone,
+                    onChange = { phone = it; authError = null },
+                    onBack = { stage = AuthStage.LOGIN_OPTIONS; authError = null },
+                    onSend = ::sendPhoneCode,
+                    busy = busy || externallyBusy,
+                    cooldown = if (normalizePhoneWithCountry(selectedCountry, phone) == sentPhone) resendSeconds else 0
+                )
+                AuthStage.PHONE_OTP -> PhoneOtpView(sentPhone, code, otpError,
+                    { code = it; otpError = null }, { stage = AuthStage.PHONE_INPUT; authError = null }, {
                         if (!busy && !externallyBusy && backend != null) scope.launch {
                             busy = true; authError = null
-                            try { backend.verifyEmailOtp(sentEmail, code); draft = draft.copy(email = sentEmail); continueToPassport() }
+                            try {
+                                if (isNativePhoneAuthSupported && !challengeId.startsWith("instant:")) {
+                                    val nativeAuth = verifyNativePhoneCode(challengeId, code)
+                                    backend.exchangeIdToken("firebase", nativeAuth.idToken, null)
+                                    draft = draft.copy(phone = nativeAuth.phoneNumber.ifBlank { sentPhone })
+                                    continueToPassport()
+                                } else {
+                                    backend.verifyPhoneOtp(challengeId, code)
+                                    draft = draft.copy(phone = sentPhone)
+                                    continueToPassport()
+                                }
+                            }
                             catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-                            catch (error: Exception) { otpError = error.message }
+                            catch (error: Exception) {
+                                otpError = if (error is BackendFailure && error.code in setOf("INVALID_CODE", "FIREBASE_PHONE_ERROR")) {
+                                    formatFirebasePhoneAuthError(error.message)
+                                } else error.message
+                            }
                             finally { busy = false }
                         }
-                    }, busy = busy || externallyBusy, resendSeconds = resendSeconds, onResend = ::sendEmailCode)
+                    }, busy = busy || externallyBusy, resendSeconds = resendSeconds, onResend = ::sendPhoneCode)
                 AuthStage.PASSPORT_SETUP -> PassportSetupView(draft, { draft = it }, photo, { photo = it },
                     section, { section = it }, provider, { stage = AuthStage.LOGIN_OPTIONS },
                     legalRequired = legalRequired, legalAccepted = legalAccepted, onLegalAccepted = { legalAccepted = it }, phoneLocked = backend != null, busy = busy || externallyBusy, onSave = {
@@ -220,15 +259,15 @@ fun AuthAndOnboardingSheet(
 
 @Composable
 private fun LoginOptionsView(onSelectApple: () -> Unit, onSelectGoogle: () -> Unit,
-    onSelectEmail: () -> Unit, onContinueAsGuest: () -> Unit, onDismiss: () -> Unit, busy: Boolean) {
+    onSelectPhone: () -> Unit, onContinueAsGuest: () -> Unit, onDismiss: () -> Unit, busy: Boolean) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()
         .padding(horizontal = 22.dp).padding(bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         AuthHeader("Matchora’ya Giriş", "Sporcu pasaportunla sahadaki yerini al.", onDismiss)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
             if ("apple" in supportedSignInProviders(storePlatform)) ProviderButton("Apple ile devam et", onSelectApple, Color.Black, Color.White, enabled = !busy) { AppleLogoIcon(Modifier.size(20.dp)) }
             ProviderButton("Google ile devam et", onSelectGoogle, Color.White, MColors.Ink900, enabled = !busy) { GoogleLogoIcon(Modifier.size(19.dp)) }
-            ProviderButton("E-posta ile devam et", onSelectEmail, Color.White, MColors.Ink900, enabled = !busy) {
-                Icon(Icons.Rounded.MailOutline, null, Modifier.size(20.dp), tint = MColors.BrandDeep)
+            ProviderButton("Telefon ile devam et", onSelectPhone, Color.White, MColors.Ink900, enabled = !busy) {
+                Icon(Icons.Rounded.PhoneAndroid, null, Modifier.size(20.dp), tint = MColors.BrandDeep)
             }
         }
         OutlinedButton(
@@ -393,25 +432,39 @@ private fun PassportSetupView(draft: PassportDraft, onDraft: (PassportDraft) -> 
 }
 
 @Composable
-private fun EmailInputView(email: String, onChange: (String) -> Unit, onBack: () -> Unit, onSend: () -> Unit, busy: Boolean, cooldown: Int) {
+private fun PhoneInputView(
+    selectedCountry: PhoneCountryCode,
+    onSelectCountry: (PhoneCountryCode) -> Unit,
+    phone: String,
+    onChange: (String) -> Unit,
+    onBack: () -> Unit,
+    onSend: () -> Unit,
+    busy: Boolean,
+    cooldown: Int
+) {
+    val isPhoneValid = normalizePhoneWithCountry(selectedCountry, phone) != null
     Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(22.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        AuthHeader("E-posta ile devam et", "Şifresiz giriş veya ücretsiz hesap oluşturma.", onBack)
-        OutlinedTextField(email, { onChange(it.take(254)) }, label = { Text("E-posta adresin") }, placeholder = { Text("ornek@eposta.com") },
-            leadingIcon = { Icon(Icons.Rounded.MailOutline, null, tint = MColors.BrandDeep) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), singleLine = true, enabled = !busy,
-            colors = premiumTextFieldColors(), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
-        Text("Adresine tek kullanımlık bir kod göndereceğiz. Hesabın varsa giriş yaparsın; yoksa doğruladıktan sonra sporcu pasaportunu oluşturursun.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
-        MButton(if (cooldown > 0) "Yeni kod için $cooldown sn bekle" else "Giriş kodu gönder", onSend, enabled = !busy && cooldown == 0 && normalizedAuthEmail(email) != null, icon = Icons.Rounded.MarkEmailRead)
+        AuthHeader("Telefon ile devam et", "Şifresiz SMS doğrulamasıyla giriş veya kayıt.", onBack)
+        PhoneNumberFieldWithCountryPicker(
+            selectedCountry = selectedCountry,
+            onSelectCountry = onSelectCountry,
+            localPhone = phone,
+            onLocalPhoneChange = onChange,
+            label = "Telefon numaran",
+            enabled = !busy
+        )
+        Text("Numarana 6 haneli tek kullanımlık bir SMS kodu göndereceğiz. Hesabın varsa doğrudan giriş yaparsın; yoksa sporcu pasaportunu oluşturursun.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
+        MButton(if (cooldown > 0) "Yeni kod için $cooldown sn bekle" else "Doğrulama kodu gönder", onSend, enabled = !busy && cooldown == 0 && isPhoneValid, icon = Icons.Rounded.Sms)
     }
 }
 
 @Composable
-private fun EmailOtpView(email: String, code: String, error: String?, onCode: (String) -> Unit, onBack: () -> Unit,
+private fun PhoneOtpView(phone: String, code: String, error: String?, onCode: (String) -> Unit, onBack: () -> Unit,
     onVerify: () -> Unit, busy: Boolean, resendSeconds: Int, onResend: () -> Unit) {
     Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(22.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        AuthHeader("E-postanı doğrula", email, onBack)
-        Text("Gelen kutuna gönderilen altı haneli kodu gir. İleti görünmüyorsa spam klasörüne de bak.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
-        OutlinedTextField(code, { onCode(it.filter(Char::isDigit).take(6)) }, label = { Text("6 haneli giriş kodu") },
+        AuthHeader("Numaranı doğrula", phone, onBack)
+        Text("SMS ile gelen altı haneli doğrulama kodunu gir.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
+        OutlinedTextField(code, { onCode(it.filter(Char::isDigit).take(6)) }, label = { Text("6 haneli SMS kodu") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), isError = error != null,
             enabled = !busy, singleLine = true, colors = premiumTextFieldColors(), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
         error?.let { Text(it, color = MColors.Rose, style = MaterialTheme.typography.bodySmall) }

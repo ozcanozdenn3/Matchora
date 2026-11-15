@@ -273,7 +273,8 @@ data class Player(
     val campus: String? = null,
     val company: String? = null,
     val jerseyNumber: Int? = null,
-    val fairPlay: Float = 0f
+    val fairPlay: Float = 0f,
+    val city: String = "İstanbul"
 ) {
     val initials: String get() = name.split(" ").mapNotNull { it.firstOrNull()?.uppercase() }.take(2).joinToString("")
     val firstName: String get() = name.substringBefore(" ")
@@ -550,7 +551,9 @@ data class VenueInfo(
     val approximateLocation: EventGeoPoint? = null,
     val city: String = "İstanbul",
     val phone: String = "",
-    val description: String = ""
+    val description: String = "",
+    val photoUploadIds: List<String> = emptyList(),
+    val ownerId: String = ""
 )
 
 enum class ThreadType(val label: String) {
@@ -645,7 +648,7 @@ enum class NotifPriority(val label: String, val color: Color, val tint: Color) {
     P4("Kampanya", MColors.Ink500, MColors.SurfaceMuted)
 }
 
-enum class NotificationDestination { EVENT, CHALLENGES, TEAM, TOURNAMENT, RANKING, PASSPORT, ACCOUNT, PLAY, PLUS, WALLET, CHAT, NETWORK, VENUES, MODERATION, RESERVATIONS, VENUE_MANAGEMENT }
+enum class NotificationDestination { EVENT, CHALLENGES, TEAM, TOURNAMENT, RANKING, PASSPORT, ACCOUNT, PLAY, PLUS, WALLET, CHAT, NETWORK, VENUES, MODERATION, RESERVATIONS, VENUE_MANAGEMENT, MEMORIES }
 
 data class AppNotification(
     val id: String,

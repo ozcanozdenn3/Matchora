@@ -118,12 +118,29 @@ expect fun shareEventInvitation(event: SportEvent)
 expect fun shareText(title: String, text: String)
 expect fun openEventDirections(event: SportEvent): Boolean
 expect fun openLocationDirections(latitude: Double?, longitude: Double?, query: String): Boolean
-expect fun openEventCalendar(event: SportEvent): Boolean
+internal fun calendarNotesForViewer(event: SportEvent, includeInviteLink: Boolean): String =
+    eventCalendarNotes(event).let { notes ->
+        if (includeInviteLink) notes
+        else notes.lines().filterNot { it.startsWith("matchora://") }.joinToString("\n")
+    }
+
+/** Matches only exact event IDs or explicit #ILN-XXXXXX display invite codes (never partial prefixes). */
+internal fun matchesEventInviteCode(eventId: String, query: String): Boolean {
+    val trimmed = query.trim()
+    val normalized = trimmed.removePrefix("#")
+    if (normalized.isBlank()) return false
+    val displayCode = eventDisplayId(eventId).removePrefix("#")
+    return eventId.equals(trimmed, ignoreCase = true) ||
+        eventId.equals(normalized, ignoreCase = true) ||
+        displayCode.equals(normalized, ignoreCase = true)
+}
+
+expect fun openEventCalendar(event: SportEvent, includeInviteLink: Boolean = true): Boolean
 
 @Composable
-fun EventDeviceActions(event: SportEvent) {
+fun EventDeviceActions(event: SportEvent, showDirections: Boolean = true, includeInviteLink: Boolean = false) {
     var error by remember { mutableStateOf<String?>(null) }
-    if (!isOnlineMeeting(event)) TextButton(onClick = { if (!openEventDirections(event)) error = "Harita uygulaması açılamadı. Tesis adresini elle arayabilirsin." }) { Text("Yol tarifi al") }
-    if (event.startsAtEpochMillis != null) TextButton(onClick = { if (!openEventCalendar(event)) error = "Takvim açılamadı. Cihazında bir takvim uygulaması bulunduğunu kontrol et." }) { Text("Cihaz takvimine ekle") }
+    if (showDirections && !isOnlineMeeting(event)) TextButton(onClick = { if (!openEventDirections(event)) error = "Harita uygulaması açılamadı. Tesis adresini elle arayabilirsin." }) { Text("Yol tarifi al") }
+    if (event.startsAtEpochMillis != null) TextButton(onClick = { if (!openEventCalendar(event, includeInviteLink)) error = "Takvim açılamadı. Cihazında bir takvim uygulaması bulunduğunu kontrol et." }) { Text("Cihaz takvimine ekle") }
     error?.let { message -> AlertDialog(onDismissRequest = { error = null }, title = { Text("Cihaz bağlantısı") }, text = { Text(message) }, confirmButton = { TextButton(onClick = { error = null }) { Text("Tamam") } }) }
 }

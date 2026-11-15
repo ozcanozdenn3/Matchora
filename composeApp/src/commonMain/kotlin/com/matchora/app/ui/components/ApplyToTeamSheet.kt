@@ -40,9 +40,6 @@ fun ApplyToTeamSheet(
     onDismiss: () -> Unit,
     onSubmitApplication: (position: String, note: String) -> Unit
 ) {
-    var selectedPosition by remember { mutableStateOf("Orta Saha") }
-    var applicationNote by remember { mutableStateOf("") }
-
     val positions = remember(team.sport) {
         when (team.sport) {
             Sport.FOOTBALL -> listOf("Kaleci", "Defans", "Orta Saha", "Kanat", "Forvet")
@@ -54,6 +51,10 @@ fun ApplyToTeamSheet(
             else -> listOf("Ana Kadro", "Yedek", "Rotasyon")
         }
     }
+    var selectedPosition by remember(team.id, team.sport) {
+        mutableStateOf(if (team.sport == Sport.FOOTBALL) "Orta Saha" else positions.firstOrNull() ?: "Ana Kadro")
+    }
+    var applicationNote by remember { mutableStateOf("") }
 
     ModalBottomSheet(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -81,36 +82,19 @@ fun ApplyToTeamSheet(
                 )
             }
 
-            // Mevki Seçimi (Yüzen Gölgeli Açılır Menü)
+            // Mevki Seçimi
             item {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color.White,
-                    shadowElevation = 5.dp,
-                    border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(
-                            elevation = 7.dp,
-                            shape = RoundedCornerShape(20.dp),
-                            ambientColor = Color(0x280B1220),
-                            spotColor = Color(0x380B1220)
-                        )
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        MFloatingDropdownBox(
-                            label = "Tercih Edilen Mevki / Rol",
-                            selectedValue = selectedPosition,
-                            options = positions,
-                            optionLabel = { it },
-                            onSelect = { selectedPosition = it },
-                            icon = Icons.Rounded.Sports
-                        )
-                    }
-                }
+                MFloatingDropdownBox(
+                    label = "Tercih Edilen Mevki / Rol",
+                    selectedValue = selectedPosition,
+                    options = positions,
+                    optionLabel = { it },
+                    onSelect = { selectedPosition = it },
+                    icon = Icons.Rounded.Sports
+                )
             }
 
-            // Kaptana Not (Premium Yüzen Açıklama Kutusu)
+            // Kaptana Not
             item {
                 MFloatingInputBox(
                     label = "Kaptana Başvuru Notu",
@@ -122,30 +106,18 @@ fun ApplyToTeamSheet(
                     badgeText = "İsteğe bağlı",
                     singleLine = false,
                     minLines = 2,
-                    maxLines = 4,
-                    suggestions = listOf(
-                        "Haftalık maçlara düzenli katılırım",
-                        "Mevkimde tecrübeliyim, kondisyonum hazır",
-                        "Bölgeye yakınım, son dakika da gelebilirim"
-                    )
+                    maxLines = 4
                 )
             }
 
-            // Güvence Kapsülü (Yüzen Beyaz Ada)
+            // Güvence Kapsülü
             item {
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = Color.White,
-                    shadowElevation = 4.dp,
-                    border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(
-                            elevation = 6.dp,
-                            shape = RoundedCornerShape(16.dp),
-                            ambientColor = Color(0x240B1220),
-                            spotColor = Color(0x340B1220)
-                        )
+                    shadowElevation = 1.dp,
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier.padding(13.dp),
@@ -173,24 +145,13 @@ fun ApplyToTeamSheet(
 
             // Gönder Butonu
             item {
-                Button(
+                MButton(
+                    text = "Başvuruyu İlet 👥",
                     onClick = {
                         onSubmitApplication(selectedPosition, applicationNote)
                         onDismiss()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp)
-                ) {
-                    Text(
-                        text = "Başvuruyu İlet 👥",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = Color.White
-                    )
-                }
+                    }
+                )
             }
         }
     }

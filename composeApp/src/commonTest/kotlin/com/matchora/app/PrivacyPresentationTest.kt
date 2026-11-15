@@ -6,6 +6,8 @@ import com.matchora.app.data.blockedPlayerEntries
 import com.matchora.app.data.toApiPayload
 import com.matchora.app.state.DemoData
 import com.matchora.app.state.EventGeoPoint
+import com.matchora.app.ui.components.eventDisplayId
+import com.matchora.app.ui.components.matchesEventInviteCode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -90,5 +92,19 @@ class PrivacyPresentationTest {
             mapOf("id" to "malformed", "meetingLocation" to mapOf("latitude" to "unknown", "longitude" to 29.0))
         )))
         assertTrue(snapshot.events.all { it.meetingLocation == null && it.approximateLocation == null })
+    }
+
+    @Test fun eventInviteCodeMatchingRequiresExactIdOrExplicitDisplayCodeNeverPartialPrefixes() {
+        val id = "df52a1b2-3c4d-4e5f-8a9b-0c1d2e842104"
+        val displayCode = eventDisplayId(id)
+        assertTrue(matchesEventInviteCode(id, id))
+        assertTrue(matchesEventInviteCode(id, id.uppercase()))
+        assertTrue(matchesEventInviteCode(id, displayCode))
+        assertTrue(matchesEventInviteCode(id, displayCode.removePrefix("#").lowercase()))
+        assertFalse(matchesEventInviteCode(id, ""))
+        assertFalse(matchesEventInviteCode(id, "#"))
+        assertFalse(matchesEventInviteCode(id, "d"))
+        assertFalse(matchesEventInviteCode(id, "df52a1b2"))
+        assertFalse(matchesEventInviteCode(id, displayCode.removePrefix("#ILN-")))
     }
 }

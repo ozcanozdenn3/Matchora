@@ -16,7 +16,8 @@ export const memoryManagementHandlers={
   if(p.approximateLocation===undefined&&(next.city!==data.city||next.area!==data.area||next.venue!==data.venue))next.approximateLocation=null;
   choice(next.sceneTheme,['NIGHT_TURF','SUNSET_TENNIS','ARENA_HOOPS','PADEL_GLASS','BEACH_VOLLEY','TROPHY_MOMENT'],'Tema');
   await indexMemory(ctx,old.id,next);
-  await ctx.db.run("UPDATE memories SET payload=?,upload_id=?,status='pending' WHERE id=?",[encode(next),p.uploadId??old.upload_id,old.id]);
-  await audit(ctx,'memory.update',old.id);return{updated:true,status:'pending'};
+  const nextStatus=old.status==='rejected'?'pending':'approved';
+  await ctx.db.run('UPDATE memories SET payload=?,upload_id=?,status=? WHERE id=?',[encode(next),p.uploadId??old.upload_id,nextStatus,old.id]);
+  await audit(ctx,'memory.update',old.id);return{updated:true,status:nextStatus};
  }
 };

@@ -143,7 +143,7 @@ fun TeamDetailSheet(
                                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                                             ) {
                                                 Text(
-                                                    text = "Kaptansın",
+                                                    text = if (team.captainId == DemoData.ME) "Kaptansın" else "Üyesin",
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color.White,
                                                     fontSize = 9.sp
@@ -525,9 +525,6 @@ fun TeamDetailSheet(
                 }
             }
 
-            // 7. Aksiyon Butonları
-            item { BackendTeamActions(team, players); BackendTeamEditing(team) }
-
             // Benzersiz Kulüp ID Kartı ve Paylaşım
             item {
                 var copiedClubId by remember { mutableStateOf(false) }
@@ -569,7 +566,7 @@ fun TeamDetailSheet(
                                 ) {
                                     Icon(Icons.Rounded.Share, null, tint = Color.White, modifier = Modifier.size(13.dp))
                                     Spacer(Modifier.width(4.dp))
-                                    Text("Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text(if (backendMode) "Paylaş" else "Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 }
                             }
                         }
@@ -577,17 +574,39 @@ fun TeamDetailSheet(
                 }
             }
 
+            // 7. Aksiyon Butonları (Role göre tek birleşik alan)
             item {
                 if (team.isMine && team.captainId == DemoData.ME) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MButton(
-                            text = if (pendingRequestsCount > 0) "Başvuruları İncele ($pendingRequestsCount) 👥" else "Başvuruları Yönet 👥",
-                            onClick = onManageRequests,
-                            icon = Icons.Rounded.Groups
-                        )
+                    MCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Kaptan yönetimi", style = MaterialTheme.typography.titleSmall, color = MColors.Ink900)
+                            MButton(
+                                text = if (pendingRequestsCount > 0) "Başvuruları İncele ($pendingRequestsCount) 👥" else "Başvuruları Yönet 👥",
+                                onClick = onManageRequests,
+                                icon = Icons.Rounded.Groups
+                            )
+                            BackendTeamEditing(team)
+                            BackendTeamActions(team, players)
+                        }
                     }
-                } else if (!team.isMine) {
+                } else if (team.isMine) {
+                    MCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Üyelik işlemleri", style = MaterialTheme.typography.titleSmall, color = MColors.Ink900)
+                            MButton(
+                                text = "Kaptana Mesaj",
+                                onClick = { onOpenCaptainChat(captainPlayer) },
+                                icon = Icons.Rounded.ChatBubbleOutline,
+                                isPrimary = false,
+                                height = 44.dp
+                            )
+                            BackendTeamActions(team, players)
+                        }
+                    }
+                } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BackendTeamActions(team, players)
+                        BackendTeamEditing(team)
                         MButton("Meydan Oku", onOpenChallenge, icon = Icons.Rounded.SportsKabaddi)
 
                         Row(
@@ -615,15 +634,19 @@ fun TeamDetailSheet(
             isInvitedToTeam = false,
             sport = team.sport,
             onDismiss = { selectedPlayerProfile = null },
-            onChallenge = {
-                val target = player
-                selectedPlayerProfile = null
-                onChallengePlayer?.invoke(target)
+            onChallenge = onChallengePlayer?.let { cb ->
+                {
+                    val target = player
+                    selectedPlayerProfile = null
+                    cb(target)
+                }
             },
-            onInviteTeam = {
-                val target = player
-                selectedPlayerProfile = null
-                onInvitePlayerToTeam?.invoke(target)
+            onInviteTeam = onInvitePlayerToTeam?.let { cb ->
+                {
+                    val target = player
+                    selectedPlayerProfile = null
+                    cb(target)
+                }
             },
             onDirectMessage = { selectedPlayerProfile = null; onOpenCaptainChat(player) }
         )

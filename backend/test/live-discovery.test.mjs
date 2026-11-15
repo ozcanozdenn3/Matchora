@@ -32,3 +32,12 @@ test('radar matching uses a recent real point and safely falls back to the selec
  f.advance(16*60000);assert.equal((await f.service.event(f.guest,id)).score.distance,100);
  await f.cmd(f.guest,'preferences.save',{privacy:{chemistrySignals:false}});assert.equal((await f.service.event(f.guest,id)).score.confidence,0);
 });
+
+test('regular open match announcement delivers push notifications to nearby athletes based on location coordinates',async t=>{
+ const f=await fixture(t);await f.grant(f.host);
+ const id=(await f.cmd(f.host,'event.create',f.event({emergency:false,approximateLocation:{latitude:41,longitude:29}}))).result.id;
+ await f.cmd(f.guest,'discovery.location',{latitude:41.05,longitude:29.05});
+ await f.store.transaction(db=>scheduleEngagement(f.service.ctx(db)));
+ const notices=(await f.service.bootstrap(f.guest)).notifications;
+ assert.ok(notices.some(n=>n.targetId===id&&n.title==='Yakınında yeni maç ilanı'));
+});

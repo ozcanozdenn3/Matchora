@@ -99,8 +99,9 @@ fun VenueSpotlightCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Icon(Icons.Rounded.LocationOn, null, Modifier.size(12.dp), tint = accent)
+                    val placeText = listOf(venue.area, venue.city).filter { it.isNotBlank() }.distinct().joinToString(", ")
                     Text(
-                        text = "${venue.area}${venue.distanceKm?.let { " · $it km" }.orEmpty()} · ${venue.courts} saha",
+                        text = "$placeText${venue.distanceKm?.let { " · $it km" }.orEmpty()} · ${venue.courts} saha",
                         color = Color(0xFFC8D5DC),
                         fontSize = 11.5.sp,
                         lineHeight = 14.sp,
@@ -274,30 +275,32 @@ fun VenueSpotlightCard(
                     )
                 }
 
+                val backendEnabled = LocalBackendRepository.current?.enabled == true
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (onDirections != null) {
-                        OutlinedButton(
-                            onClick = onDirections,
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp),
-                            modifier = Modifier.height(28.dp)
-                        ) {
-                            Icon(Icons.Rounded.Directions, null, Modifier.size(12.dp), tint = MColors.BrandDeep)
-                            Spacer(Modifier.width(3.dp))
-                            Text("Yol Tarifi", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MColors.BrandDeep)
-                        }
+                        MPillActionButton(
+                            text = "Yol Tarifi",
+                            icon = Icons.Rounded.Directions,
+                            tone = MPillTone.BRAND,
+                            compact = true,
+                            onClick = onDirections
+                        )
                     }
                     if (onShareVenue != null) {
-                        Button(
+                        Surface(
                             onClick = onShareVenue,
-                            colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp),
-                            modifier = Modifier.height(28.dp)
+                            shape = RoundedCornerShape(10.dp),
+                            color = MColors.Brand,
+                            modifier = Modifier.height(34.dp)
                         ) {
-                            Icon(Icons.Rounded.Share, null, tint = Color.White, modifier = Modifier.size(12.dp))
-                            Spacer(Modifier.width(3.dp))
-                            Text("Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Rounded.Share, null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                Text(if (backendEnabled) "Paylaş" else "Paylaş (+2 TKN)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                            }
                         }
                     }
                 }

@@ -297,7 +297,7 @@ fun AthleteQrPassSheet(
                                         val p = res.o("passport")
                                         verifyResult = "✓ Doğrulandı: ${p.s("name")} (${p.s("city")} · Güvenilirlik %${p.i("reliability")})"
                                     } catch (e: Exception) {
-                                        verifyResult = e.message ?: "Kod doğrulanamadı."
+                                        verifyResult = (e as? com.matchora.app.data.BackendFailure)?.message ?: "Kod doğrulanamadı."
                                     }
                                 }
                             }
@@ -310,25 +310,11 @@ fun AthleteQrPassSheet(
             }
 
             // Tamam / Kapat Butonu
-            Button(
+            MButton(
+                text = if (backend == null) "Önizlemeyi kapat" else "Kapat",
                 onClick = onDismiss,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MColors.Brand,
-                    contentColor = Color.White
-                )
-            ) {
-                Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (backend == null) "Önizlemeyi kapat" else "Kapat",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-            }
+                icon = Icons.Rounded.Check
+            )
         }
     }
 }

@@ -129,4 +129,5 @@ export async function migrate(store) {
     await store.exec(await readFile(new URL('../migrations/009_multi_court_slots.sql',import.meta.url),'utf8'));
     await store.exec(await readFile(new URL('../migrations/002_postgres_security.sql', import.meta.url), 'utf8'));
   }
+  await store.exec(await readFile(new URL('../migrations/011_indexes_and_sync.sql', import.meta.url), 'utf8'));
 }

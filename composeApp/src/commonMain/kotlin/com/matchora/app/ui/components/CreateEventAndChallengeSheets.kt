@@ -37,7 +37,8 @@ fun CreateEventSheet(
     onDismiss: () -> Unit,
     newEventId: () -> String = { "legacy_${kotlin.random.Random.nextLong().toString(16)}" },
     currentCity: String = "İstanbul",
-    currentDistrict: String = "Kadıköy",
+    currentDistrict: String = "",
+    venues: List<VenueInfo> = emptyList(),
     onCreateEvent: (SportEvent) -> Unit
 ) {
     var selectedSport by remember { mutableStateOf(Sport.FOOTBALL) }
@@ -45,8 +46,8 @@ fun CreateEventSheet(
     var customSportName by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
     var venue by remember { mutableStateOf("") }
-    var area by remember(currentDistrict) { mutableStateOf(currentDistrict.ifBlank { "Kadıköy" }) }
     var city by remember(currentCity) { mutableStateOf(currentCity.ifBlank { "İstanbul" }) }
+    var area by remember(currentDistrict, currentCity) { mutableStateOf(currentDistrict.ifBlank { currentCity.ifBlank { "Merkez" } }) }
     var time by remember { mutableStateOf("21:00") }
     var day by remember { mutableStateOf("Bugün") }
     var mode by remember { mutableStateOf(PlayMode.COMPETITIVE) }
@@ -176,14 +177,24 @@ fun CreateEventSheet(
                         badgeText = "Başlık",
                         suggestions = listOf("Akşam Halı Saha", "Dostluk Maçı", "Hafta Sonu Maçı")
                     )
+                    val venueSuggestions = remember(venues, city, area) {
+                        venues.filter { matchesTurkishPlace(it.city, city) }
+                            .sortedByDescending { area.isNotBlank() && matchesTurkishPlace(it.area, area) }
+                            .map { "${it.name} · ${it.area}" }
+                            .distinct()
+                            .ifEmpty {
+                                val place = area.ifBlank { city }
+                                listOf("$city Merkez Spor Tesisi", "$place Spor Parkı", "$place Sahası")
+                            }
+                    }
                     MFloatingInputBox(
                         label = "Tesis / Saha Adı",
                         value = venue,
                         onValueChange = { venue = it },
-                        placeholder = "Örn: Moda Spor Parkı",
+                        placeholder = "Örn: ${area.ifBlank { city }} Spor Parkı",
                         icon = Icons.Rounded.Stadium,
                         badgeText = "Konum",
-                        suggestions = listOf("Moda Spor Parkı", "Kalamış Sahil Kortları", "Caddebostan Saha")
+                        suggestions = venueSuggestions
                     )
                 }
             }
@@ -259,7 +270,7 @@ fun CreateEventSheet(
                             time = time,
                             startsInMin = 90,
                             durationMin = 60,
-                            distanceKm = 1.0f,
+                            distanceKm = null,
                             capacity = capacity,
                             participantIds = listOf(DemoData.ME),
                             waitlistCount = 0,
@@ -291,6 +302,8 @@ fun CreateEventSheet(
 fun TeamChallengeSheet(
     myTeam: TeamProfile,
     targetTeam: TeamProfile,
+    availableVenues: List<VenueInfo> = emptyList(),
+    currentCity: String = myTeam.city.ifBlank { "İstanbul" },
     onDismiss: () -> Unit,
     onSendChallenge: (proposedTime: String, venue: String) -> Unit
 ) {
@@ -301,7 +314,13 @@ fun TeamChallengeSheet(
     var minute by remember { mutableIntStateOf(30) }
     var isCustomTime by remember { mutableStateOf(false) }
 
-    var selectedVenue by remember { mutableStateOf("Moda Spor Parkı · Saha 1 (Suni Çim)") }
+    var selectedVenue by remember {
+        mutableStateOf(
+            availableVenues.firstOrNull { matchesTurkishPlace(it.city, currentCity) }
+                ?.let { "${it.name} · ${it.area}" }
+                ?: "$currentCity Merkez Spor Tesisi"
+        )
+    }
     var selectedFormat by remember { mutableStateOf("7v7 Halı Saha") }
     var tokenStake by remember { mutableIntStateOf(25) }
     var needReferee by remember { mutableStateOf(false) }
@@ -440,19 +459,24 @@ fun TeamChallengeSheet(
                             icon = Icons.Rounded.Schedule
                         )
 
-                        val venues = listOf(
-                            "Moda Spor Parkı · Saha 1 (Suni Çim)",
-                            "Kalamış Spor Merkezi (Açık Halı Saha)",
-                            "Caddebostan Halı Saha (Kapalı)",
-                            "Fenerbahçe Dereağzı Tesisleri"
-                        )
-                        MFloatingDropdownBox(
+                        val venueSuggestions = remember(availableVenues, currentCity) {
+                            availableVenues.filter { matchesTurkishPlace(it.city, currentCity) }
+                                .map { "${it.name} · ${it.area}" }
+                                .distinct()
+                                .ifEmpty {
+                                    listOf(
+                                        "$currentCity Merkez Spor Tesisi",
+                                        "$currentCity Kapalı Halı Saha",
+                                        "$currentCity Spor Kompleksi"
+                                    )
+                                }
+                        }
+                        VenueChoiceField(
                             label = "Saha ve Tesis",
-                            selectedValue = selectedVenue,
-                            options = venues,
-                            optionLabel = { it },
-                            onSelect = { selectedVenue = it },
-                            icon = Icons.Rounded.Stadium
+                            value = selectedVenue,
+                            onChange = { selectedVenue = it },
+                            previewOptions = venueSuggestions,
+                            city = currentCity
                         )
 
                         MFloatingDropdownBox(
@@ -487,30 +511,15 @@ fun TeamChallengeSheet(
 
             // GÖNDER BUTONU
             item {
-                val summaryText = "$formattedTime · $selectedVenue · $selectedFormat · $tokenStake TKN Bahis"
-                Button(
+                MButton(
+                    text = "Meydan Okumayı Gönder ($tokenStake TKN Kilitlenecek)",
                     onClick = {
                         onSendChallenge(formattedTime, selectedVenue)
                         onDismiss()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Send, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Meydan Okumayı Gönder ($tokenStake TKN Kilitlenecek)",
-                            color = Color.White,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                    }
-                }
+                    icon = Icons.Rounded.Send,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }

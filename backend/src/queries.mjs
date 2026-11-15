@@ -13,6 +13,7 @@ import { teamStatistics } from './team-matches.mjs';
 import { ensure, json, text } from './errors.mjs';
 import { matchScore } from './matchmaking.mjs';
 import { eventNetworkMembership } from './event-network.mjs';
+import { canonicalTurkishCity, sameTurkishPlace } from './turkish-locale.mjs';
 import { sealCursor, openCursor } from './opaque-cursor.mjs';
 import { assertThread, profile, wallet, row } from './model.mjs';
 export const dateLabel = stamp => new Intl.DateTimeFormat('tr-TR',{timeZone:'Europe/Istanbul',day:'numeric',month:'short'}).format(Number(stamp));
@@ -70,7 +71,7 @@ export async function eventList(ctx,filters={}){
  let sql="SELECT * FROM events WHERE status IN ('PUBLISHED','FILLING','FULL','IN_PROGRESS') AND ends_at>?",params=[ctx.now];
  if(cursor){sql+=' AND (starts_at>? OR (starts_at=? AND id>?))';params.push(cursor[0],cursor[0],cursor[1]);}
  const city=filters.city??ctx.discoveryCity;
- if(city){sql+=' AND city=?';params.push(text(city,'İl',2,60));}
+ if(city){sql+=' AND city=?';params.push(canonicalTurkishCity(text(city,'İl',2,60)));}
  if(filters.sport){sql+=' AND sport=?';params.push(filters.sport);}
  sql+=' ORDER BY starts_at,id LIMIT ?';params.push(size+1);
  const rows=await ctx.db.all(sql,params),items=[];
@@ -85,7 +86,8 @@ async function mergeOwnCatalog(ctx,kind,publicItems,records){
 export async function snapshot(ctx){
  ctx.publicPlayers=new Map();ctx.ownProfileRow=ctx.actor?await ctx.db.get('SELECT * FROM profiles WHERE user_id=?',[ctx.actor.id]):null;
  const savedDiscovery=ctx.actor?await ctx.db.get('SELECT payload FROM discovery_preferences WHERE user_id=?',[ctx.actor.id]):null;
- const browseCity=ctx.discoveryCity??(savedDiscovery?json(savedDiscovery.payload).city:ctx.ownProfileRow?json(ctx.ownProfileRow.payload).city:null);
+ const rawBrowseCity=ctx.discoveryCity??(savedDiscovery?json(savedDiscovery.payload).city:ctx.ownProfileRow?json(ctx.ownProfileRow.payload).city:null);
+ const browseCity=rawBrowseCity?canonicalTurkishCity(rawBrowseCity):null;
  const publicRows=await ctx.db.all("SELECT * FROM events WHERE status IN ('PUBLISHED','FILLING','FULL','IN_PROGRESS') AND ends_at>?"+(browseCity?' AND city=?':'')+" ORDER BY starts_at,id LIMIT 201",browseCity?[ctx.now,browseCity]:[ctx.now]);
  const publicEvents=publicRows.slice(0,200),nextEventCursor=publicRows.length>200?eventCursor(ctx,publicEvents[199]):null;
  const ownEvents=ctx.actor?await ctx.db.all("SELECT DISTINCT e.* FROM events e LEFT JOIN event_members m ON m.event_id=e.id AND m.user_id=? WHERE e.status NOT IN ('DRAFT','ARCHIVED') AND (e.host_id=? OR (m.user_id=? AND m.status='joined')) ORDER BY e.starts_at DESC LIMIT 100",[ctx.actor.id,ctx.actor.id,ctx.actor.id]):[];
@@ -96,13 +98,14 @@ export async function snapshot(ctx){
  const teams=await mergeOwnCatalog(ctx,'teams',publicTeamPage.items,ownTeams);
  const publicTournamentPage=await catalogPage(ctx,'tournaments',{limit:100}),ownTournaments=ctx.actor?await ctx.db.all("SELECT DISTINCT t.* FROM tournaments t LEFT JOIN tournament_members tm ON tm.tournament_id=t.id AND tm.status='joined' LEFT JOIN team_members m ON m.team_id=tm.team_id AND m.user_id=? AND m.status='joined' WHERE t.status IN ('open','running') AND (t.creator_id=? OR m.user_id=?)",[ctx.actor.id,ctx.actor.id,ctx.actor.id]):[];
  const tournaments=await mergeOwnCatalog(ctx,'tournaments',publicTournamentPage.items,ownTournaments);
+ const explicitCity=ctx.discoveryCity?canonicalTurkishCity(ctx.discoveryCity):null;
  const publicCommunityPage=await catalogPage(ctx,'communities',{limit:100}),ownCommunities=ctx.actor?await ctx.db.all("SELECT DISTINCT c.* FROM communities c LEFT JOIN community_members m ON m.community_id=c.id AND m.user_id=? WHERE c.owner_id=? OR m.status IN ('joined','invited','pending')",[ctx.actor.id,ctx.actor.id]):[];
  const communities=await mergeOwnCatalog(ctx,'communities',publicCommunityPage.items,ownCommunities);
- const publicVenuePage=await catalogPage(ctx,'venues',{limit:100}),venues=publicVenuePage.items;
- const memories=[];const memoryRows=await ctx.db.all("SELECT * FROM memories WHERE status='approved' OR (author_id=? AND status='pending') ORDER BY created_at DESC LIMIT 50",[ctx.actor?.id??'']);for(const m of memoryRows){if(ctx.actor&&await ctx.db.get('SELECT * FROM blocks WHERE (user_id=? AND target_id=?) OR (user_id=? AND target_id=?)',[ctx.actor.id,m.author_id,m.author_id,ctx.actor.id]))continue;const author=await publicPlayer(ctx,m.author_id),likes=await ctx.db.get('SELECT COUNT(*) AS n FROM memory_likes WHERE memory_id=?',[m.id]),liked=ctx.actor?await ctx.db.get('SELECT user_id FROM memory_likes WHERE memory_id=? AND user_id=?',[m.id,ctx.actor.id]):null;memories.push({...publicMemoryPayload(m.payload),id:m.id,authorId:m.author_id,authorName:author.name,authorAvatarUploadId:author.avatarUploadId??null,uploadId:m.upload_id,status:m.status,likes:likes.n,likedByMe:!!liked,createdAt:Number(m.created_at)});}
+ const publicVenuePage=await catalogPage(ctx,'venues',{limit:100,...(explicitCity?{city:explicitCity}:{})}),venues=publicVenuePage.items;
+ const memories=[];const blockedMemoryActors=ctx.actor?new Set((await ctx.db.all('SELECT target_id AS id FROM blocks WHERE user_id=? UNION SELECT user_id AS id FROM blocks WHERE target_id=?',[ctx.actor.id,ctx.actor.id])).map(r=>r.id)):null;const memoryRows=await ctx.db.all("SELECT * FROM memories WHERE status='approved' OR (author_id=? AND status='pending') ORDER BY created_at DESC LIMIT 50",[ctx.actor?.id??'']);for(const m of memoryRows){if(blockedMemoryActors?.has(m.author_id))continue;const author=await publicPlayer(ctx,m.author_id),likes=await ctx.db.get('SELECT COUNT(*) AS n FROM memory_likes WHERE memory_id=?',[m.id]),liked=ctx.actor?await ctx.db.get('SELECT user_id FROM memory_likes WHERE memory_id=? AND user_id=?',[m.id,ctx.actor.id]):null;memories.push({...publicMemoryPayload(m.payload,blockedMemoryActors),id:m.id,authorId:m.author_id,authorName:author.name,authorAvatarUploadId:author.avatarUploadId??null,uploadId:m.upload_id,status:m.status,likes:likes.n,likedByMe:!!liked,createdAt:Number(m.created_at)});}
  const result={events,nextEventCursor,nextCatalogCursors:{teams:publicTeamPage.nextCursor,tournaments:publicTournamentPage.nextCursor,communities:publicCommunityPage.nextCursor,venues:publicVenuePage.nextCursor},players,teams,tournaments,communities,venues,memories,serverTime:ctx.now,ratingHistory:[],reliabilityHistory:[],rankings:[],featureFlags:await ctx.db.all('SELECT name,enabled FROM feature_flags'),profile:null,userId:null,threads:[],notifications:[],ledger:[],venuePayments:[],joinRequests:[],teamJoinRequests:[],challenges:[],results:[],submittedFeedbackTargets:[],supportRequests:[],reports:[],removedEventIds:[],removedEventMembers:[],removedTeamMembers:[],joinedEventIds:[],checkedInEventIds:[],waitlist:[],invitedPlayerIds:[],registeredTournamentIds:[],joinedCommunityIds:[],requestedCommunityIds:[],blockedUserIds:[],blockedThreadIds:[],wallet:{balance:0,locked:0},privacy:{},notificationPrefs:{}};
  result.rankings=await rankingRows(ctx);
- const localRanks=new Map();if(ctx.actor&&ctx.ownProfileRow){const own=json(ctx.ownProfileRow.payload);for(const skill of own.skills){const rank=result.rankings.filter(r=>r.sport===skill.sport&&r.city===own.city&&r.area===own.area).findIndex(r=>r.userId===ctx.actor.id);localRanks.set(skill.sport,rank<0?null:rank+1);}}
+ const localRanks=new Map();if(ctx.actor&&ctx.ownProfileRow){const own=json(ctx.ownProfileRow.payload);for(const skill of own.skills){const rank=result.rankings.filter(r=>r.sport===skill.sport&&sameTurkishPlace(r.city,own.city)&&sameTurkishPlace(r.area,own.area)).findIndex(r=>r.userId===ctx.actor.id);localRanks.set(skill.sport,rank<0?null:rank+1);}}
  result.rankings=result.rankings.slice(0,500);
  const publicRefs=new Set([...events.flatMap(e=>[e.hostId,...e.participantIds]),...teams.flatMap(t=>[t.captainId,...t.memberIds])]);
  for(const id of publicRefs)if(!players.some(p=>p.id===id))players.push(await publicPlayer(ctx,id));
@@ -121,7 +124,7 @@ export async function snapshot(ctx){
  result.ledger=(await ctx.db.all('SELECT * FROM wallet_entries WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 200',[userId])).map(r=>({id:r.id,type:r.kind,amount:r.amount,lockedDelta:r.locked_delta,description:r.description,time:dateLabel(r.created_at),ref:r.ref,idempotencyKey:r.dedupe}));
  const membership=await ctx.db.all("SELECT * FROM event_members WHERE user_id=? AND status='joined'",[userId]);result.joinedEventIds=membership.map(m=>m.event_id);result.checkedInEventIds=membership.filter(m=>m.checked_in_at).map(m=>m.event_id);result.waitlist=await ctx.db.all("SELECT * FROM waitlist WHERE user_id=? AND status IN ('waiting','offered')",[userId]);
  result.joinRequests=await ctx.db.all("SELECT * FROM join_requests WHERE scope='event' AND (user_id=? OR scope_id IN (SELECT id FROM events WHERE host_id=?))",[userId,userId]);result.teamJoinRequests=await ctx.db.all("SELECT * FROM join_requests WHERE scope='team' AND (user_id=? OR scope_id IN (SELECT id FROM teams WHERE captain_id=?))",[userId,userId]);
- result.challenges=await ctx.db.all('SELECT * FROM challenges WHERE from_team IN (SELECT team_id FROM team_members WHERE user_id=?) OR to_team IN (SELECT team_id FROM team_members WHERE user_id=?)',[userId,userId]);
+ result.challenges=await ctx.db.all("SELECT * FROM challenges WHERE from_team IN (SELECT team_id FROM team_members WHERE user_id=? AND status='joined') OR to_team IN (SELECT team_id FROM team_members WHERE user_id=? AND status='joined')",[userId,userId]);
  result.results=await ctx.db.all("SELECT r.* FROM results r JOIN event_members m ON m.event_id=r.event_id WHERE m.user_id=? AND m.status='joined'",[userId]);
  for(const record of result.results)record.rating=await ratingStatus(ctx,record);
  result.submittedFeedbackTargets=await ctx.db.all('SELECT event_id,to_id FROM feedback WHERE from_id=?',[userId]);
@@ -136,7 +139,11 @@ export async function snapshot(ctx){
  result.reports=await ctx.db.all('SELECT id,target_id AS target,reason,details,status FROM reports WHERE user_id=? ORDER BY created_at DESC LIMIT 100',[userId]);
  result.registeredTournamentIds=(await ctx.db.all("SELECT DISTINCT tournament_id FROM tournament_members tm JOIN team_members m ON m.team_id=tm.team_id WHERE m.user_id=? AND m.status='joined' AND tm.status='joined'",[userId])).map(r=>r.tournament_id);result.invitedPlayerIds=(await ctx.db.all("SELECT i.user_id FROM team_invites i JOIN teams t ON t.id=i.team_id WHERE t.captain_id=? AND i.status='pending'",[userId])).map(r=>r.user_id);
  const cm=await ctx.db.all('SELECT * FROM community_members WHERE user_id=?',[userId]);result.joinedCommunityIds=cm.filter(m=>m.status==='joined').map(m=>m.community_id);result.requestedCommunityIds=cm.filter(m=>m.status==='pending').map(m=>m.community_id);
- const referencedPlayers=[...result.blockedUserIds,...result.removedEventMembers.map(m=>m.user_id),...result.removedTeamMembers.map(m=>m.user_id),...result.ownedCommunityMembers.map(m=>m.user_id),...result.communityRequests.map(m=>m.user_id),...result.joinRequests.map(m=>m.user_id),...result.teamJoinRequests.map(m=>m.user_id),...result.threads.flatMap(t=>t.memberIds)];
+ const challengeTeamIds=[...new Set(result.challenges.flatMap(c=>[c.from_team,c.to_team]))];
+ const challengeCaptains=challengeTeamIds.length?(await ctx.db.all(`SELECT captain_id FROM teams WHERE id IN (${challengeTeamIds.map(()=>'?').join(',')})`,challengeTeamIds)).map(t=>t.captain_id):[];
+ const teamRosterIds=result.teams.flatMap(t=>[t.captainId,t.coCaptainId,...(t.memberIds??[]),...(t.substituteIds??[])]).filter(Boolean);
+ const tournamentPlayerIds=result.tournaments.flatMap(t=>[t.creatorId,...(t.registrations??[]).flatMap(r=>[r.captainId,...(r.rosterIds??[])])]).filter(Boolean);
+ const referencedPlayers=[...result.blockedUserIds,...result.removedEventMembers.map(m=>m.user_id),...result.removedTeamMembers.map(m=>m.user_id),...result.ownedCommunityMembers.map(m=>m.user_id),...result.communityRequests.map(m=>m.user_id),...result.joinRequests.map(m=>m.user_id),...result.teamJoinRequests.map(m=>m.user_id),...result.threads.flatMap(t=>t.memberIds),...challengeCaptains,...teamRosterIds,...tournamentPlayerIds];
  for(const id of new Set(referencedPlayers))if(!players.some(p=>p.id===id))players.push(await publicPlayer(ctx,id));
  result.ratingHistory=await ctx.db.all('SELECT * FROM rating_history WHERE user_id=? ORDER BY created_at DESC LIMIT 100',[userId]);
  result.reliabilityHistory=(await ctx.db.all('SELECT h.*,e.payload AS event_payload FROM reliability_history h JOIN events e ON e.id=h.event_id WHERE h.user_id=? ORDER BY h.created_at DESC,h.id DESC LIMIT 100',[userId])).map(h=>({...h,date:dateLabel(h.created_at),detail:json(h.event_payload).title}));

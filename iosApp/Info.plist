@@ -86,6 +86,16 @@
 				<string>matchora</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.ozdentech.matchora.firebase</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>app-1-103583368086-ios-93173374eaf9e3ba7ad3b7</string>
+			</array>
+		</dict>
 	</array>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Katıldığın maçı cihaz takvimine ekleyebilmek için takvim izni gerekir.</string>

@@ -1,6 +1,7 @@
 import { saveMeetingLocation } from './event-locations.mjs';
 import { ensure,keys,text,integer,choice,json } from './errors.mjs';
 import { row,ownedEvent,audit,encode,notify,release,ACTIVE_EVENTS,offerWaitlist } from './model.mjs';
+import { canonicalTurkishCity } from './turkish-locale.mjs';
 
 export const managementHandlers={
  'event.update':async(ctx,p)=>{
@@ -46,7 +47,7 @@ export const managementHandlers={
   const team=await row(ctx,'teams','id',p.teamId),data=json(team.payload);ensure(!data.archived,409,'TEAM_ARCHIVED','Bu takım kapatıldı.');ensure(team.captain_id===ctx.actor.id,403,'FORBIDDEN','Kaptan yetkisi gerekiyor.');
   if(p.expectedVersion!=null)ensure(integer(p.expectedVersion,'Sürüm',1)===(data.version??1),409,'VERSION_CONFLICT','Takım güncellendi. Yenile ve tekrar dene.');
   ensure(fields.some(field=>p[field]!==undefined),400,'INVALID_INPUT','Güncellenecek takım bilgisini seç.');const next={...data,version:(data.version??1)+1};
-  for(const [field,label,min,max] of [['name','Takım adı',3,60],['badge','Amblem',1,12],['city','İl',2,60],['area','Bölge',2,60],['availability','Müsaitlik',0,200],['description','Açıklama',0,1000],['homeVenue','Ev sahası',0,160]])if(p[field]!==undefined)next[field]=text(p[field],label,min,max);
+  for(const [field,label,min,max] of [['name','Takım adı',3,60],['badge','Amblem',1,12],['city','İl',2,60],['area','Bölge',2,60],['availability','Müsaitlik',0,200],['description','Açıklama',0,1000],['homeVenue','Ev sahası',0,160]])if(p[field]!==undefined)next[field]=field==='city'?canonicalTurkishCity(text(p[field],label,min,max)):text(p[field],label,min,max);
   if(p.colorHex!==undefined){ensure(typeof p.colorHex==='string'&&/^#[a-fA-F0-9]{8}$/.test(p.colorHex),400,'INVALID_INPUT','Takım rengi geçersiz.');next.colorHex=p.colorHex;}
   if(p.requiredMmr!==undefined)next.requiredMmr=integer(p.requiredMmr,'MMR',0,3000);
   if(p.recruitingOpen!==undefined){ensure(typeof p.recruitingOpen==='boolean');next.recruitingOpen=p.recruitingOpen;}
@@ -58,14 +59,14 @@ export const managementHandlers={
   await audit(ctx,'team.update',team.id);return{updated:true,version:next.version};
  },
  'tournament.update':async(ctx,p)=>{
-  const fields=['name','dates','requirement','feeNote','venue','networkScope','networkName','communityId','gamePlatform','serverRegion','minRating','verifiedOnly','prizeToken','prizeCash','format','organizerName'];
+  const fields=['name','dates','requirement','feeNote','venue','city','area','networkScope','networkName','communityId','gamePlatform','serverRegion','minRating','verifiedOnly','prizeToken','prizeCash','format','organizerName'];
   keys(p,['tournamentId','expectedVersion',...fields]);
   const t=await row(ctx,'tournaments','id',p.tournamentId),data=json(t.payload);
   ensure(t.creator_id===ctx.actor.id,403,'FORBIDDEN','Organizatör yetkisi gerekiyor.');
   ensure(['open','running'].includes(t.status),409,'INVALID_STATE','Tamamlanmış veya iptal edilmiş turnuva düzenlenemez.');
   if(p.expectedVersion!=null)ensure(integer(p.expectedVersion,'Sürüm',1)===(data.version??1),409,'VERSION_CONFLICT','Turnuva güncellendi. Yenile ve tekrar dene.');
   const next={...data,version:(data.version??1)+1};
-  for(const [field,label,min,max] of [['name','Turnuva adı',3,100],['dates','Tarihler',2,160],['requirement','Koşullar',0,500],['feeNote','Ücret notu',0,300],['venue','Saha',0,160],['networkName','Ağ adı',0,120],['gamePlatform','Platform',0,100],['serverRegion','Sunucu / lobi',0,160],['prizeToken','Token ödülü',0,80],['prizeCash','Ödül',0,120],['format','Format',2,80],['organizerName','Organizatör adı',0,100]])if(p[field]!==undefined)next[field]=text(p[field],label,min,max);
+  for(const [field,label,min,max] of [['name','Turnuva adı',3,100],['dates','Tarihler',2,160],['requirement','Koşullar',0,500],['feeNote','Ücret notu',0,300],['venue','Saha',0,160],['city','İl',2,60],['area','İlçe',2,60],['networkName','Ağ adı',0,120],['gamePlatform','Platform',0,100],['serverRegion','Sunucu / lobi',0,160],['prizeToken','Token ödülü',0,80],['prizeCash','Ödül',0,120],['format','Format',2,80],['organizerName','Organizatör adı',0,100]])if(p[field]!==undefined)next[field]=field==='city'?canonicalTurkishCity(text(p[field],label,min,max)):text(p[field],label,min,max);
   if(p.networkScope!==undefined)next.networkScope=choice(p.networkScope,['CITY','CAMPUS','COMPANY','TRAVEL'],'Kapsam');
   if(p.communityId!==undefined)next.communityId=p.communityId?text(p.communityId,'Topluluk',2,80):null;
   if(p.minRating!==undefined)next.minRating=integer(p.minRating,'En az MMR',0,3000);

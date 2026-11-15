@@ -59,16 +59,16 @@ fun SendTeamChallengeSheet(
     var proposedHour by remember { mutableIntStateOf(21) }
     var proposedMinute by remember { mutableIntStateOf(0) }
     val proposedTime = "${eventDateLabel(proposedDate)} ${proposedHour.toString().padStart(2, '0')}:${proposedMinute.toString().padStart(2, '0')}"
-    var selectedVenue by remember { mutableStateOf(if (liveMode) "" else "Moda Spor Parkı · Saha 2") }
+    var selectedVenue by remember { mutableStateOf(if (liveMode) "" else "${myTeam.city.ifBlank { "İstanbul" }} Merkez Spor Tesisi") }
     var stakeTokens by remember { mutableIntStateOf(50) }
     var challengeNote by remember { mutableStateOf("") }
     var officialReferee by remember { mutableStateOf(true) }
 
-    val venueOptions = listOf(
-        "Moda Spor Parkı · Saha 2",
-        "Kalamış Sahil Kortları",
-        "Bostancı Halı Saha",
-        "Fikirtepe Arena",
+    val previewCity = myTeam.city.ifBlank { "İstanbul" }
+    val venueOptions = if (liveMode) emptyList() else listOf(
+        "$previewCity Merkez Spor Tesisi",
+        "$previewCity Kapalı Halı Saha",
+        "$previewCity Spor Kompleksi",
         "Online Discord Sunucusu"
     )
 
@@ -164,7 +164,7 @@ fun SendTeamChallengeSheet(
                             proposedDate = date; proposedHour = hour; proposedMinute = minute
                         }
 
-                        VenueChoiceField("Önerilen Saha / Tesis", selectedVenue, { selectedVenue = it }, venueOptions)
+                        VenueChoiceField("Önerilen Saha / Tesis", selectedVenue, { selectedVenue = it }, venueOptions, myTeam.city.ifBlank { targetTeam.city })
 
                         MFloatingDropdownBox(
                             label = "Maç Türü ve Kasa Kilidi",
@@ -253,6 +253,7 @@ fun MatchChallengeDetailSheet(
     onDismiss: () -> Unit,
     canRespond: Boolean = true
 ) {
+    var confirmDecline by remember { mutableStateOf(false) }
     val oppCaptain = remember(fromTeam, toTeam, challenge.incoming) {
         val target = if (challenge.incoming) fromTeam else toTeam
         players.firstOrNull { it.id == target.captainId }
@@ -285,7 +286,6 @@ fun MatchChallengeDetailSheet(
             }
 
             item { PremiumMatchupPanel(fromTeam, toTeam) }
-            item { BackendChallengeActions(challenge) }
 
             // Maç Detayları (Zaman, Saha, Hakem) — Yüzen Beyaz Ada
             item {
@@ -364,13 +364,11 @@ fun MatchChallengeDetailSheet(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             MButton(
                                 text = "Reddet",
-                                onClick = {
-                                    onDecline()
-                                    onDismiss()
-                                },
+                                onClick = { confirmDecline = true },
                                 icon = Icons.Rounded.Close,
                                 modifier = Modifier.weight(1f),
                                 isPrimary = false,
+                                isDestructive = true,
                                 height = 44.dp
                             )
 
@@ -387,6 +385,7 @@ fun MatchChallengeDetailSheet(
                             )
                         }
                     } else {
+                        BackendChallengeActions(challenge)
                         MButton(
                             text = "Kaptan ile Canlı Sohbet Odası",
                             onClick = {
@@ -399,6 +398,23 @@ fun MatchChallengeDetailSheet(
                 }
             }
         }
+    }
+    if (confirmDecline) {
+        AlertDialog(
+            onDismissRequest = { confirmDecline = false },
+            title = { Text("Meydan okuma reddedilsin mi?") },
+            text = { Text("${fromTeam.name} takımının maç teklifi kapatılacak.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDecline = false
+                    onDecline()
+                    onDismiss()
+                }) { Text("Reddet", color = MColors.Rose) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDecline = false }) { Text("Vazgeç") }
+            }
+        )
     }
 }
 
@@ -547,27 +563,19 @@ fun AiMatchScouterSheet(
 
             // Kemer Maçı İçin Meydan Oku
             item {
-                Button(
+                MButton(
+                    text = when {
+                        opponents.isEmpty() -> "Rakip takım bulunamadı"
+                        champion.id == selectedOpponent.id -> "Kemer maçı için meydan oku ⚔️"
+                        else -> "Takıma meydan oku ⚔️"
+                    },
                     onClick = {
                         onDismiss()
                         onIssueBeltChallenge(selectedOpponent)
                     },
                     enabled = opponents.isNotEmpty(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth().height(48.dp)
-                ) {
-                    Text(
-                        text = when {
-                            opponents.isEmpty() -> "Rakip takım bulunamadı"
-                            champion.id == selectedOpponent.id -> "Kemer maçı için meydan oku ⚔️"
-                            else -> "Takıma meydan oku ⚔️"
-                        },
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                }
+                    height = 48.dp
+                )
             }
         }
     }

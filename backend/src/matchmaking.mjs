@@ -1,5 +1,6 @@
 import { activePoint,distanceKm,ownDiscovery } from './geo.mjs';
 import { json } from './errors.mjs';
+import { sameTurkishPlace } from './turkish-locale.mjs';
 export async function matchScore(ctx,event,user){
  if(!user)return{time:50,distance:50,level:50,reliability:50,preference:50,reasons:['Tercihlerin için sporcu pasaportunu tamamla.'],confidence:0};
  if(ctx.actor){
@@ -7,7 +8,7 @@ export async function matchScore(ctx,event,user){
   if(!ctx.matchSignalsEnabled)return{time:50,distance:50,level:50,reliability:50,preference:50,reasons:['Kişisel eşleşme sinyalleri tercihlerinden kapalı.'],confidence:0};
  }
  const discovery=await ownDiscovery(ctx),point=activePoint(discovery,ctx.now);
- const settings=json(event.payload),skill=user.skills.find(s=>s.sport===event.sport),sameCity=event.city===(ctx.discoveryCity??discovery.city??user.city),sameArea=sameCity&&event.district===(discovery.district??user.area);
+ const settings=json(event.payload),skill=user.skills.find(s=>s.sport===event.sport),sameCity=sameTurkishPlace(event.city,ctx.discoveryCity??discovery.city??user.city),sameArea=sameCity&&sameTurkishPlace(event.district,discovery.district??user.area);
  const actualDistance=point&&event.latitude!=null&&event.longitude!=null?distanceKm(point,{latitude:Number(event.latitude),longitude:Number(event.longitude)}):null;
  const hour=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Istanbul',hour:'2-digit',minute:'2-digit',hour12:false}).format(Number(event.starts_at));
  const day=new Intl.DateTimeFormat('tr-TR',{timeZone:'Europe/Istanbul',weekday:'short'}).format(Number(event.starts_at)).slice(0,3);

@@ -3,15 +3,22 @@ import { canonicalEventNetwork } from './event-network.mjs';
 import { id, sign, secureEqual } from './auth.mjs';
 import { ensure, text, integer, choice, keys, json } from './errors.mjs';
 import { SPORTS } from './sports.mjs';
+import { canonicalTurkishCity } from './turkish-locale.mjs';
 import { row, profile, ownedEvent, member, joinEvent, eventEligibility, assertMutableEventRoster, cancelEvent, release, hold, notify, offerWaitlist, audit, encode, ACTIVE_EVENTS } from './model.mjs';
 export const eventHandlers = {
   'event.create': async (ctx,p) => {
-    keys(p,['title','sport','venue','city','area','capacity','startsAtEpochMillis','durationMin','mode','levelRange','minReliability','verifiedOnly','description','neededRoles','customSportName','networkScope','networkName','communityId','listingType','format','gamePlatform','gameServer','voiceChannel','hostGameTag','approximateLocation','pricePerPersonTry','emergency','approvalRequired']);
+    keys(p,['title','sport','venue','venueId','city','area','capacity','startsAtEpochMillis','durationMin','mode','levelRange','minReliability','verifiedOnly','description','neededRoles','customSportName','networkScope','networkName','communityId','listingType','format','gamePlatform','gameServer','voiceChannel','hostGameTag','approximateLocation','pricePerPersonTry','emergency','approvalRequired']);
     const athlete=await profile(ctx); const eventId=id(), sport=choice(p.sport,SPORTS,'Branş');
     const starts=integer(p.startsAtEpochMillis,'Maç zamanı',ctx.now+60000,ctx.now+365*86400000), duration=integer(p.durationMin,'Süre',15,720), capacity=integer(p.capacity,'Kapasite',2,100);
     ensure(Array.isArray(p.neededRoles??[]));
     ensure(p.approvalRequired==null||typeof p.approvalRequired==='boolean');
-    const payload={approvalRequired:p.approvalRequired??p.listingType==='SEEK_PLAYERS',emergency:p.emergency===true,title:text(p.title,'Başlık',3,120),sport,venue:text(p.venue,'Saha',2,160),city:text(p.city,'İl',2,60),area:text(p.area,'İlçe',2,60),durationMin:duration,
+    let linkedVenue = null, linkedVenueData = null;
+    if (p.venueId) {
+      linkedVenue = await row(ctx, 'venues', 'id', p.venueId);
+      linkedVenueData = json(linkedVenue.payload);
+      ensure(!linkedVenueData.archived, 409, 'VENUE_ARCHIVED', 'Bu tesis kapatıldı.');
+    }
+    const payload={approvalRequired:p.approvalRequired??p.listingType==='SEEK_PLAYERS',emergency:p.emergency===true,title:text(p.title,'Başlık',3,120),sport,venue:text(p.venue,'Saha',2,160),venueId:linkedVenue?.id??null,city:canonicalTurkishCity(text(p.city,'İl',2,60)),area:text(p.area,'İlçe',2,60),durationMin:duration,
       mode:choice(p.mode??'SOCIAL',['SOCIAL','COMPETITIVE'],'Oyun modu'),levelRange:text(p.levelRange??'Her seviye','Seviye',1,80),minReliability:integer(p.minReliability??0,'Güvenilirlik',0,100),verifiedOnly:p.verifiedOnly===true,
       description:text(p.description??'','Açıklama',0,2000),neededRoles:(p.neededRoles??[]).map(v=>text(v,'Rol',1,80)),customSportName:sport==='CUSTOM'?text(p.customSportName,'Branş adı',2,60):null,
       networkScope:choice(p.networkScope??'CITY',['CITY','CAMPUS','COMPANY','TRAVEL'],'Ağ'),networkName:p.networkName??null,communityId:p.communityId??null,
@@ -19,13 +26,14 @@ export const eventHandlers = {
       gamePlatform:text(p.gamePlatform??'','Platform',0,80),gameServer:text(p.gameServer??'','Sunucu',0,80),voiceChannel:text(p.voiceChannel??'','Ses kanalı',0,200),hostGameTag:text(p.hostGameTag??'','Oyuncu etiketi',0,80),pricePerPersonTry:integer(p.pricePerPersonTry??0,'Saha ücreti',0,100000)};
     ensure(payload.neededRoles.length<=10);
     if(payload.mode==='COMPETITIVE')ensure(athlete.skills.some(s=>s.sport===sport),403,'PROFILE_SPORT_REQUIRED','Rekabetçi maç için önce bu branşı pasaportuna ekle.');
-    let lat=null,lon=null;if(p.approximateLocation){lat=p.approximateLocation.latitude;lon=p.approximateLocation.longitude;ensure(Number.isFinite(lat)&&lat>=-90&&lat<=90&&Number.isFinite(lon)&&lon>=-180&&lon<=180);lat=Math.round(lat*100)/100;lon=Math.round(lon*100)/100;}
+    const pointInput = p.approximateLocation ?? linkedVenueData?.approximateLocation ?? null;
+    let lat=null,lon=null;if(pointInput){lat=pointInput.latitude;lon=pointInput.longitude;ensure(Number.isFinite(lat)&&lat>=-90&&lat<=90&&Number.isFinite(lon)&&lon>=-180&&lon<=180);lat=Math.round(lat*100)/100;lon=Math.round(lon*100)/100;}
     Object.assign(payload, await canonicalEventNetwork(ctx,payload));
     const commitment=10;await hold(ctx,ctx.actor.id,`event:${eventId}`,commitment);
     await ctx.db.run('INSERT INTO events(id,host_id,sport,status,capacity,starts_at,ends_at,commitment,city,district,latitude,longitude,payload,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[eventId,ctx.actor.id,sport,'PUBLISHED',capacity,starts,starts+duration*60000,commitment,payload.city,payload.area,lat,lon,encode(payload),ctx.now]);
     await ctx.db.run('INSERT INTO event_members(event_id,user_id,status,joined_at) VALUES(?,?,?,?)',[eventId,ctx.actor.id,'joined',ctx.now]);
     const threadId=id();await ctx.db.run('INSERT INTO threads(id,kind,event_id,title,created_at) VALUES(?,?,?,?,?)',[threadId,'EVENT',eventId,payload.title,ctx.now]);await ctx.db.run('INSERT INTO thread_members(thread_id,user_id) VALUES(?,?)',[threadId,ctx.actor.id]);
-    if(p.approximateLocation)await saveMeetingLocation(ctx,eventId,p.approximateLocation);
+    if(pointInput)await saveMeetingLocation(ctx,eventId,pointInput);
     await audit(ctx,'event.create',eventId);return {id:eventId,invitationId:eventId};
   },
   'event.join':async(ctx,p)=>{keys(p,['eventId','invitationId','bypassApproval']);const e=await row(ctx,'events','id',p.eventId);assertMutableEventRoster(e);if(await ctx.db.get("SELECT user_id FROM event_members WHERE event_id=? AND user_id=? AND status='joined'",[e.id,ctx.actor.id]))return{joined:true};const isDirectInvited = p.bypassApproval === true || p.invitationId === e.id;ensure(isDirectInvited || !(json(e.payload).approvalRequired??json(e.payload).listingType==='SEEK_PLAYERS'),409,'APPROVAL_REQUIRED','Bu ilan organizatör onayı istiyor. Kadroya başvuru gönder.');await eventEligibility(ctx,e);const offers=await ctx.db.get("SELECT COUNT(*) AS n FROM waitlist WHERE event_id=? AND status='offered' AND offered_until>? AND user_id<>?",[e.id,ctx.now,ctx.actor.id]);const count=await ctx.db.get("SELECT COUNT(*) AS n FROM event_members WHERE event_id=? AND status='joined'",[e.id]);ensure(count.n+offers.n<e.capacity,409,'EVENT_FULL','Kontenjan bekleme listesine ayrılmış.');await joinEvent(ctx,e);

@@ -3,6 +3,7 @@ import { json } from './errors.mjs';
 import { notify } from './model.mjs';
 import { canSeeEvent } from './queries.mjs';
 import { weekNumber } from './progression.mjs';
+import { sameTurkishPlace } from './turkish-locale.mjs';
 
 /** Suggestions only: never sends a DM or enrolls a player without their action. */
 export async function scheduleEngagement(ctx) {
@@ -21,7 +22,7 @@ export async function scheduleEngagement(ctx) {
       const discovery=user.discovery?json(user.discovery):{},point=activePoint(discovery,ctx.now);
       const hasCoordinates=point&&event.latitude!=null&&event.longitude!=null;
       if(hasCoordinates){if(distanceKm(point,{latitude:Number(event.latitude),longitude:Number(event.longitude)})>(prefs.emergencyRadiusKm??3))continue;}
-      else if((discovery.city??profile.city)!==event.city||(discovery.district??profile.area)!==event.district)continue;
+      else if(!sameTurkishPlace(discovery.city??profile.city,event.city)||!sameTurkishPlace(discovery.district??profile.area,event.district))continue;
       if (!profile.skills.some(s => s.sport === event.sport) || profile.reliability < (details.minReliability ?? 0) || details.verifiedOnly && !profile.verifications.includes('BASIC')) continue;
       const actor = { ...ctx, actor: { id: user.user_id, role: 'user' } };
       if (!await canSeeEvent(actor, event)) continue;
@@ -29,6 +30,35 @@ export async function scheduleEngagement(ctx) {
       if (await ctx.db.get('SELECT user_id FROM blocks WHERE (user_id=? AND target_id=?) OR (user_id=? AND target_id=?)', [user.user_id, event.host_id, event.host_id, user.user_id])) continue;
       await notify(ctx, user.user_id, 'emergencyFill', hasCoordinates?'Yakınında oyuncu aranıyor':'İlçende oyuncu aranıyor', `${details.title} · ${details.venue}`, 'EVENT', event.id,
         `emergency:${event.id}:${event.starts_at}:${user.user_id}`, { expiresAt: Number(event.starts_at) });
+    }
+  }
+  const recent = await ctx.db.all("SELECT * FROM events WHERE status IN ('PUBLISHED','FILLING') AND starts_at>? AND created_at>=?", [ctx.now, ctx.now - 24 * 3600000]);
+  for (const event of recent) {
+    const details = json(event.payload);
+    if (details.emergency) continue;
+    const occupied = await ctx.db.get("SELECT COUNT(*) AS n FROM event_members WHERE event_id=? AND status='joined'", [event.id]);
+    if (occupied.n >= event.capacity) continue;
+    for (const user of users) {
+      const profile = json(user.payload), prefs = json(user.notifications);
+      if (prefs.upcomingMatch === false || user.user_id === event.host_id) continue;
+      const discovery = user.discovery ? json(user.discovery) : {}, point = activePoint(discovery, ctx.now);
+      const hasCoordinates = point && event.latitude != null && event.longitude != null;
+      if (hasCoordinates) {
+        const radius = prefs.matchRadiusKm ?? discovery.radiusKm ?? 15;
+        if (distanceKm(point, { latitude: Number(event.latitude), longitude: Number(event.longitude) }) > radius) continue;
+      } else if (!sameTurkishPlace(discovery.city ?? profile.city, event.city) || (!sameTurkishPlace(discovery.district ?? profile.area, event.district) && event.district)) {
+        continue;
+      }
+      if (!profile.skills.some(s => s.sport === event.sport) || profile.reliability < (details.minReliability ?? 0) || (details.verifiedOnly && !profile.verifications.includes('BASIC'))) continue;
+      const actor = { ...ctx, actor: { id: user.user_id, role: 'user' } };
+      if (!await canSeeEvent(actor, event)) continue;
+      if (await ctx.db.get("SELECT user_id FROM event_members WHERE event_id=? AND user_id=? AND status='joined'", [event.id, user.user_id])) continue;
+      if (await ctx.db.get('SELECT user_id FROM blocks WHERE (user_id=? AND target_id=?) OR (user_id=? AND target_id=?)', [user.user_id, event.host_id, event.host_id, user.user_id])) continue;
+      const title = details.listingType === 'SEEK_PLAYERS'
+        ? (hasCoordinates ? 'Yakınında oyuncu aranıyor' : 'İlçende oyuncu aranıyor')
+        : (hasCoordinates ? 'Yakınında yeni maç ilanı' : 'İlçende yeni maç ilanı');
+      await notify(ctx, user.user_id, 'matches', title, `${details.title} · ${details.venue}`, 'EVENT', event.id,
+        `new-match:${event.id}:${user.user_id}`, { expiresAt: Number(event.starts_at) });
     }
   }
   const week = weekNumber(ctx.now), previous = week - 1;

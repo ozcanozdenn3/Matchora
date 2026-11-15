@@ -37,7 +37,7 @@ export async function processDeletions(ctx){const objects=[];
   const user=await row(ctx,'users','id',request.user_id);
   for(const booking of await ctx.db.all("SELECT b.id,s.venue_id FROM bookings b JOIN venue_slots s ON s.id=b.slot_id JOIN venue_payments p ON p.booking_id=b.id WHERE b.user_id=? AND b.status IN ('pending','confirmed') AND s.starts_at>? AND p.status='pending'",[user.id,ctx.now])){
    await ctx.db.run("UPDATE bookings SET status='cancelled' WHERE id=?",[booking.id]);await ctx.db.run("UPDATE venue_payments SET status='cancelled' WHERE booking_id=?",[booking.id]);
-   const venue=await row(ctx,'venues','id',booking.venue_id);await notify(ctx,venue.owner_id,'matches','Rezervasyon iptal edildi','Hesap silindiği için tahsilat yapılmamış gelecek rezervasyon iptal edildi.','ACCOUNT',booking.id,`account-booking-cancel:${booking.id}`);
+   const venue=await row(ctx,'venues','id',booking.venue_id);await notify(ctx,venue.owner_id,'matches','Rezervasyon iptal edildi','Hesap silindiği için tahsilat yapılmamış gelecek rezervasyon iptal edildi.','VENUES',booking.venue_id,`account-booking-cancel:${booking.id}`);
    await audit(ctx,'booking.cancel',booking.id,{reason:'account.delete'});
   }
   const affectedThreads=await ctx.db.all('SELECT DISTINCT thread_id FROM messages WHERE sender_id=? OR upload_id IN (SELECT id FROM uploads WHERE owner_id=?)',[user.id,user.id]);
@@ -46,6 +46,11 @@ export async function processDeletions(ctx){const objects=[];
   await ctx.db.run("UPDATE messages SET upload_id=NULL WHERE upload_id IN (SELECT id FROM uploads WHERE owner_id=?)",[user.id]);
   // A captain/host transition is resolved by operations; no stranded live matches are silently erased.
   for(const event of await ctx.db.all("SELECT * FROM events WHERE host_id=? AND status IN ('PUBLISHED','FILLING','FULL','IN_PROGRESS')",[user.id])){
+   const payloadData=json(event.payload);
+   if(payloadData.isTeamEvent){
+    const successor=await ctx.db.get("SELECT m.user_id FROM event_members m JOIN users u ON u.id=m.user_id WHERE m.event_id=? AND m.user_id<>? AND m.status='joined' AND u.status='active' ORDER BY m.joined_at,m.user_id LIMIT 1",[event.id,user.id]);
+    if(successor){await ctx.db.run('UPDATE events SET host_id=?,version=version+1 WHERE id=?',[successor.user_id,event.id]);continue;}
+   }
    const {cancelEvent}=await import('./model.mjs');await cancelEvent(ctx,event);
   }
   for(const team of await ctx.db.all('SELECT * FROM teams WHERE captain_id=?',[user.id])){

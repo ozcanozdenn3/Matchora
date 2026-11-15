@@ -1,15 +1,24 @@
 import { smsConfigured,sendOtpSms } from './sms.mjs';
-import { randomBytes, randomInt, randomUUID, createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomInt, randomUUID, createHash, createHmac, createVerify, timingSafeEqual } from 'node:crypto';
 import { ensure, fail, text, keys, choice, ApiError } from './errors.mjs';
+const FIREBASE_CERTS_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
 export const digest = value => createHash('sha256').update(value).digest('hex');
 export const secureEqual = (a, b) => typeof a === 'string' && typeof b === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 export const sign = (secret, value) => createHmac('sha256', secret).update(value).digest('hex');
 export const id = () => randomUUID();
 export function normalizePhone(value) {
-  let digits = text(value, 'Telefon', 10, 24).replace(/\D/g, '');
+  const raw = text(value, 'Telefon', 7, 24).trim();
+  if (raw.startsWith('+')) {
+    const digits = raw.slice(1).replace(/\D/g, '');
+    ensure(digits.length >= 7 && digits.length <= 15, 400, 'INVALID_PHONE', 'Geçerli uluslararası telefon numarası gir.');
+    return `+${digits}`;
+  }
+  let digits = raw.replace(/\D/g, '');
   if (digits.startsWith('90') && digits.length === 12) digits = digits.slice(2);
   if (digits.startsWith('0') && digits.length === 11) digits = digits.slice(1);
-  ensure(/^5\d{9}$/.test(digits), 400, 'INVALID_PHONE', 'Geçerli cep telefonu gir.'); return `+90${digits}`;
+  if (/^5\d{9}$/.test(digits)) return `+90${digits}`;
+  ensure(digits.length >= 7 && digits.length <= 15, 400, 'INVALID_PHONE', 'Geçerli cep telefonu gir.');
+  return `+${digits}`;
 }
 export async function rateLimit(db, bucket, now, max = 60, window = 60000) {
   const row = await db.get('SELECT * FROM rate_limits WHERE bucket=?', [bucket]);
@@ -60,10 +69,71 @@ export class Auth {
     const name = overrideName || (identity.user_metadata?.full_name ?? identity.user_metadata?.name);
     return{...session,profileHints:{name:typeof name==='string'?name.trim().slice(0,40):'',email:identity.email_confirmed_at?identity.email??'':'',phone:verifiedPhone??''}};
   }
+  async verifyFirebaseIdToken(idToken, expectedProject) {
+    const parts = idToken.split('.');
+    ensure(parts.length === 3, 401, 'INVALID_TOKEN', 'Geçersiz doğrulama belirteci.');
+    const [headerB64, payloadB64, sigB64] = parts;
+    let header, claims;
+    try {
+      header = JSON.parse(Buffer.from(headerB64, 'base64url').toString('utf8'));
+      claims = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    } catch {
+      fail(401, 'INVALID_TOKEN', 'Geçersiz doğrulama belirteci.');
+    }
+    ensure(header?.alg === 'RS256' && typeof header.kid === 'string' && header.kid.length > 0, 401, 'INVALID_TOKEN', 'Geçersiz doğrulama belirteci.');
+    const nowSec = Math.floor(this.clock() / 1000);
+    ensure(
+      claims &&
+      claims.aud === expectedProject &&
+      claims.iss === `https://securetoken.google.com/${expectedProject}` &&
+      typeof claims.sub === 'string' && claims.sub.length > 0 && claims.sub.length <= 128 &&
+      Number.isFinite(claims.exp) && claims.exp > nowSec &&
+      Number.isFinite(claims.iat) && claims.iat <= nowSec + 300 &&
+      (claims.auth_time === undefined || (Number.isFinite(claims.auth_time) && claims.auth_time <= nowSec + 300)),
+      401, 'INVALID_TOKEN', 'Geçersiz veya süresi dolmuş doğrulama belirteci.'
+    );
+    let certPem = this.firebaseCerts?.certs?.[header.kid];
+    if (!certPem || !this.firebaseCerts || this.firebaseCerts.expiresAt <= this.clock()) {
+      let response;
+      try {
+        response = await this.request(FIREBASE_CERTS_URL, { signal: AbortSignal.timeout(10000) });
+      } catch {
+        ensure(false, 503, 'AUTH_UNAVAILABLE', 'Giriş servisine ulaşılamadı. Yeniden dene.');
+      }
+      ensure(response.ok, 401, 'PROVIDER_REJECTED', 'Telefon doğrulaması başarısız oldu.');
+      const certs = await response.json();
+      const cacheHeader = response.headers?.get?.('cache-control') || '';
+      const maxAgeMatch = /max-age=(\d+)/i.exec(cacheHeader);
+      const ttlMs = maxAgeMatch ? Number(maxAgeMatch[1]) * 1000 : 3600 * 1000;
+      this.firebaseCerts = { certs, expiresAt: this.clock() + ttlMs };
+      certPem = certs?.[header.kid];
+    }
+    ensure(typeof certPem === 'string' && certPem.includes('BEGIN '), 401, 'INVALID_TOKEN', 'Doğrulama anahtarı bulunamadı.');
+    let validSig = false;
+    try {
+      const verifier = createVerify('RSA-SHA256');
+      verifier.update(`${headerB64}.${payloadB64}`);
+      verifier.end();
+      validSig = verifier.verify(certPem, Buffer.from(sigB64, 'base64url'));
+    } catch {
+      validSig = false;
+    }
+    ensure(validSig, 401, 'INVALID_TOKEN', 'Geçersiz doğrulama imzası.');
+    return claims;
+  }
   async exchangeIdToken(payload) {
     keys(payload, ['provider', 'idToken', 'nonce', 'fullName']);
-    const provider = choice(payload.provider, ['apple', 'google'], 'Giriş sağlayıcısı');
+    const provider = choice(payload.provider, ['apple', 'google', 'firebase'], 'Giriş sağlayıcısı');
     text(payload.idToken, 'Kimlik belirteci', 20, 10000);
+    if (provider === 'firebase') {
+      const expectedProject = this.config.fcmProjectId || 'matchora-c5ddc';
+      const data = await this.verifyFirebaseIdToken(payload.idToken, expectedProject);
+      const phone = data.phone_number ? normalizePhone(data.phone_number) : null;
+      const identityKey = phone ? `phone:${phone}` : `firebase:${data.sub}`;
+      const fullName = typeof payload.fullName === 'string' && payload.fullName.trim().length ? payload.fullName.trim() : null;
+      const session = await this.store.transaction(async db => this.issue(db, await this.upsertIdentity(db, identityKey, phone, null)));
+      return { ...session, profileHints: { name: fullName || '', email: '', phone: phone || '' } };
+    }
     ensure(this.config.userInfoUrl, 503, 'AUTH_NOT_CONFIGURED', 'Giriş servisi henüz bağlanmadı.');
     const tokenUrl = this.config.userInfoUrl.replace(/user$/, 'token?grant_type=id_token');
     let response;
@@ -134,7 +204,7 @@ export class Auth {
       if(existing)return{error:'PHONE_ALREADY_LINKED'};
       await db.run('UPDATE users SET phone=? WHERE id=?',[row.identity,actor.id]);
       const profile=await db.get('SELECT payload FROM profiles WHERE user_id=?',[actor.id]);
-      if(profile){const p=JSON.parse(profile.payload);p.phone=row.identity;p.verifications=[...new Set([...p.verifications,'BASIC'])];await db.run('UPDATE profiles SET payload=?,version=version+1,updated_at=? WHERE user_id=?',[JSON.stringify(p),this.clock(),actor.id]);}
+      if(profile){const p=JSON.parse(profile.payload);p.phone=row.identity;p.verifications=[...new Set([...(p.verifications??[]),'BASIC'])];await db.run('UPDATE profiles SET payload=?,version=version+1,updated_at=? WHERE user_id=?',[JSON.stringify(p),this.clock(),actor.id]);}
       await db.run('UPDATE auth_challenges SET consumed=1 WHERE id=?',[row.id]);return{verified:true};
     });
     if(result.error)fail(409,result.error,'Doğrulama tamamlanamadı. Yeni kod iste veya destekle iletişime geç.');return result;

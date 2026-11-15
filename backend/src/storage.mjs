@@ -27,6 +27,8 @@ export async function cleanMedia(service){
   // Unattached uploads are kept for 24h to allow retries; verification evidence stays attached.
   for(const item of await db.all("SELECT u.* FROM uploads u WHERE u.status='ready' AND u.created_at<? AND NOT EXISTS(SELECT 1 FROM messages m WHERE m.upload_id=u.id) AND NOT EXISTS(SELECT 1 FROM memories m WHERE m.upload_id=u.id AND m.status<>'deleted')",[now-86400000])){
    if(await db.get('SELECT user_id FROM profiles WHERE payload LIKE ? LIMIT 1',[`%${item.id}%`]))continue;
+   if(await db.get('SELECT id FROM venues WHERE payload LIKE ? LIMIT 1',[`%${item.id}%`]))continue;
+   if(await db.get("SELECT id FROM venue_applications WHERE status='pending' AND payload LIKE ? LIMIT 1",[`%${item.id}%`]))continue;
    if(await db.get("SELECT id FROM support_requests WHERE category='Fotoğraf doğrulaması' AND status='open' AND message LIKE ? LIMIT 1",[`%${item.id}%`]))continue;
    await db.run("UPDATE uploads SET status='deleted' WHERE id=?",[item.id]);await queueStorageDeletion({db,now},item.object_key);
   }

@@ -17,7 +17,7 @@ import platform.posix.memcpy
 
 actual suspend fun executeApiRequest(request: ApiHttpRequest): ApiHttpResponse = suspendCancellableCoroutine { continuation ->
     val native = NSMutableURLRequest.requestWithURL(requireNotNull(NSURL.URLWithString(request.url))).apply {
-        setHTTPMethod(request.method); setTimeoutInterval(15.0)
+        setHTTPMethod(request.method); setTimeoutInterval(35.0)
         request.headers.forEach { (key, value) -> setValue(value, forHTTPHeaderField = key) }
         request.body?.let { bytes -> HTTPBody = bytes.usePinned { NSData.create(bytes = it.addressOf(0), length = bytes.size.toULong()) } }
     }

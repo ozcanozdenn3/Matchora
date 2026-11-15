@@ -46,6 +46,54 @@ import com.matchora.app.ui.theme.MGradients
 // Aşırı metin kalabalığı temizlendi, net ve prestijli dijital sporcu kimliği.
 // ═══════════════════════════════════════════════════════════════════════════════
 
+internal data class PassportDisplayState(
+    val effectiveUser: UserProfile,
+    val history: List<MatchHistoryItem>,
+    val badges: List<BadgeInfo>,
+    val allMissions: List<Mission>,
+    val reliabilityRecords: List<ReliabilityRecord>
+)
+
+internal fun resolvePassportDisplayState(
+    user: UserProfile,
+    isLoggedIn: Boolean,
+    liveMode: Boolean,
+    historyOverride: List<MatchHistoryItem>?,
+    reliabilityOverride: List<ReliabilityRecord>?,
+    badgesOverride: List<BadgeInfo>?,
+    missionsOverride: List<Mission>?
+): PassportDisplayState {
+    val effectiveUser = when {
+        isLoggedIn -> user
+        liveMode -> user
+        else -> DemoData.me.copy(
+            name = user.name.ifBlank { "Özcan Özden" },
+            city = "İstanbul",
+            area = "Kadıköy"
+        )
+    }
+    val history = when {
+        isLoggedIn -> historyOverride ?: if (user.verifiedMatches > 0) DemoData.history else emptyList()
+        liveMode -> emptyList()
+        else -> DemoData.history
+    }
+    val badges = when {
+        isLoggedIn -> badgesOverride ?: DemoData.badges.map { if (user.verifiedMatches > 0) it else it.copy(earned = false, progress = 0f) }
+        liveMode -> badgesOverride?.takeIf { it.isNotEmpty() } ?: DemoData.badges.map { it.copy(earned = false, progress = 0f) }
+        else -> DemoData.badges
+    }
+    val allMissions = when {
+        isLoggedIn -> missionsOverride ?: DemoData.missions.map { if (user.verifiedMatches > 0) it else it.copy(progress = 0) }
+        liveMode -> missionsOverride?.takeIf { it.isNotEmpty() } ?: DemoData.missions.map { it.copy(progress = 0, claimed = false) }
+        else -> DemoData.missions
+    }
+    val reliabilityRecords = when {
+        liveMode && !isLoggedIn -> emptyList()
+        else -> reliabilityOverride ?: if (effectiveUser.verifiedMatches > 0) DemoData.reliabilityRecords else emptyList()
+    }
+    return PassportDisplayState(effectiveUser, history, badges, allMissions, reliabilityRecords)
+}
+
 @Composable
 fun SportsPassportScreen(
     paddingValues: PaddingValues,
@@ -76,14 +124,20 @@ fun SportsPassportScreen(
     var showAllMatches by remember { mutableStateOf(false) }
     var showMissions by remember { mutableStateOf(false) }
 
-    val effectiveUser = if (isLoggedIn) user else DemoData.me.copy(
-        name = user.name.ifBlank { "Özcan Özden" },
-        city = "İstanbul",
-        area = "Kadıköy"
+    val liveMode = LocalBackendRepository.current != null
+    val passportDisplay = resolvePassportDisplayState(
+        user = user,
+        isLoggedIn = isLoggedIn,
+        liveMode = liveMode,
+        historyOverride = historyOverride,
+        reliabilityOverride = reliabilityOverride,
+        badgesOverride = badgesOverride,
+        missionsOverride = missionsOverride
     )
-    val history = if (isLoggedIn) (historyOverride ?: if (user.verifiedMatches > 0) DemoData.history else emptyList()) else DemoData.history
-    val badges = if (isLoggedIn) (badgesOverride ?: DemoData.badges.map { if (user.verifiedMatches > 0) it else it.copy(earned = false, progress = 0f) }) else DemoData.badges
-    val allMissions = if (isLoggedIn) (missionsOverride ?: DemoData.missions.map { if (user.verifiedMatches > 0) it else it.copy(progress = 0) }) else DemoData.missions
+    val effectiveUser = passportDisplay.effectiveUser
+    val history = passportDisplay.history
+    val badges = passportDisplay.badges
+    val allMissions = passportDisplay.allMissions
     val weeklyMission = allMissions.firstOrNull()
     val earnedBadges = badges.count { it.earned }
     val listState = rememberLazyListState()
@@ -151,7 +205,7 @@ fun SportsPassportScreen(
                             Box(Modifier.size(40.dp).background(Brush.linearGradient(listOf(Color(0xFFE1BE87), Color(0xFF96704D))), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
                                 if (effectiveUser.avatar != null) androidx.compose.foundation.Image(effectiveUser.avatar, "Profil fotoğrafı", Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
                                 else {
-                                    val avatarUploadId = userAvatarUploadId(if (isLoggedIn) DemoData.ME else effectiveUser.name)
+                                    val avatarUploadId = if (isLoggedIn) userAvatarUploadId(DemoData.ME) else null
                                     if (avatarUploadId != null) BackendPhoto(avatarUploadId, "Profil fotoğrafı", Modifier.fillMaxSize())
                                     else Text(effectiveUser.initials, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
                                 }
@@ -549,7 +603,7 @@ fun SportsPassportScreen(
                     }
                     AnimatedVisibility(visible = showReliabilityDetail) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 9.dp)) {
-                            (reliabilityOverride ?: if (effectiveUser.verifiedMatches > 0) DemoData.reliabilityRecords else emptyList()).forEach { record ->
+                            passportDisplay.reliabilityRecords.forEach { record ->
                                 Surface(
                                     shape = RoundedCornerShape(13.dp),
                                     color = Color.White,
@@ -785,26 +839,14 @@ private fun SkillProfileEditorSheet(
                 onDismiss = onDismiss
             )
 
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = Color.White,
-                shadowElevation = 5.dp,
-                border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(7.dp, RoundedCornerShape(18.dp), ambientColor = Color(0x280B1220), spotColor = Color(0x380B1220))
-            ) {
-                Column(Modifier.padding(14.dp)) {
-                    MFloatingDropdownBox(
-                        label = "Seviye Seçimi",
-                        selectedValue = level,
-                        options = SkillLevel.entries,
-                        optionLabel = { it.label },
-                        onSelect = { level = it },
-                        icon = Icons.Rounded.Leaderboard
-                    )
-                }
-            }
+            MFloatingDropdownBox(
+                label = "Seviye Seçimi",
+                selectedValue = level,
+                options = SkillLevel.entries,
+                optionLabel = { it.label },
+                onSelect = { level = it },
+                icon = Icons.Rounded.Leaderboard
+            )
 
             MFloatingInputBox(
                 label = "Pozisyon & Oyun Tarzı",
@@ -813,8 +855,7 @@ private fun SkillProfileEditorSheet(
                 placeholder = "Örn: Oyun Kurucu, Sağ Kanat, Çiftler Sol...",
                 subtitle = "Bu branşta sahadaki rolünü ve güçlü yönünü belirt.",
                 icon = Icons.Rounded.EditNote,
-                badgeText = "Branş Rolü",
-                suggestions = listOf("Hücum Odaklı", "Oyun Kurucu", "Savunma Lideri", "Çok Yönlü")
+                badgeText = "Branş Rolü"
             )
             Surface(
                 shape = RoundedCornerShape(11.dp),

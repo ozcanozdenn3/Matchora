@@ -102,6 +102,99 @@ fun SportPickerField(
     )
 }
 
+/**
+ * Akış ve filtre kartları içinde yer kaplamayan kompakt branş seçici kapsülü.
+ */
+@Composable
+fun MCompactSportPill(
+    selectedSport: Sport?,
+    onSelect: (Sport?) -> Unit,
+    modifier: Modifier = Modifier,
+    sports: List<Sport> = Sport.entries,
+    allowAll: Boolean = true,
+    emptyLabel: String = "Tüm branşlar"
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val requireAccount = LocalRequireAccount.current
+    val isFiltered = selectedSport != null
+    Surface(
+        onClick = { requireAccount { expanded = true } },
+        shape = RoundedCornerShape(11.dp),
+        color = if (isFiltered) MColors.BrandTint else Color(0xFFF8FAFC),
+        border = BorderStroke(1.dp, if (isFiltered) MColors.Brand.copy(alpha = 0.35f) else Color(0xFFE2E8F0)),
+        modifier = modifier.height(38.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            if (selectedSport != null) {
+                Text(selectedSport.emoji, fontSize = 14.sp)
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.Sports,
+                    contentDescription = null,
+                    tint = Color(0xFF213E38),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Text(
+                text = selectedSport?.label ?: emptyLabel,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isFiltered) MColors.BrandDeep else MColors.Ink900,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            if (isFiltered && allowAll) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = "Branşı temizle",
+                    tint = MColors.BrandDeep,
+                    modifier = Modifier
+                        .size(17.dp)
+                        .clickable { onSelect(null) }
+                )
+            } else {
+                Surface(
+                    shape = RoundedCornerShape(7.dp),
+                    color = Color(0xFFEAEFF5)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = "Seç",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MColors.Ink700
+                        )
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            tint = MColors.Ink700,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+    if (expanded) {
+        SportPickerSheet(
+            selectedSport = selectedSport,
+            sports = sports,
+            allowAll = allowAll,
+            onDismiss = { expanded = false },
+            onSelect = { onSelect(it); expanded = false }
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SportPickerSheet(

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.matchora.app.state.AppNotification
 import com.matchora.app.state.NotificationPrefs
+import com.matchora.app.state.NotificationDestination
 import com.matchora.app.state.NotifPriority
 import com.matchora.app.data.*
 import kotlinx.coroutines.launch
@@ -63,14 +64,14 @@ fun AppNotification.matchesFilter(filter: NotifFilterCategory): Boolean {
         return when (filter) {
             NotifFilterCategory.ALL -> true
             NotifFilterCategory.MATCHES -> actual in setOf("matches", "emergencyFill", "weeklyDigest", "rematch")
-            NotifFilterCategory.SQUADS -> actual in setOf("challenges", "waitlist", "teams")
+            NotifFilterCategory.SQUADS -> actual in setOf("challenges", "waitlist", "teams", "social")
             NotifFilterCategory.WALLET -> actual == "wallet"
         }
     }
     return when (filter) {
         NotifFilterCategory.ALL -> true
         NotifFilterCategory.MATCHES -> priority == NotifPriority.P1 || priority == NotifPriority.P2
-        NotifFilterCategory.SQUADS -> priority == NotifPriority.P3 || title.contains("Kadro", true) || title.contains("Başvuru", true)
+        NotifFilterCategory.SQUADS -> priority == NotifPriority.P3 || title.contains("Kadro", true) || title.contains("Başvuru", true) || title.contains("Topluluk", true) || title.contains("Yorum", true)
         NotifFilterCategory.WALLET -> priority == NotifPriority.P0 || title.contains("Token", true) || title.contains("Tesis", true)
     }
 }
@@ -289,10 +290,16 @@ private fun NotificationInboxCard(notification: AppNotification, onClick: () -> 
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(notification.timeAgo, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = MColors.Ink400)
                     Spacer(Modifier.weight(1f))
-                    if (notification.eventId != null) {
+                    val actionLabel = when {
+                        notification.eventId != null || notification.destination == NotificationDestination.EVENT -> "Etkinliği aç"
+                        notification.destination == NotificationDestination.MEMORIES -> "Anıyı aç"
+                        notification.destination in listOf(NotificationDestination.TEAM, NotificationDestination.TOURNAMENT, NotificationDestination.CHALLENGES, NotificationDestination.NETWORK, NotificationDestination.VENUES, NotificationDestination.RESERVATIONS, NotificationDestination.VENUE_MANAGEMENT) -> "Detayı aç"
+                        else -> null
+                    }
+                    if (actionLabel != null) {
                         Surface(shape = RoundedCornerShape(7.dp), color = notification.priority.tint) {
                             Row(Modifier.padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text("Etkinliği aç", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = accent)
+                                Text(actionLabel, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = accent)
                                 Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, Modifier.size(12.dp), tint = accent)
                             }
                         }

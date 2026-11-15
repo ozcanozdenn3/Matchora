@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.matchora.app.data.*
 import com.matchora.app.state.*
+import com.matchora.app.ui.theme.MColors
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 
@@ -20,7 +21,7 @@ private data class PendingCommand(val operation: String, val payload: JsonObject
 @Composable
 fun BackendPlayerSafetyActions(player: Player) {
     val backend = LocalBackendRepository.current ?: return
-    if (player.id == DemoData.ME) return
+    if (!backend.enabled || player.id == DemoData.ME) return
     val snapshot by backend.snapshots.collectAsState()
     val blocked = player.id in snapshot?.ss("blockedUserIds").orEmpty()
     val command = rememberBackendAction()
@@ -28,16 +29,16 @@ fun BackendPlayerSafetyActions(player: Player) {
     var reporting by remember { mutableStateOf(false) }
     var reason by remember { mutableStateOf("") }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        TextButton(onClick = { confirmBlock = true }) { Text(if (blocked) "Engeli kaldır" else "Sporcuyu engelle") }
-        TextButton(onClick = { reporting = true }) { Text("Sporcuyu bildir") }
+        TextButton(onClick = { confirmBlock = true }) { Text(if (blocked) "Engeli kaldır" else "Sporcuyu engelle", color = if (blocked) MColors.BrandDeep else MColors.Rose) }
+        TextButton(onClick = { reporting = true }) { Text("Sporcuyu bildir", color = MColors.Rose) }
     }
     if (confirmBlock) AlertDialog(onDismissRequest = { confirmBlock = false }, title = { Text(if (blocked) "Engel kaldırılsın mı?" else "Sporcu engellensin mi?") },
         text = { Text(if (blocked) "Sporcu mesaj tercihlerin izin verdiğinde yeniden iletişim kurabilir." else "Karşılıklı mesajlaşma kapanır ve paylaşımlarınız birbirinizin vitrininden kaldırılır. Mevcut maç ve takım taahhütleri korunur.") },
-        confirmButton = { TextButton(onClick = { command("user.block", apiPayload("userId" to backend.serverUserId(player.id), "blocked" to !blocked)); confirmBlock = false }) { Text(if (blocked) "Engeli kaldır" else "Engelle") } },
+        confirmButton = { TextButton(onClick = { command("user.block", apiPayload("userId" to backend.serverUserId(player.id), "blocked" to !blocked)); confirmBlock = false }) { Text(if (blocked) "Engeli kaldır" else "Engelle", color = if (blocked) MColors.BrandDeep else MColors.Rose) } },
         dismissButton = { TextButton(onClick = { confirmBlock = false }) { Text("Vazgeç") } })
     if (reporting) AlertDialog(onDismissRequest = { reporting = false }, title = { Text("Sporcuyu bildir") },
         text = { OutlinedTextField(reason, { reason = it.take(1000) }, label = { Text("Bildirim gerekçesi") }, minLines = 3) },
-        confirmButton = { TextButton(enabled = reason.trim().length >= 3, onClick = { command("report.create", apiPayload("targetType" to "user", "targetId" to backend.serverUserId(player.id), "reason" to "Sporcu bildirimi", "details" to reason.trim())); reporting = false; reason = "" }) { Text("Bildir") } },
+        confirmButton = { TextButton(enabled = reason.trim().length >= 3, onClick = { command("report.create", apiPayload("targetType" to "user", "targetId" to backend.serverUserId(player.id), "reason" to "Sporcu bildirimi", "details" to reason.trim())); reporting = false; reason = "" }) { Text("Bildir", color = MColors.Rose) } },
         dismissButton = { TextButton(onClick = { reporting = false }) { Text("Vazgeç") } })
 }
 
@@ -95,6 +96,7 @@ fun BackendTeamActions(team: TeamProfile, players: List<Player>) {
     val snapshot by backend.snapshots.collectAsState()
     val command = rememberBackendAction()
     var confirmLeave by remember { mutableStateOf(false) }
+    var confirmDeclineInvite by remember { mutableStateOf(false) }
     var transfer by remember { mutableStateOf(false) }
     var manageMembers by remember { mutableStateOf(false) }
     var removeMember by remember { mutableStateOf<Player?>(null) }
@@ -103,21 +105,33 @@ fun BackendTeamActions(team: TeamProfile, players: List<Player>) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (invited) Row {
             TextButton(onClick = { command("team.invite.respond", apiPayload("teamId" to team.id, "accept" to true)) }) { Text("Takım davetini kabul et") }
-            TextButton(onClick = { command("team.invite.respond", apiPayload("teamId" to team.id, "accept" to false)) }) { Text("Reddet") }
+            TextButton(onClick = { confirmDeclineInvite = true }) { Text("Reddet", color = MColors.Rose) }
         }
         if (team.isMine) {
             if (team.captainId == DemoData.ME) {
                 TextButton(onClick = { manageMembers = true }) { Text("Takım kadrosunu yönet") }
                 TextButton(onClick = { transfer = true }) { Text("Kaptanlığı devret") }
-                TextButton(onClick = { archive = true }) { Text("Takımı kapat", color = MaterialTheme.colorScheme.error) }
-            } else TextButton(onClick = { confirmLeave = true }) { Text("Takımdan ayrıl") }
+                TextButton(onClick = { archive = true }) { Text("Takımı kapat", color = MColors.Rose) }
+            } else TextButton(onClick = { confirmLeave = true }) { Text("Takımdan ayrıl", color = MColors.Rose) }
         }
     }
+    if (confirmDeclineInvite) AlertDialog(
+        onDismissRequest = { confirmDeclineInvite = false },
+        title = { Text("Takım daveti reddedilsin mi?") },
+        text = { Text("${team.name} takımına ait daveti reddedeceksin.") },
+        confirmButton = {
+            TextButton(onClick = {
+                confirmDeclineInvite = false
+                command("team.invite.respond", apiPayload("teamId" to team.id, "accept" to false))
+            }) { Text("Reddet", color = MColors.Rose) }
+        },
+        dismissButton = { TextButton(onClick = { confirmDeclineInvite = false }) { Text("Vazgeç") } }
+    )
     if (manageMembers) AlertDialog(onDismissRequest = { manageMembers = false }, title = { Text("Takım kadrosu") }, text = {
         Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
             players.filter { it.id in team.memberIds && it.id != DemoData.ME }.forEach { player -> Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(player.name, Modifier.weight(1f))
-                TextButton(onClick = { removeMember = player }) { Text("Çıkar") }
+                TextButton(onClick = { removeMember = player }) { Text("Çıkar", color = MColors.Rose) }
             } }
             if (team.memberIds.size < 2) Text("Takımda başka sporcu yok.")
             val removed = snapshot?.a("removedTeamMembers")?.filter { it.s("team_id") == team.id }.orEmpty()
@@ -129,13 +143,13 @@ fun BackendTeamActions(team: TeamProfile, players: List<Player>) {
         }
     }, confirmButton = { TextButton(onClick = { manageMembers = false }) { Text("Kapat") } })
     removeMember?.let { player -> AlertDialog(onDismissRequest = { removeMember = null }, title = { Text("Sporcu çıkarılsın mı?") }, text = { Text("${player.name} takım kadrosundan ve sohbetinden çıkarılacak. Resmi maç/turnuva taahhüdü varsa önce sonuçlandırılmalıdır.") },
-        confirmButton = { TextButton(onClick = { command("team.member.remove", apiPayload("teamId" to team.id, "userId" to backend.serverUserId(player.id))); removeMember = null }) { Text("Takımdan çıkar") } },
+        confirmButton = { TextButton(onClick = { command("team.member.remove", apiPayload("teamId" to team.id, "userId" to backend.serverUserId(player.id))); removeMember = null }) { Text("Takımdan çıkar", color = MColors.Rose) } },
         dismissButton = { TextButton(onClick = { removeMember = null }) { Text("Vazgeç") } }) }
     if (archive) AlertDialog(onDismissRequest = { archive = false }, title = { Text("Takım kapatılsın mı?") }, text = { Text("İlan, başvurular, davetler ve takım üyelikleri kapanacak. Bekleyen challenge taahhütleri iade edilir. Resmi kadro taahhüdü varsa işlem engellenir.") },
-        confirmButton = { TextButton(onClick = { command("team.archive", apiPayload("teamId" to team.id)); archive = false; manageMembers = false }) { Text("Takımı kapat") } },
+        confirmButton = { TextButton(onClick = { command("team.archive", apiPayload("teamId" to team.id)); archive = false; manageMembers = false }) { Text("Takımı kapat", color = MColors.Rose) } },
         dismissButton = { TextButton(onClick = { archive = false }) { Text("Vazgeç") } })
     if (confirmLeave) AlertDialog(onDismissRequest = { confirmLeave = false }, title = { Text("Takımdan ayrıl") }, text = { Text("Takım üyeliğin ve takım sohbetine erişimin kapanacak.") },
-        confirmButton = { TextButton(onClick = { confirmLeave = false; command("team.leave", apiPayload("teamId" to team.id)) }) { Text("Ayrıl") } },
+        confirmButton = { TextButton(onClick = { confirmLeave = false; command("team.leave", apiPayload("teamId" to team.id)) }) { Text("Ayrıl", color = MColors.Rose) } },
         dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Vazgeç") } })
     if (transfer) AlertDialog(onDismissRequest = { transfer = false }, title = { Text("Yeni kaptanı seç") },
         text = { Column { players.filter { it.id in team.memberIds && it.id != DemoData.ME }.forEach { player ->
@@ -159,14 +173,27 @@ fun BackendCommunityActions(community: CommunityInfo) {
     var remove by remember { mutableStateOf(false) }
     var removalTarget by remember { mutableStateOf<String?>(null) }
     var archiveCommunity by remember { mutableStateOf(false) }
+    var confirmDeclineInvite by remember { mutableStateOf(false) }
     val owned = snapshot?.a("communities")?.any { it.s("id") == community.id && it.s("ownerId") == backend.userId } == true
     if (invited) Row {
         TextButton(onClick = { command("community.join", apiPayload("communityId" to community.id)) }) { Text("Topluluk davetini kabul et") }
-        TextButton(onClick = { command("community.invite.decline", apiPayload("communityId" to community.id)) }) { Text("Reddet") }
+        TextButton(onClick = { confirmDeclineInvite = true }) { Text("Reddet", color = MColors.Rose) }
     }
-    if (owned) TextButton(onClick = { archiveCommunity = true }) { Text("Topluluğu kapat", color = MaterialTheme.colorScheme.error) }
+    if (confirmDeclineInvite) AlertDialog(
+        onDismissRequest = { confirmDeclineInvite = false },
+        title = { Text("Topluluk daveti reddedilsin mi?") },
+        text = { Text("${community.name} topluluğuna ait daveti reddedeceksin.") },
+        confirmButton = {
+            TextButton(onClick = {
+                confirmDeclineInvite = false
+                command("community.invite.decline", apiPayload("communityId" to community.id))
+            }) { Text("Reddet", color = MColors.Rose) }
+        },
+        dismissButton = { TextButton(onClick = { confirmDeclineInvite = false }) { Text("Vazgeç") } }
+    )
+    if (owned) TextButton(onClick = { archiveCommunity = true }) { Text("Topluluğu kapat", color = MColors.Rose) }
     if (archiveCommunity) AlertDialog(onDismissRequest = { archiveCommunity = false }, title = { Text("Topluluk kapatılsın mı?") }, text = { Text("Üyelikler ve başvurular kapanacak. Gelecekteki özel maçlar iptal edilip taahhütler iade edilir. Devam eden özel maç varsa önce sonuçlandırmalısın.") },
-        confirmButton = { TextButton(onClick = { command("community.archive", apiPayload("communityId" to community.id)); archiveCommunity = false }) { Text("Topluluğu kapat") } },
+        confirmButton = { TextButton(onClick = { command("community.archive", apiPayload("communityId" to community.id)); archiveCommunity = false }) { Text("Topluluğu kapat", color = MColors.Rose) } },
         dismissButton = { TextButton(onClick = { archiveCommunity = false }) { Text("Vazgeç") } })
     if (owned) Row {
         TextButton(onClick = { edit = true }) { Text("Düzenle") }
@@ -208,7 +235,7 @@ fun BackendCommunityActions(community: CommunityInfo) {
             }
         } }, confirmButton = { TextButton(onClick = { remove = false }) { Text("Kapat") } })
     }
-    removalTarget?.let { id -> AlertDialog(onDismissRequest = { removalTarget = null }, title = { Text("Üye çıkarılsın mı?") }, text = { Text("Üyelik ve gelecekteki özel maçlara katılımı kapanacak; ilgili taahhütler iade edilecek.") }, confirmButton = { TextButton(onClick = { command("community.member.remove", apiPayload("communityId" to community.id, "userId" to id)); removalTarget = null }) { Text("Üyeyi çıkar") } }, dismissButton = { TextButton(onClick = { removalTarget = null }) { Text("Vazgeç") } }) }
+    removalTarget?.let { id -> AlertDialog(onDismissRequest = { removalTarget = null }, title = { Text("Üye çıkarılsın mı?") }, text = { Text("Üyelik ve gelecekteki özel maçlara katılımı kapanacak; ilgili taahhütler iade edilecek.") }, confirmButton = { TextButton(onClick = { command("community.member.remove", apiPayload("communityId" to community.id, "userId" to id)); removalTarget = null }) { Text("Üyeyi çıkar", color = MColors.Rose) } }, dismissButton = { TextButton(onClick = { removalTarget = null }) { Text("Vazgeç") } }) }
     if (owned) Row {
         TextButton(onClick = { transfer = true }) { Text("Yöneticiliği devret") }
         TextButton(onClick = { invite = true }) { Text("Sporcu davet et") }
@@ -229,7 +256,7 @@ fun BackendCommunityActions(community: CommunityInfo) {
         requests.forEach { request -> Row {
             Text(players.firstOrNull { it.s("id") == request.s("user_id") }?.s("name") ?: "Sporcu", Modifier.weight(1f))
             TextButton(onClick = { command("community.review", apiPayload("communityId" to community.id, "userId" to request.s("user_id"), "approve" to true)) }) { Text("Onayla") }
-            TextButton(onClick = { command("community.review", apiPayload("communityId" to community.id, "userId" to request.s("user_id"), "approve" to false)) }) { Text("Reddet") }
+            TextButton(onClick = { command("community.review", apiPayload("communityId" to community.id, "userId" to request.s("user_id"), "approve" to false)) }) { Text("Reddet", color = MColors.Rose) }
         } }
     } }
 }
@@ -238,6 +265,13 @@ fun BackendCommunityActions(community: CommunityInfo) {
 fun BackendTournamentActions(tournament: TournamentInfo) {
     val backend = LocalBackendRepository.current
     if (tournament.creatorId != DemoData.ME || tournament.status in listOf("Tamamlandı", "İptal edildi")) return
+    val snapshot by (backend?.snapshots?.collectAsState() ?: remember { mutableStateOf(null) })
+    val liveVenueOptions = remember(snapshot, tournament.city) {
+        snapshot?.let(::BackendSnapshot)?.venues.orEmpty()
+            .filter { tournament.city.isBlank() || matchesTurkishPlace(it.city, tournament.city) }
+            .map { "${it.name} · ${it.area}" }
+            .distinct()
+    }
     var show by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     var editName by remember(tournament.id) { mutableStateOf(tournament.name) }
@@ -278,7 +312,7 @@ fun BackendTournamentActions(tournament: TournamentInfo) {
     if (show) AlertDialog(onDismissRequest = { show = false }, title = { Text("Turnuva planı") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             EventDateTimeField(date, hour, minute) { d, h, m -> date = d; hour = h; minute = m }
-            VenueChoiceField("Tesis / saha", venue, { venue = it.take(160) }, emptyList(), tournament.city)
+            VenueChoiceField("Tesis / saha", venue, { venue = it.take(160) }, liveVenueOptions, tournament.city)
             Text("İlk turda kayıtların dolması, sonraki turda önceki sonuçların doğrulanması gerekiyor.", style = MaterialTheme.typography.bodySmall)
             if (backend == null) Text("Önizleme planı · fikstür yayınlamak için canlı organizatör hesabın gerekir.", style = MaterialTheme.typography.bodySmall)
         } }, confirmButton = { TextButton(onClick = { show = false; command("tournament.schedule", apiPayload("tournamentId" to tournament.id, "venue" to venue, "startsAtEpochMillis" to eventStartMillis(date, hour, minute))) }, enabled = backend?.authenticated == true && ready && venue.trim().length >= 2 && eventStartMillis(date,hour,minute)>kotlinx.datetime.Clock.System.now().toEpochMilliseconds()+60000) { Text("Planla") } },
@@ -287,7 +321,7 @@ fun BackendTournamentActions(tournament: TournamentInfo) {
         text = { Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(editName, { editName = it.take(100) }, label = { Text("Turnuva adı") })
             OutlinedTextField(editDates, { editDates = it.take(80) }, label = { Text("Tarih aralığı") })
-            VenueChoiceField("Tesis / saha", editVenue, { editVenue = it.take(160) }, emptyList(), tournament.city)
+            VenueChoiceField("Tesis / saha", editVenue, { editVenue = it.take(160) }, liveVenueOptions, tournament.city)
             OutlinedTextField(editRequirement, { editRequirement = it.take(300) }, label = { Text("Katılım şartı & kurallar") })
             OutlinedTextField(editPrizeToken, { editPrizeToken = it.take(80) }, label = { Text("Token ödülü") })
             OutlinedTextField(editPrizeCash, { editPrizeCash = it.take(80) }, label = { Text("Ek ödül") })
@@ -311,17 +345,17 @@ fun BackendTournamentActions(tournament: TournamentInfo) {
 @Composable
 fun BackendTournamentRegistrationActions(tournament: TournamentInfo, registration: TournamentRegistration) {
     val backend = LocalBackendRepository.current ?: return
-    if (tournament.creatorId != DemoData.ME || !tournament.status.contains("açık", true)) return
+    if (!backend.enabled || tournament.creatorId != DemoData.ME || !tournament.status.contains("açık", true)) return
     var show by remember { mutableStateOf(false) }
     var reason by remember { mutableStateOf("") }
     val command = rememberBackendAction()
     val removed = registration.status == "removed"
-    if (registration.status in listOf("joined", "removed")) TextButton(onClick = { show = true }) { Text(if (removed) "Yeniden kayda izin ver" else "Takım kaydını kaldır") }
+    if (registration.status in listOf("joined", "removed")) TextButton(onClick = { show = true }) { Text(if (removed) "Yeniden kayda izin ver" else "Takım kaydını kaldır", color = if (removed) MColors.BrandDeep else MColors.Rose) }
     if (show) AlertDialog(onDismissRequest = { show = false }, title = { Text(if (removed) "Yeniden kayıt izni" else "Takım kaydı kaldırılsın mı?") }, text = { Column {
         Text(if (removed) "${registration.name} otomatik kaydolmaz. Kaptan yeniden kadro seçip başvurur." else "${registration.name} turnuvadan çıkarılır. Kulüp üyelikleri korunur; kaptan ve maç kadrosuna bildirim gider.")
         if (!removed) OutlinedTextField(reason, { reason = it.take(500) }, label = { Text("Gerekçe · en az 10 karakter") })
     } }, confirmButton = { TextButton(onClick = {
         command(if (removed) "tournament.registration.restore" else "tournament.registration.remove", if (removed) apiPayload("tournamentId" to tournament.id, "teamId" to registration.teamId) else apiPayload("tournamentId" to tournament.id, "teamId" to registration.teamId, "reason" to reason.trim()))
         show = false
-    }, enabled = removed || reason.trim().length >= 10) { Text(if (removed) "İzin ver" else "Kaydı kaldır") } }, dismissButton = { TextButton(onClick = { show = false }) { Text("Vazgeç") } })
+    }, enabled = removed || reason.trim().length >= 10) { Text(if (removed) "İzin ver" else "Kaydı kaldır", color = if (removed) MColors.BrandDeep else MColors.Rose) } }, dismissButton = { TextButton(onClick = { show = false }) { Text("Vazgeç") } })
 }

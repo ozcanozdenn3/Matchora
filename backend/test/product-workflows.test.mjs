@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { generateKeyPairSync, createSign } from 'node:crypto';
 import { fixture } from './helpers.mjs';
 import { runJobs } from '../src/jobs.mjs';
 import { eloDelta, confirmationState } from '../src/rating.mjs';
-import { id } from '../src/auth.mjs';
+import { Auth, id } from '../src/auth.mjs';
 
 async function reportedMatch(f, { mode = 'COMPETITIVE', checked = ['host', 'guest'], homeScore = 3, awayScore = 1 } = {}) {
   const event = (await f.cmd(f.host, 'event.create', f.event({ startsAtEpochMillis: f.clock() + 600000, capacity: 2, mode }))).result.id;
@@ -174,6 +175,17 @@ test('emergency producer honors district, opt-out, blocks, membership and event 
   assert.ok((await f.service.bootstrap(f.admin)).notifications.some(n => n.targetId === event));
 });
 
+test('newly published match sends push to nearby athletes with matching sport and honors opt-out', async t => {
+  const f = await fixture(t);
+  const event = (await f.cmd(f.host, 'event.create', f.event({ emergency: false, listingType: 'SEEK_PLAYERS' }))).result.id;
+  await f.cmd(f.guest, 'preferences.save', { notifications: { upcomingMatch: false } });
+  await f.cmd(f.other, 'user.block', { userId: f.host.id, blocked: true });
+  await runJobs(f.service);
+  const rows = await f.store.all("SELECT user_id FROM notifications WHERE category='matches' AND dedupe LIKE 'new-match:%'");
+  assert.deepEqual(rows.map(r => r.user_id), [f.admin.id]);
+  assert.ok((await f.service.bootstrap(f.admin)).notifications.some(n => n.targetId === event && n.title === 'İlçende oyuncu aranıyor'));
+});
+
 test('weekly digest and mutual rematch suggestions are once only and late feedback affects fair play', async t => {
   const f = await fixture(t), event = await verifiedMatch(f);
   await f.cmd(f.host, 'feedback.submit', { eventId: event, targetId: f.guest.id, fairPlay: 5, playAgain: true });
@@ -206,4 +218,32 @@ test('weekly digest waits for Sunday dispute windows and attributes MMR to the m
   const digest = await f.store.get("SELECT payload FROM notifications WHERE user_id=? AND category='weeklyDigest'", [f.host.id]);
   assert.ok(digest);
   assert.match(JSON.parse(digest.payload).body, /1 doğrulanmış katılım.*\+12 MMR/);
+});
+
+test('firebase id token verifies RS256 signature, issuer, audience and normalizes phone', async t => {
+  const f = await fixture(t);
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const publicPem = publicKey.export({ type: 'spki', format: 'pem' });
+  const signJwt = (header, claims, key = privateKey) => {
+    const unsigned = `${Buffer.from(JSON.stringify(header)).toString('base64url')}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}`;
+    const sig = createSign('RSA-SHA256').update(unsigned).sign(key).toString('base64url');
+    return `${unsigned}.${sig}`;
+  };
+  const auth = new Auth(f.store, { ...f.config, fcmProjectId: 'matchora-c5ddc' }, f.clock, async url => {
+    assert.match(url, /securetoken@system\.gserviceaccount\.com/);
+    return new Response(JSON.stringify({ kid1: publicPem }), { status: 200, headers: { 'cache-control': 'public, max-age=3600' } });
+  });
+  const nowSec = Math.floor(f.clock() / 1000);
+  const validToken = signJwt(
+    { alg: 'RS256', kid: 'kid1', typ: 'JWT' },
+    { aud: 'matchora-c5ddc', iss: 'https://securetoken.google.com/matchora-c5ddc', sub: 'fb-uid-1', phone_number: '+905350705672', iat: nowSec - 10, auth_time: nowSec - 10, exp: nowSec + 3600 }
+  );
+  const session = await auth.exchangeIdToken({ provider: 'firebase', idToken: validToken });
+  assert.ok(session.accessToken);
+  assert.equal(session.profileHints.phone, '+905350705672');
+  const otherKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey;
+  const forged = signJwt({ alg: 'RS256', kid: 'kid1' }, { aud: 'matchora-c5ddc', iss: 'https://securetoken.google.com/matchora-c5ddc', sub: 'fb-uid-1', exp: nowSec + 3600, iat: nowSec }, otherKey);
+  await assert.rejects(auth.exchangeIdToken({ provider: 'firebase', idToken: forged }), e => e.code === 'INVALID_TOKEN');
+  const expired = signJwt({ alg: 'RS256', kid: 'kid1' }, { aud: 'matchora-c5ddc', iss: 'https://securetoken.google.com/matchora-c5ddc', sub: 'fb-uid-1', exp: nowSec - 10, iat: nowSec - 20 });
+  await assert.rejects(auth.exchangeIdToken({ provider: 'firebase', idToken: expired }), e => e.code === 'INVALID_TOKEN');
 });

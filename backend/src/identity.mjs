@@ -2,6 +2,7 @@ import { ensure, text, integer, choice, keys, json } from './errors.mjs';
 import { legalConfiguration } from './legal.mjs';
 import { id } from './auth.mjs';
 import { SPORTS } from './sports.mjs';
+import { canonicalTurkishCity } from './turkish-locale.mjs';
 import { row, profile, reward, encode, audit } from './model.mjs';
 const editable = ['name','city','area','bio','birthYear','phone','email','skills','campus','company','dominantSide','availability','jerseyNumber','avatarUploadId','expectedVersion'];
 function editableProfile(p, now) {
@@ -11,7 +12,7 @@ function editableProfile(p, now) {
   ensure(new Set(skills.map(s => s.sport)).size === skills.length);
   const availability = p.availability ?? []; ensure(Array.isArray(availability) && availability.length <= 14 && availability.every(v => typeof v === 'string' && v.length <= 100));
   return {
-    name: text(p.name, 'İsim', 2, 40), city: text(p.city, 'İl', 2, 60), area: text(p.area, 'İlçe', 2, 60),
+    name: text(p.name, 'İsim', 2, 40), city: canonicalTurkishCity(text(p.city, 'İl', 2, 60)), area: text(p.area, 'İlçe', 2, 60),
     bio: text(p.bio ?? '', 'Biyografi', 0, 280), birthYear: integer(p.birthYear, 'Doğum yılı', year - 100, year - 13),
     phone: text(p.phone ?? '', 'Telefon', 0, 24), email: text(p.email ?? '', 'E-posta', 0, 100),
     skills: skills.map(s => ({ sport: choice(s.sport, SPORTS, 'Branş'), level: choice(s.level, ['BEGINNER','INTERMEDIATE','ADVANCED','PRO'], 'Seviye'), position: text(s.position ?? '', 'Rol', 0, 80) })),
@@ -25,7 +26,7 @@ export const identityHandlers = {
     const fields = editableProfile(p, ctx.now), old = await ctx.db.get('SELECT * FROM profiles WHERE user_id=?', [ctx.actor.id]);
     if(ctx.config.production){const legal=await legalConfiguration(ctx);ensure(legal.configured,503,'LEGAL_DOCUMENTS_PENDING','Belgeler henüz yayınlanmadı.');ensure(await ctx.db.get('SELECT id FROM legal_acceptances WHERE user_id=? AND terms_version=? AND privacy_version=?',[ctx.actor.id,legal.documents.terms.version,legal.documents.privacy.version]),403,'LEGAL_ACCEPTANCE_REQUIRED','Güncel kullanım koşulları ve gizlilik politikasını incelemelisin.');}
     if (old) ensure(p.expectedVersion === old.version, 409, 'VERSION_CONFLICT', 'Profil başka bir yerde güncellendi. Yenile ve tekrar dene.');
-    if (fields.email) ensure(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email));
+    if (fields.email) ensure(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email), 400, 'INVALID_INPUT', 'Geçerli bir e-posta adresi gir.');
     if (fields.avatarUploadId) { const upload = await row(ctx, 'uploads', 'id', fields.avatarUploadId); ensure(upload.owner_id === ctx.actor.id && upload.status === 'ready', 403, 'FORBIDDEN', 'Fotoğraf kullanılamıyor.'); }
     const previous = old ? json(old.payload) : {};
     const user = await row(ctx, 'users', 'id', ctx.actor.id);

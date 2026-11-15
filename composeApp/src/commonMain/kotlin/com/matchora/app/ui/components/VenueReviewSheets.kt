@@ -27,14 +27,14 @@ fun VenueReviewsSheet(venue: VenueInfo, onDismiss: () -> Unit, onReport: (String
     var busy by remember { mutableStateOf(false) }
     var nextCursor by remember(venue.id) { mutableStateOf<String?>(null) }
     val actions = rememberCoroutineScope()
-    LaunchedEffect(venue.id, refresh, backend?.userId, backendWire) {
+    LaunchedEffect(venue.id, refresh, backend?.userId) {
         if (backend == null) {
             rows = listOf(apiPayload("id" to "demo-review", "authorName" to "Demo sporcu", "rating" to 5, "comment" to "Saha ve organizasyon çok iyiydi.", "status" to "published"))
         } else {
             busy = true; error = null
             try { val page = backend.venueReviews(venue.id); rows = page.a("items"); nextCursor = page.s("nextCursor").ifBlank { null }; reviewable = BackendSnapshot(apiPayload("venuePayments" to page.a("reviewableBookings"))).venuePayments }
             catch (cancel: CancellationException) { throw cancel }
-            catch (failure: Exception) { error = failure.message }
+            catch (failure: Exception) { error = (failure as? BackendFailure)?.message ?: "Değerlendirmeler yüklenemedi." }
             finally { busy = false }
         }
     }
@@ -50,7 +50,7 @@ fun VenueReviewsSheet(venue: VenueInfo, onDismiss: () -> Unit, onReport: (String
                 Text("${review.s("authorName")} · ${review.i("rating")}/5", style = MaterialTheme.typography.titleSmall)
                 Text(review.s("comment"), style = MaterialTheme.typography.bodySmall)
                 if (review.s("status") == "pending") Text("İnceleme bekliyor", color = MColors.Ink500)
-                if (backend != null && !review.b("own")) TextButton(onClick = { report = review }) { Text("Yorumu bildir") }
+                if (backend != null && !review.b("own")) TextButton(onClick = { report = review }) { Text("Yorumu bildir", color = MColors.Rose) }
             }
         } }
         if (backend != null && nextCursor != null) TextButton(enabled = !busy, onClick = { actions.launch {
@@ -58,7 +58,7 @@ fun VenueReviewsSheet(venue: VenueInfo, onDismiss: () -> Unit, onReport: (String
             busy = true; error = null
             try { val page = backend.venueReviews(venue.id, cursor); rows = (rows + page.a("items")).distinctBy { it.s("id") }; nextCursor = page.s("nextCursor").ifBlank { null } }
             catch (cancel: CancellationException) { throw cancel }
-            catch (failure: Exception) { error = failure.message }
+            catch (failure: Exception) { error = (failure as? BackendFailure)?.message ?: "Değerlendirmeler yüklenemedi." }
             finally { busy = false }
         } }) { Text("Önceki değerlendirmeleri yükle") }
     }
@@ -80,8 +80,8 @@ fun VenueReviewEditorSheet(payment: VenuePayment, onDismiss: () -> Unit) {
         MFloatingDropdownBox("Puanın", stars, (1..5).toList(), { "$it / 5" }, { stars = it })
         OutlinedTextField(comment, { comment = it.take(1000) }, label = { Text("Deneyimini anlat") }, minLines = 3, modifier = Modifier.fillMaxWidth(), colors = premiumTextFieldColors())
         MButton("İncelemeye gönder", { command("venue.review.save", apiPayload("bookingId" to payment.id, "rating" to stars, "comment" to comment, "expectedVersion" to original?.i("version"))); onDismiss() }, enabled = backend?.authenticated == true)
-        if (original != null && original.s("status") != "deleted") TextButton(onClick = { remove = true }) { Text("Değerlendirmemi kaldır") }
+        if (original != null && original.s("status") != "deleted") TextButton(onClick = { remove = true }) { Text("Değerlendirmemi kaldır", color = MColors.Rose) }
     }
     if (remove) AlertDialog(onDismissRequest = { remove = false }, title = { Text("Değerlendirme kaldırılsın mı?") }, text = { Text("Yorumun ve puanın tesisin görünümünden kaldırılacak.") },
-        confirmButton = { TextButton(onClick = { command("venue.review.delete", apiPayload("reviewId" to original?.s("id"))); remove = false; onDismiss() }) { Text("Kaldır") } }, dismissButton = { TextButton(onClick = { remove = false }) { Text("Vazgeç") } })
+        confirmButton = { TextButton(onClick = { command("venue.review.delete", apiPayload("reviewId" to original?.s("id"))); remove = false; onDismiss() }) { Text("Kaldır", color = MColors.Rose) } }, dismissButton = { TextButton(onClick = { remove = false }) { Text("Vazgeç") } })
 }

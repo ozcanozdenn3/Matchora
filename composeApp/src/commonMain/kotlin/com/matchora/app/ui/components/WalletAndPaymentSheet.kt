@@ -96,7 +96,7 @@ fun TokenWalletSheet(
         if (remoteStorePending && backend != null) {
             try { catalog = StoreBilling.catalog(backend); catalogError = null }
             catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-            catch (e: Exception) { catalogError = e.message }
+            catch (e: Exception) { catalogError = (e as? BackendFailure)?.message ?: "Mağaza ürünleri yüklenemedi. Lütfen tekrar dene." }
         }
     }
     fun price(sku: String, preview: String): String = if (!remoteStorePending) preview else catalog.find { it.sku == sku }?.price ?: "Mağaza bekleniyor"
@@ -109,7 +109,7 @@ fun TokenWalletSheet(
                 if (sku == null) StoreBilling.restore(backend) else StoreBilling.purchase(backend, sku)
                 storeNotice = "Mağaza işlemi alındı. Haklar sunucuda doğrulandığında cüzdanın güncellenecek."
             } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-            catch (e: Exception) { if ((e as? BackendFailure)?.code != "PURCHASE_CANCELLED") storeNotice = e.message }
+            catch (e: Exception) { if ((e as? BackendFailure)?.code != "PURCHASE_CANCELLED") storeNotice = (e as? BackendFailure)?.message ?: "Mağaza işlemi tamamlanamadı. Lütfen tekrar dene." }
             finally { loading = false; storeBusy = false }
         }
     }
@@ -395,7 +395,7 @@ fun TokenWalletSheet(
                                     ) {
                                         Icon(Icons.Rounded.WorkspacePremium, null, tint = MColors.Ink900, modifier = Modifier.size(20.dp))
                                     }
-                                    Text("MATChORA PLUS", color = Color(0xFFFFB37B), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                                    Text("MATCHORA PLUS", color = Color(0xFFFFB37B), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
                                 }
 
                                 if (activeProPlan != null) {

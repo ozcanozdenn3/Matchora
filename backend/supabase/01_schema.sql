@@ -179,6 +179,17 @@ CREATE TABLE IF NOT EXISTS event_locations (
 );
 INSERT INTO schema_migrations(version,applied_at) VALUES(10,0) ON CONFLICT(version) DO NOTHING;
 
+-- 011_indexes_and_sync.sql
+CREATE INDEX IF NOT EXISTS notifications_user_feed ON notifications(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS memories_status_created ON memories(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS memories_author_created ON memories(author_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS event_members_user_status ON event_members(user_id, status);
+CREATE INDEX IF NOT EXISTS team_members_user_status ON team_members(user_id, status);
+CREATE INDEX IF NOT EXISTS community_members_user_status ON community_members(user_id, status);
+CREATE INDEX IF NOT EXISTS bookings_user_created ON bookings(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS venues_owner ON venues(owner_id);
+INSERT INTO schema_migrations(version,applied_at) VALUES(11,0) ON CONFLICT(version) DO NOTHING;
+
 -- 002_postgres_security.sql
 -- Private server-owned schema. Mobile clients use the authenticated API, never direct table writes.
 DO $$ DECLARE t RECORD; BEGIN
@@ -195,5 +206,6 @@ DROP TRIGGER IF EXISTS wallet_immutable ON wallet_entries;
 CREATE TRIGGER wallet_immutable BEFORE UPDATE OR DELETE ON wallet_entries FOR EACH ROW EXECUTE FUNCTION matchora_immutable_row();
 DROP TRIGGER IF EXISTS audit_immutable ON audit_log;
 CREATE TRIGGER audit_immutable BEFORE UPDATE OR DELETE ON audit_log FOR EACH ROW EXECUTE FUNCTION matchora_immutable_row();
+INSERT INTO schema_migrations(version,applied_at) VALUES(2,0) ON CONFLICT(version) DO NOTHING;
 
 COMMIT;

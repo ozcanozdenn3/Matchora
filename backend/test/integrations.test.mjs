@@ -67,7 +67,7 @@ test('publishing a memory and sharing its photo is atomic and idempotent',async 
  assert.equal(repeat.result.id,first.result.id);assert.equal(repeat.result.messageId,first.result.messageId);
  assert.equal((await f.store.get('SELECT COUNT(*) AS n FROM memories')).n,1);
  const messages=await f.service.messages(f.guest,threadId);assert.equal(messages.items.length,1);assert.equal(messages.items[0].uploadId,upload.id);
- assert.equal((await f.service.bootstrap(f.guest)).memories.length,0,'public feed still requires moderation');
+ const feed=(await f.service.bootstrap(f.guest)).memories;assert.equal(feed.length,1);assert.equal(feed[0].id,first.result.id);assert.equal(feed[0].status,'approved');
  await f.cmd(f.host,'memory.create',{...payload,shareThreadId:null},'memory-feed-only-1');
  assert.equal((await f.store.get('SELECT COUNT(*) AS n FROM memories')).n,2);
  assert.equal((await f.service.messages(f.guest,threadId)).items.length,1);

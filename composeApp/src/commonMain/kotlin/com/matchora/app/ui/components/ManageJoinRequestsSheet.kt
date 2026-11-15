@@ -129,7 +129,7 @@ fun ManageJoinRequestsSheet(
                                 ) {
                                     Icon(Icons.Rounded.Share, null, modifier = Modifier.size(13.dp))
                                     Spacer(Modifier.width(3.dp))
-                                    Text("Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Text(if (LocalBackendRepository.current?.enabled == true) "Paylaş" else "Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -535,12 +535,8 @@ fun ManageJoinRequestsSheet(
             player = player,
             sport = event.sport,
             onDismiss = { selectedPlayerProfile = null },
-            onChallenge = {
-                selectedPlayerProfile = null
-            },
-            onInviteTeam = {
-                selectedPlayerProfile = null
-            },
+            onChallenge = null,
+            onInviteTeam = null,
             onDirectMessage = {
                 selectedPlayerProfile = null
                 onDirectMessage(player)

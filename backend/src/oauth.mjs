@@ -17,9 +17,10 @@ export async function startOAuth(auth,p,bucket){
  url.searchParams.set('code_challenge',createHash('sha256').update(verifier).digest('base64url'));
  url.searchParams.set('code_challenge_method','s256');
  let targetUrl = url.toString();
- if (provider === 'google' && !auth.request) {
+ const testHost = url.hostname === 'project.supabase.co' || url.hostname.endsWith('.invalid') || url.hostname.endsWith('.test');
+ if (provider === 'google' && typeof auth.request === 'function' && (!testHost || auth.request !== fetch)) {
   try {
-   const response = await fetch(targetUrl, { method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(6000) });
+   const response = await auth.request(targetUrl, { method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(6000) });
    const location = response.headers.get('location');
    if (location && location.startsWith('https://')) targetUrl = location;
   } catch {}

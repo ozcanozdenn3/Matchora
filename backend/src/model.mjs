@@ -112,6 +112,12 @@ export async function assertThread(ctx, threadId, write = false) {
   ensure(membership, 403, 'FORBIDDEN', 'Bu sohbetin katılımcısı değilsin.');
   if (thread.event_id) await member(ctx, thread.event_id);
   if (thread.team_id) ensure(await ctx.db.get("SELECT user_id FROM team_members WHERE team_id=? AND user_id=? AND status='joined'", [thread.team_id, ctx.actor.id]), 403, 'FORBIDDEN', 'Takım üyeliğin sona ermiş.');
+  if (thread.pair_key?.startsWith('community:')) {
+    const communityId = thread.pair_key.slice('community:'.length);
+    const community = await ctx.db.get('SELECT payload FROM communities WHERE id=?', [communityId]);
+    ensure(community && !json(community.payload).archived, 403, 'FORBIDDEN', 'Bu topluluk kapatılmış.');
+    ensure(await ctx.db.get("SELECT user_id FROM community_members WHERE community_id=? AND user_id=? AND status='joined'", [communityId, ctx.actor.id]), 403, 'FORBIDDEN', 'Topluluk üyeliğin sona ermiş.');
+  }
   if (thread.kind === 'DIRECT') {
     const others = await ctx.db.all('SELECT user_id FROM thread_members WHERE thread_id=? AND user_id<>?', [threadId, ctx.actor.id]);
     for (const other of others) ensure(!await ctx.db.get('SELECT user_id FROM blocks WHERE (user_id=? AND target_id=?) OR (user_id=? AND target_id=?)', [ctx.actor.id, other.user_id, other.user_id, ctx.actor.id]), 403, 'BLOCKED', 'Bu sohbete erişilemiyor.');

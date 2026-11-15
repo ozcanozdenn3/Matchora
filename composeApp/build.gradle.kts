@@ -53,6 +53,7 @@ kotlin {
             // Native Android map renderer; BSD-2-Clause. Version verified against the official release.
             implementation("org.maplibre.gl:android-sdk:13.7.1")
             implementation("com.google.firebase:firebase-messaging:25.0.0")
+            implementation("com.google.firebase:firebase-auth:23.2.0")
             implementation("com.google.zxing:core:3.5.3")
             implementation("androidx.credentials:credentials:1.3.0")
             implementation("androidx.credentials:credentials-play-services-auth:1.3.0")

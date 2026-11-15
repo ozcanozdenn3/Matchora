@@ -58,6 +58,9 @@ fun CompetitionScreen(
     remotePlayers: List<Player>? = null,
     remoteRankings: List<com.matchora.app.data.ApiRanking>? = null,
     backendMode: Boolean = false,
+    currentCity: String = "İstanbul",
+    currentDistrict: String = "Kadıköy",
+    venues: List<VenueInfo> = emptyList(),
     currentPlayer: Player = DemoData.mePlayer,
     user: UserProfile = DemoData.me,
     tournaments: List<TournamentInfo> = DemoData.tournaments,
@@ -88,8 +91,14 @@ fun CompetitionScreen(
     var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) } // 0: Sıralama, 1: Turnuva & Lig, 2: Takım & Meydan Oku
     var selectedSport by remember { mutableStateOf(Sport.FOOTBALL) }
     var selectedScope by remember { mutableStateOf("İlçe") }
-    var rankingCity by remember { mutableStateOf(user.city) }
-    var rankingDistrict by remember { mutableStateOf(user.area) }
+    var rankingCity by remember(currentCity) { mutableStateOf(currentCity.ifBlank { user.city }) }
+    var rankingDistrict by remember(currentDistrict) { mutableStateOf(currentDistrict.ifBlank { user.area }) }
+    var tournamentAllCities by remember { mutableStateOf(false) }
+    var tournamentPickedCity by remember { mutableStateOf<String?>(null) }
+    var showTournamentCityPicker by remember { mutableStateOf(false) }
+    var teamAllCities by remember { mutableStateOf(false) }
+    var teamPickedCity by remember { mutableStateOf<String?>(null) }
+    var showTeamCityPicker by remember { mutableStateOf(false) }
     var showRankingLocation by remember { mutableStateOf(false) }
     var showRankingSports by remember { mutableStateOf(false) }
     val requireAccount = LocalRequireAccount.current
@@ -105,7 +114,7 @@ fun CompetitionScreen(
             rankingBusy = true; rankingError = null
             try { rankingWire = rankingBackend.rankings(selectedSport.name, rankingScopeCode, rankingCity, rankingDistrict) }
             catch (cancel: CancellationException) { throw cancel }
-            catch (error: Exception) { rankingError = error.message }
+            catch (error: Exception) { rankingError = (error as? BackendFailure)?.message ?: "Sıralama yüklenemedi." }
             finally { rankingBusy = false }
         }
     }
@@ -122,6 +131,7 @@ fun CompetitionScreen(
     var challengeTarget by remember { mutableStateOf<TeamProfile?>(null) }
     var inviteTarget by remember { mutableStateOf<Player?>(null) }
     var challengeNotice by remember { mutableStateOf<String?>(null) }
+    var playerChallengeNotice by remember { mutableStateOf<String?>(null) }
     var teamToApply by remember { mutableStateOf<TeamProfile?>(null) }
     var selectedChallengeForDetail by remember { mutableStateOf<ChallengeOffer?>(null) }
     var showAiMatchScouterSheet by remember { mutableStateOf(false) }
@@ -141,7 +151,7 @@ fun CompetitionScreen(
     }
 
     val leaderboard = remember(selectedSport, selectedScope, rankingCity, rankingDistrict, user, remotePlayers, rankingValues) {
-        (rankingValues?.filter { it.sport == selectedSport && (selectedScope == "Ulusal" || it.city == rankingCity) && (selectedScope != "İlçe" || it.area == rankingDistrict) }?.map { it.row } ?: remotePlayers?.filter { selectedSport in it.sports }?.filter { selectedScope != "İlçe" || it.area == rankingDistrict }?.map { p -> LeaderboardRow(0, p.id, p.name, p.rating, 0, p.verifiedMatches, p.id == DemoData.ME) }
+        (rankingValues?.filter { it.sport == selectedSport && (selectedScope == "Ulusal" || com.matchora.app.state.matchesTurkishPlace(it.city, rankingCity)) && (selectedScope != "İlçe" || com.matchora.app.state.matchesTurkishPlace(it.area, rankingDistrict)) }?.map { it.row } ?: remotePlayers?.filter { selectedSport in it.sports }?.filter { (selectedScope == "Ulusal" || com.matchora.app.state.matchesTurkishPlace(it.city, rankingCity)) && (selectedScope != "İlçe" || com.matchora.app.state.matchesTurkishPlace(it.area, rankingDistrict)) }?.map { p -> LeaderboardRow(0, p.id, p.name, p.rating, 0, p.verifiedMatches, p.id == DemoData.ME) }
             ?: DemoData.leaderboard(selectedSport, selectedScope, if (selectedScope == "Ulusal") "" else if (selectedScope == "Şehir") rankingCity else "$rankingCity/$rankingDistrict")).map { row ->
             if (row.isMe) {
                 val skill = user.skills.firstOrNull { it.sport == selectedSport }
@@ -153,8 +163,16 @@ fun CompetitionScreen(
             } else row
         }.sortedByDescending { it.rating }.mapIndexed { index, row -> row.copy(rank = if (rankingBackend != null) row.rank else index + 1) }
     }
-    val displayTournamentList = remember(tournaments, user.name, registeredTournamentIds, selectedTournamentSport) {
-        tournaments.filter { selectedTournamentSport == null || it.sport == selectedTournamentSport }.map { tournament ->
+    val activeTournamentCity = when {
+        tournamentAllCities -> null
+        tournamentPickedCity != null -> tournamentPickedCity
+        else -> currentCity
+    }
+    val displayTournamentList = remember(tournaments, user.name, registeredTournamentIds, selectedTournamentSport, tournamentAllCities, tournamentPickedCity, currentCity) {
+        tournaments.filter {
+            (selectedTournamentSport == null || it.sport == selectedTournamentSport) &&
+                (activeTournamentCity == null || matchesTurkishPlace(it.city, activeTournamentCity) || (tournamentPickedCity == null && (it.sport.isESport || it.id in registeredTournamentIds || it.creatorId == DemoData.ME)))
+        }.map { tournament ->
             tournament.copy(
                 participants = tournament.participants.coerceAtMost(tournament.capacity),
                 standings = tournament.standings.map { row ->
@@ -167,9 +185,27 @@ fun CompetitionScreen(
     val myTeams = remember(teams, backendMode) { teams.filter { it.isMine }.ifEmpty { if (backendMode) emptyList() else teams.take(1) } }
     val captainedTeams = myTeams.filter { it.captainId == DemoData.ME }
     val myTeam = captainedTeams.firstOrNull() ?: myTeams.firstOrNull()
-    val opponents = remember(teams, selectedTeamSport) { teams.filter { !it.isMine && (selectedTeamSport == null || it.sport == selectedTeamSport) } }
+    val activeTeamCity = when {
+        teamAllCities -> null
+        teamPickedCity != null -> teamPickedCity
+        else -> currentCity
+    }
+    val opponents = remember(teams, selectedTeamSport, teamAllCities, teamPickedCity, currentCity) {
+        teams.filter {
+            !it.isMine &&
+                (selectedTeamSport == null || it.sport == selectedTeamSport) &&
+                (activeTeamCity == null || matchesTurkishPlace(it.city, activeTeamCity) || (teamPickedCity == null && it.sport.isESport))
+        }
+    }
     val managedTeam = myTeams.firstOrNull { it.id == managedTeamId && it.captainId == DemoData.ME }
     val managedRequests = teamJoinRequests.filter { it.teamId == managedTeam?.id && it.status == JoinRequestStatus.PENDING }
+    fun findPlayerTargetTeam(playerId: String, preferredSport: Sport): TeamProfile? {
+        return teams.firstOrNull { t ->
+            !t.isMine && t.sport == preferredSport && (t.captainId == playerId || t.coCaptainId == playerId || playerId in t.memberIds || playerId in t.substituteIds)
+        } ?: teams.firstOrNull { t ->
+            !t.isMine && (t.captainId == playerId || t.coCaptainId == playerId || playerId in t.memberIds || playerId in t.substituteIds)
+        }
+    }
     fun requestChallenge(target: TeamProfile) {
         val candidates = captainedTeams.filter { it.sport == target.sport && it.id != target.id }
         when (candidates.size) {
@@ -186,10 +222,42 @@ fun CompetitionScreen(
                 .padding(top = paddingValues.calculateTopPadding())
         ) {
             // ═══════════════════════════════════════════════════════════════════
-            // 0. SABİT ÜST BAŞLIK VE PRO SLIDING TAB MENÜSÜ (ASLA KAYBOLMAZ)
+            // 0. KOMPAKT BAŞLIK + AKSİYON VE PRO SLIDING TAB MENÜSÜ
             // ═══════════════════════════════════════════════════════════════════
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                MFeatureHeader("Yarış", "Sıralamanı yükselt. Takımını sahaya taşı.", Icons.Rounded.EmojiEvents, accent = Color(0xFFFFD28C))
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                MCompactHeroStrip(
+                    title = "Yarış",
+                    subtitle = when (selectedTab) {
+                        0 -> "Yerel ve ulusal sıralamalar"
+                        1 -> "Kupalar ve fikstür takibi"
+                        else -> "Kulüpler ve meydan okumalar"
+                    },
+                    icon = Icons.Rounded.EmojiEvents,
+                    accent = Color(0xFFFFD28C),
+                    trailingAction = {
+                        when (selectedTab) {
+                            0 -> if (rankingBackend != null) {
+                                MHeroActionButton(
+                                    text = if (rankingBusy) "Yenileniyor" else "Yenile",
+                                    icon = Icons.Rounded.Refresh,
+                                    enabled = !rankingBusy,
+                                    isUtility = true,
+                                    onClick = { rankingRetry++ }
+                                )
+                            }
+                            1 -> MHeroActionButton(
+                                text = "Kupa aç",
+                                icon = Icons.Rounded.Add,
+                                onClick = { requireAccount { showCreateTournamentSheet = true } }
+                            )
+                            else -> MHeroActionButton(
+                                text = "Kulüp kur",
+                                icon = Icons.Rounded.Add,
+                                onClick = { requireAccount { showCreateTeamSheet = true } }
+                            )
+                        }
+                    }
+                )
                 MSegmentedControl(listOf("Sıralama", "Turnuvalar", "Takımlar"), selectedTab, { selectedTab = it })
             }
 
@@ -223,84 +291,158 @@ fun CompetitionScreen(
                         LazyColumn(
                             state = tabListState,
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = paddingValues.calculateBottomPadding() + 28.dp),
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = paddingValues.calculateBottomPadding() + 28.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            // King of Kadıköy Kartı
                             item {
-                                leaderboard.firstOrNull()?.let { athlete -> AthleteAwardCard(athlete) { requireAccount { selectedPlayerForProfile = athlete } } }
-                                    ?: MSubCard { Text("Bu filtrede henüz sıralamaya giren sporcu yok.", Modifier.padding(12.dp), color = MColors.Ink500) }
-                            }
-
-                            item {
-                                MCard(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    cornerRadius = 20.dp,
-                                    elevation = 6.dp
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color.White,
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        MFloatingActionRow(
-                                            label = "Branş",
-                                            valueText = "${selectedSport.emoji} ${selectedSport.label}",
-                                            icon = Icons.Rounded.Sports,
-                                            onClick = { showRankingSports = true }
-                                        )
-
-                                        MFloatingDropdownBox(
-                                            label = "Sıralama Kapsamı",
-                                            selectedValue = selectedScope,
-                                            options = listOf("İlçe", "Şehir", "Ulusal"),
-                                            optionLabel = { scope ->
-                                                when (scope) {
-                                                    "İlçe" -> "İlçe Sıralaması"
-                                                    "Şehir" -> "İl Sıralaması"
-                                                    else -> "Türkiye Geneli"
+                                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Surface(
+                                                onClick = { showRankingSports = true },
+                                                shape = RoundedCornerShape(11.dp),
+                                                color = Color(0xFFF8FAFC),
+                                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                                modifier = Modifier.weight(1f).height(38.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 10.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(selectedSport.emoji, fontSize = 14.sp)
+                                                    Text(
+                                                        text = selectedSport.label,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = MColors.Ink800,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                    Icon(Icons.Rounded.KeyboardArrowDown, null, tint = MColors.Ink400, modifier = Modifier.size(16.dp))
                                                 }
-                                            },
-                                            onSelect = { selectedScope = it },
-                                            icon = Icons.Rounded.Public
-                                        )
-
-                                        if (selectedScope != "Ulusal") {
-                                            MFloatingActionRow(
-                                                label = "Konum",
-                                                valueText = if (selectedScope == "Şehir") rankingCity else "$rankingCity · $rankingDistrict",
-                                                icon = Icons.Rounded.LocationOn,
-                                                onClick = { showRankingLocation = true }
-                                            )
+                                            }
+                                            if (selectedScope != "Ulusal") {
+                                                Surface(
+                                                    onClick = { showRankingLocation = true },
+                                                    shape = RoundedCornerShape(11.dp),
+                                                    color = MColors.BrandTint,
+                                                    border = BorderStroke(1.dp, MColors.Brand.copy(alpha = 0.28f)),
+                                                    modifier = Modifier.weight(1f).height(38.dp)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 10.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                                    ) {
+                                                        Icon(Icons.Rounded.LocationOn, null, tint = MColors.BrandDeep, modifier = Modifier.size(14.dp))
+                                                        Text(
+                                                            text = if (selectedScope == "Şehir") rankingCity else "$rankingCity · $rankingDistrict",
+                                                            fontSize = 11.5.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = MColors.BrandDeep,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            modifier = Modifier.weight(1f)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(11.dp),
+                                            color = Color(0xFFF1F5F9),
+                                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth().padding(3.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                            ) {
+                                                listOf(
+                                                    "İlçe" to "İlçe",
+                                                    "Şehir" to "İl geneli",
+                                                    "Ulusal" to "Türkiye"
+                                                ).forEach { (scopeKey, label) ->
+                                                    val isSel = selectedScope == scopeKey
+                                                    Surface(
+                                                        onClick = { selectedScope = scopeKey },
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        color = if (isSel) MColors.Ink900 else Color.Transparent,
+                                                        modifier = Modifier.weight(1f).height(32.dp)
+                                                    ) {
+                                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                            Text(
+                                                                text = label,
+                                                                fontSize = 11.sp,
+                                                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.SemiBold,
+                                                                color = if (isSel) Color.White else MColors.Ink700
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
 
-                            // Sıralama Listesi
-                            if (rankingBackend != null) item {
-                                Column {
-                                    Text("${rankingWire?.i("total") ?: 0} sporcu", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
-                                    TextButton(onClick = { rankingRetry++ }, enabled = !rankingBusy) { Text(if (rankingBusy) "Sıralama yükleniyor…" else "Sıralamayı yenile") }
-                                    rankingError?.let { Text(it, color = MColors.Rose, style = MaterialTheme.typography.bodySmall) }
+                            if (rankingBackend != null) {
+                                rankingError?.let { err ->
+                                    item { Text(err, color = MColors.Rose, style = MaterialTheme.typography.bodySmall) }
                                 }
                             }
+
+                            item {
+                                leaderboard.firstOrNull()?.let { athlete -> AthleteAwardCard(athlete) { selectedPlayerForProfile = athlete } }
+                                    ?: MSubCard {
+                                        Text(
+                                            text = "Bu filtrede henüz sıralamaya giren sporcu yok.",
+                                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MColors.Ink600
+                                        )
+                                    }
+                            }
                             items(leaderboard, key = { it.playerId }) { row ->
-                                RankingSpotlightCard(row) { requireAccount { selectedPlayerForProfile = row } }
+                                RankingSpotlightCard(row) { selectedPlayerForProfile = row }
                             }
                             if (rankingBackend != null && rankingWire?.s("nextCursor")?.isNotBlank() == true) item {
-                                TextButton(enabled = !rankingBusy, onClick = { rankingActions.launch {
-                                    val cursor = rankingWire?.s("nextCursor") ?: return@launch
-                                    val requestFilters = listOf(selectedSport.name, rankingScopeCode, rankingCity, rankingDistrict)
-                                    rankingBusy = true; rankingError = null
-                                    try {
-                                        val next = rankingBackend.rankings(requestFilters[0], requestFilters[1], requestFilters[2], requestFilters[3], cursor)
-                                        if (requestFilters == listOf(selectedSport.name, rankingScopeCode, rankingCity, rankingDistrict)) rankingWire = JsonObject(next + ("items" to JsonArray((rankingWire?.a("items").orEmpty() + next.a("items")).distinctBy { it.s("userId") })))
-                                    } catch (cancel: CancellationException) { throw cancel }
-                                    catch (error: Exception) { rankingError = error.message }
-                                    finally { rankingBusy = false }
-                                } }) { Text("Sıradaki sporcuları yükle") }
+                                MPillActionButton(
+                                    text = if (rankingBusy) "Yükleniyor…" else "Daha fazla sporcu göster",
+                                    icon = Icons.Rounded.ExpandMore,
+                                    tone = MPillTone.NEUTRAL,
+                                    enabled = !rankingBusy,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = {
+                                        rankingActions.launch {
+                                            val cursor = rankingWire?.s("nextCursor") ?: return@launch
+                                            val requestFilters = listOf(selectedSport.name, rankingScopeCode, rankingCity, rankingDistrict)
+                                            rankingBusy = true; rankingError = null
+                                            try {
+                                                val next = rankingBackend.rankings(requestFilters[0], requestFilters[1], requestFilters[2], requestFilters[3], cursor)
+                                                if (requestFilters == listOf(selectedSport.name, rankingScopeCode, rankingCity, rankingDistrict)) rankingWire = JsonObject(next + ("items" to JsonArray((rankingWire?.a("items").orEmpty() + next.a("items")).distinctBy { it.s("userId") })))
+                                            } catch (cancel: CancellationException) { throw cancel }
+                                            catch (error: Exception) { rankingError = error.message }
+                                            finally { rankingBusy = false }
+                                        }
+                                    }
+                                )
                             }
                             val ownRanking = rankingWire?.o("own")
                             if (rankingBackend != null && ownRanking?.isNotEmpty() == true && leaderboard.none { it.isMe }) item {
                                 val own = com.matchora.app.data.BackendSnapshot(com.matchora.app.data.apiPayload("userId" to rankingBackend.userId, "rankings" to listOf(ownRanking))).rankings.single().row
-                                RankingSpotlightCard(own) { requireAccount { selectedPlayerForProfile = own } }
+                                RankingSpotlightCard(own) { selectedPlayerForProfile = own }
                             }
                         }
                     }
@@ -310,20 +452,50 @@ fun CompetitionScreen(
                         LazyColumn(
                             state = tabListState,
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = paddingValues.calculateBottomPadding() + 28.dp),
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = paddingValues.calculateBottomPadding() + 28.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            // Turnuva / E-Spor Kupası Aç Kapsülü
                             item {
-                                CreateCupCard { requireAccount { showCreateTournamentSheet = true } }
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color.White,
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        MCompactSportPill(
+                                            selectedSport = selectedTournamentSport,
+                                            onSelect = { selectedTournamentSport = it },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        MCityFilterBar(
+                                            currentCity = currentCity,
+                                            selectedCity = tournamentPickedCity,
+                                            useAllCities = tournamentAllCities,
+                                            onSelectCurrentCity = { tournamentAllCities = false; tournamentPickedCity = null },
+                                            onSelectAllCities = { tournamentAllCities = true; tournamentPickedCity = null },
+                                            onOpenCityPicker = { showTournamentCityPicker = true }
+                                        )
+                                    }
+                                }
                             }
-                            item {
-                                SportPickerField(selectedTournamentSport, { selectedTournamentSport = it })
+
+                            if (displayTournamentList.isEmpty()) {
+                                item {
+                                    MSubCard {
+                                        Text(
+                                            text = if (activeTournamentCity != null) "$activeTournamentCity ilinde açık turnuva bulunamadı." else "Henüz açık turnuva bulunamadı.",
+                                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MColors.Ink600
+                                        )
+                                    }
+                                }
                             }
 
                             // Turnuva Listesi
                             items(displayTournamentList, key = { it.id }) { tournament ->
-                                TournamentSpotlightCard(tournament) { requireAccount { selectedTournamentForDetail = tournament } }
+                                TournamentSpotlightCard(tournament) { selectedTournamentForDetail = tournament }
                             }
                             item { BackendMoreCatalogButton("tournaments") }
                         }
@@ -334,29 +506,12 @@ fun CompetitionScreen(
                         LazyColumn(
                             state = tabListState,
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = paddingValues.calculateBottomPadding() + 28.dp),
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = paddingValues.calculateBottomPadding() + 28.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             item { BackendIncomingTeamInvites(teams) { requireAccount { selectedTeamForDetail = it } } }
-                            // Yeni Takım Kur Kapsülü
-                            item {
-                                CreateClubCard { requireAccount { showCreateTeamSheet = true } }
-                            }
-                            if (myTeam != null) {
-                                item {
-                                    MButton(
-                                        text = "Match Scouter & Kemer Analizi",
-                                        onClick = { requireAccount { showAiMatchScouterSheet = true } },
-                                        icon = Icons.Rounded.AutoAwesome,
-                                        isPrimary = false
-                                    )
-                                }
-                            }
-                            item {
-                                SportPickerField(selectedTeamSport, { selectedTeamSport = it })
-                            }
 
-                            // Kendi Takımım Kartı
+                            // Kendi Takımım Kartları
                             items(myTeams, key = { "mine-${it.id}" }) { ownTeam ->
                                 val canManage = ownTeam.captainId == DemoData.ME
                                 val requestCount = teamJoinRequests.count { it.teamId == ownTeam.id && it.status == JoinRequestStatus.PENDING }
@@ -366,60 +521,106 @@ fun CompetitionScreen(
                                     onDetails = { requireAccount { selectedTeamForDetail = ownTeam } })
                             }
 
-                            // ═══════════════════════════════════════════════════════════
-                            // AKTİF MEYDAN OKUMALAR HUB
-                            // ═══════════════════════════════════════════════════════════
-                            item {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "AKTİF MEYDAN OKUMALAR",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 1.sp,
-                                        color = MColors.Ink400
-                                    )
-                                    Text(
-                                        text = "${challenges.size} Teklif",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MColors.Brand
-                                    )
+                            if (challenges.isNotEmpty()) {
+                                item {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "AKTİF MEYDAN OKUMALAR",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 1.sp,
+                                            color = MColors.Ink400
+                                        )
+                                        Text(
+                                            text = "${challenges.size} Teklif",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MColors.Brand
+                                        )
+                                    }
+                                }
+
+                                items(challenges, key = { it.id }) { challenge ->
+                                    val opponentTeam = teams.firstOrNull { it.id == if (challenge.incoming) challenge.fromTeamId else challenge.toTeamId } ?: myTeam
+                                    if (opponentTeam != null) ChallengeSpotlightCard(challenge, opponentTeam,
+                                        onDetails = { requireAccount { selectedChallengeForDetail = challenge } },
+                                        onAccept = { requireAccount { onAcceptChallenge(challenge) } },
+                                        onDecline = { requireAccount { onDeclineChallenge(challenge) } },
+                                        onChat = { requireAccount { (remotePlayers ?: DemoData.players).firstOrNull { it.id == opponentTeam.captainId }?.let(onOpenDirectChat) } },
+                                        canRespond = !backendMode || teams.firstOrNull { it.id == challenge.toTeamId }?.captainId == DemoData.ME)
                                 }
                             }
 
-                            items(challenges, key = { it.id }) { challenge ->
-                                val opponentTeam = teams.firstOrNull { it.id == if (challenge.incoming) challenge.fromTeamId else challenge.toTeamId } ?: myTeam
-                                if (opponentTeam != null) ChallengeSpotlightCard(challenge, opponentTeam,
-                                    onDetails = { requireAccount { selectedChallengeForDetail = challenge } },
-                                    onAccept = { requireAccount { onAcceptChallenge(challenge) } },
-                                    onDecline = { requireAccount { onDeclineChallenge(challenge) } },
-                                    onChat = { requireAccount { (remotePlayers ?: DemoData.players).firstOrNull { it.id == opponentTeam.captainId }?.let(onOpenDirectChat) } },
-                                    canRespond = !backendMode || teams.firstOrNull { it.id == challenge.toTeamId }?.captainId == DemoData.ME)
+                            // Rakip Kulüpler Filtre Kartı
+                            item {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color.White,
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            MCompactSportPill(
+                                                selectedSport = selectedTeamSport,
+                                                onSelect = { selectedTeamSport = it },
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            if (myTeam != null) {
+                                                MPillActionButton(
+                                                    text = "Scouter",
+                                                    icon = Icons.Rounded.AutoAwesome,
+                                                    tone = MPillTone.BRAND,
+                                                    compact = true,
+                                                    onClick = { requireAccount { showAiMatchScouterSheet = true } }
+                                                )
+                                            }
+                                        }
+                                        MCityFilterBar(
+                                            currentCity = currentCity,
+                                            selectedCity = teamPickedCity,
+                                            useAllCities = teamAllCities,
+                                            onSelectCurrentCity = {
+                                                teamAllCities = false
+                                                teamPickedCity = null
+                                            },
+                                            onSelectAllCities = {
+                                                teamAllCities = true
+                                                teamPickedCity = null
+                                            },
+                                            onOpenCityPicker = { showTeamCityPicker = true }
+                                        )
+                                    }
+                                }
                             }
 
-                            // ═══════════════════════════════════════════════════════════
-                            // RAKİP ARAYAN TAKIMLAR KATALOĞU
-                            // ═══════════════════════════════════════════════════════════
-                            item {
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "RAKİP VE OYUNCU ARAYAN KULÜPLER",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp,
-                                    color = MColors.Ink400
-                                )
+                            if (opponents.isEmpty()) {
+                                item {
+                                    val emptyCityLabel = activeTeamCity ?: "Seçili kapsam"
+                                    MSubCard {
+                                        Text(
+                                            text = if (teamAllCities) "Eşleşen rakip takım yok." else "$emptyCityLabel için eşleşen rakip takım yok.",
+                                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MColors.Ink600
+                                        )
+                                    }
+                                }
                             }
 
                             items(opponents, key = { it.id }) { opponent ->
                                 val canChallenge = captainedTeams.any { it.sport == opponent.sport }
                                 TeamSpotlightCard(opponent, if (!canChallenge) "Takımı incele" else "Meydan oku",
-                                    onPrimary = { requireAccount { if (canChallenge) requestChallenge(opponent) else selectedTeamForDetail = opponent } },
-                                    onDetails = { requireAccount { selectedTeamForDetail = opponent } }, compact = true)
+                                    onPrimary = { if (canChallenge) requireAccount { requestChallenge(opponent) } else selectedTeamForDetail = opponent },
+                                    onDetails = { selectedTeamForDetail = opponent }, compact = true)
                             }
                             item { BackendMoreCatalogButton("teams") }
                         }
@@ -446,7 +647,7 @@ fun CompetitionScreen(
         val targetPlayer = if (playerProf.playerId == DemoData.ME) currentPlayer else (remotePlayers ?: DemoData.players).firstOrNull { it.id == playerProf.playerId } ?: Player(
             id = playerProf.playerId,
             name = playerProf.name,
-            area = if (remotePlayers == null) "Kadıköy" else "",
+            area = if (remotePlayers == null) currentDistrict else "",
             sports = listOf(selectedSport),
             level = if (remotePlayers == null) SkillLevel.ADVANCED else SkillLevel.INTERMEDIATE,
             reliability = if (remotePlayers == null) 95 else 0,
@@ -472,26 +673,55 @@ fun CompetitionScreen(
             sport = selectedSport,
             onDismiss = { selectedPlayerForProfile = null },
             onChallenge = {
-                selectedPlayerForProfile = null
-                selectedTab = 2
+                requireAccount {
+                    val targetTeam = findPlayerTargetTeam(targetPlayer.id, selectedSport)
+                    selectedPlayerForProfile = null
+                    if (targetTeam != null) {
+                        requestChallenge(targetTeam)
+                    } else {
+                        selectedTab = 2
+                        playerChallengeNotice = "${targetPlayer.name} henüz bir kulüpte değil. Takımlar sekmesinden diğer rakiplere meydan okuyabilirsin."
+                    }
+                }
             },
             onInviteTeam = {
-                inviteTarget = targetPlayer
+                requireAccount { inviteTarget = targetPlayer }
             },
             onDirectMessage = {
-                selectedPlayerForProfile = null
-                onOpenDirectChat(targetPlayer)
+                requireAccount {
+                    selectedPlayerForProfile = null
+                    onOpenDirectChat(targetPlayer)
+                }
             }
         )
     }
     inviteTarget?.let { player ->
         val options = captainedTeams.filter { it.sport == selectedSport && player.id !in it.memberIds }
-        AlertDialog(onDismissRequest = { inviteTarget = null }, title = { Text("Davet göndereceğin takımı seç") }, text = {
-            Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
-                if (options.isEmpty()) Text("Bu branşta kaptanı olduğun ve sporcunun henüz katılmadığı bir takım gerekiyor.")
-                options.forEach { team -> TextButton(onClick = { onInvitePlayerToTeam(player, team); inviteTarget = null }) { Text("${team.badge} ${team.name}") } }
+        AlertDialog(
+            onDismissRequest = { inviteTarget = null },
+            title = { Text("Davet göndereceğin takımı seç") },
+            text = {
+                Column(
+                    modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (options.isEmpty()) {
+                        Text("Bu branşta kaptanı olduğun ve sporcunun henüz katılmadığı bir takım gerekiyor.")
+                    }
+                    options.forEach { team ->
+                        MPremiumMenuRow(
+                            text = "${team.badge} ${team.name}",
+                            subtitle = "${team.city} · ${team.memberIds.size} üye",
+                            icon = Icons.Rounded.Shield,
+                            onClick = { onInvitePlayerToTeam(player, team); inviteTarget = null }
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                MPillActionButton(text = "Kapat", tone = MPillTone.NEUTRAL, compact = true, onClick = { inviteTarget = null })
             }
-        }, confirmButton = { TextButton(onClick = { inviteTarget = null }) { Text("Kapat") } })
+        )
     }
 
     // Turnuva Detay & Fikstür Modalı
@@ -503,15 +733,21 @@ fun CompetitionScreen(
             onOpenFixture = { id -> selectedTournamentForDetail = null; onOpenFixture(id) },
             onDismiss = { selectedTournamentForDetail = null },
             onRegisterTeam = {
-                selectedTournamentForDetail?.let { tournament ->
-                    onTournamentRegistered(tournament)
+                requireAccount {
+                    selectedTournamentForDetail?.let { tournament ->
+                        onTournamentRegistered(tournament)
+                    }
                 }
             },
             onWithdrawRegistration = {
-                selectedTournamentForDetail?.let(onWithdrawTournamentRegistration)
+                requireAccount {
+                    selectedTournamentForDetail?.let(onWithdrawTournamentRegistration)
+                }
             },
             onCancelTournament = {
-                selectedTournamentForDetail?.let(onCancelTournament)
+                requireAccount {
+                    selectedTournamentForDetail?.let(onCancelTournament)
+                }
             },
             onShareTournament = {
                 selectedTournamentForDetail?.let { tourney -> onShareTournament?.invoke(tourney) }
@@ -522,7 +758,7 @@ fun CompetitionScreen(
     // Yeni Turnuva / E-Spor Kupası Oluşturma Modalı
     if (showCreateTournamentSheet) {
         CreateTournamentSheet(
-            currentCity = user.city, currentArea = user.area, primarySport = user.skills.firstOrNull()?.sport ?: Sport.FOOTBALL,
+            currentCity = currentCity.ifBlank { user.city }, currentArea = currentDistrict.ifBlank { user.area }, venues = venues, primarySport = user.skills.firstOrNull()?.sport ?: Sport.FOOTBALL,
             onDismiss = { showCreateTournamentSheet = false },
             tokenBalance = tokenBalance,
             organizerName = user.name,
@@ -558,28 +794,42 @@ fun CompetitionScreen(
             pendingRequestsCount = teamJoinRequests.count { it.teamId == detailTeam.id && it.status == JoinRequestStatus.PENDING },
             onDismiss = { selectedTeamForDetail = null },
             onOpenChallenge = {
-                selectedTeamForDetail = null
-                requestChallenge(detailTeam)
+                requireAccount {
+                    selectedTeamForDetail = null
+                    requestChallenge(detailTeam)
+                }
             },
             onApplyToTeam = {
-                teamToApply = detailTeam
+                requireAccount { teamToApply = detailTeam }
             },
             onManageRequests = {
-                selectedTeamForDetail = null
-                managedTeamId = detailTeam.id
-                showManageTeamRequestsSheet = true
+                requireAccount {
+                    selectedTeamForDetail = null
+                    managedTeamId = detailTeam.id
+                    showManageTeamRequestsSheet = true
+                }
             },
             onOpenCaptainChat = { captain ->
-                selectedTeamForDetail = null
-                onOpenDirectChat(captain)
+                requireAccount {
+                    selectedTeamForDetail = null
+                    onOpenDirectChat(captain)
+                }
             },
             onShareTeam = { onShareTeam?.invoke(detailTeam) },
             onChallengePlayer = { player ->
-                selectedTeamForDetail = null
-                selectedTab = 2
+                requireAccount {
+                    val targetTeam = if (!detailTeam.isMine) detailTeam else findPlayerTargetTeam(player.id, detailTeam.sport)
+                    selectedTeamForDetail = null
+                    if (targetTeam != null) {
+                        requestChallenge(targetTeam)
+                    } else {
+                        selectedTab = 2
+                        playerChallengeNotice = "${player.name} için meydan okunabilecek uygun bir rakip kulüp bulunamadı."
+                    }
+                }
             },
             onInvitePlayerToTeam = { player ->
-                inviteTarget = player
+                requireAccount { inviteTarget = player }
             }
         )
     }
@@ -655,12 +905,49 @@ fun CompetitionScreen(
     }
     challengeTarget?.let { target ->
         val currentTarget = teams.firstOrNull { it.id == target.id }
-        AlertDialog(onDismissRequest = { challengeTarget = null }, title = { Text("Kaynak takımını seç") },
-            text = { Column { captainedTeams.filter { it.sport == target.sport && it.id != target.id }.forEach { source ->
-                TextButton(onClick = { challengeTarget = null; currentTarget?.let { onOpenChallengeSheet(source, it) } }) { Text("${source.badge} ${source.name} · ${source.sport.label}") }
-            } } }, confirmButton = { TextButton(onClick = { challengeTarget = null }) { Text("Vazgeç") } })
+        AlertDialog(
+            shape = RoundedCornerShape(22.dp),
+            containerColor = Color.White,
+            onDismissRequest = { challengeTarget = null },
+            title = { Text("Kaynak takımını seç", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    captainedTeams.filter { it.sport == target.sport && it.id != target.id }.forEach { source ->
+                        MPremiumMenuRow(
+                            text = "${source.badge} ${source.name}",
+                            subtitle = source.sport.label,
+                            icon = Icons.Rounded.Shield,
+                            onClick = { challengeTarget = null; currentTarget?.let { onOpenChallengeSheet(source, it) } }
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                MPillActionButton("Vazgeç", tone = MPillTone.NEUTRAL, compact = true, onClick = { challengeTarget = null })
+            }
+        )
+    }
+    if (showTournamentCityPicker) {
+        CityFilterPickerSheet(
+            selectedCity = tournamentPickedCity,
+            currentCity = currentCity,
+            title = "Turnuva ili seç",
+            onSelectCity = { city -> tournamentAllCities = false; tournamentPickedCity = city },
+            onDismiss = { showTournamentCityPicker = false }
+        )
+    }
+    if (showTeamCityPicker) {
+        CityFilterPickerSheet(
+            selectedCity = teamPickedCity,
+            currentCity = currentCity,
+            title = "Takım ili seç",
+            onSelectCity = { city -> teamAllCities = false; teamPickedCity = city },
+            onDismiss = { showTeamCityPicker = false }
+        )
     }
     challengeNotice?.let { message -> AlertDialog(onDismissRequest = { challengeNotice = null }, title = { Text("Takım kaptanlığı gerekiyor") }, text = { Text(message) },
-        confirmButton = { TextButton(onClick = { challengeNotice = null; showCreateTeamSheet = true }) { Text("Takım oluştur") } },
-        dismissButton = { TextButton(onClick = { challengeNotice = null }) { Text("Kapat") } }) }
+        confirmButton = { MPillActionButton(text = "Takım oluştur", icon = Icons.Rounded.Add, tone = MPillTone.BRAND, compact = true, onClick = { challengeNotice = null; showCreateTeamSheet = true }) },
+        dismissButton = { MPillActionButton(text = "Kapat", tone = MPillTone.NEUTRAL, compact = true, onClick = { challengeNotice = null }) }) }
+    playerChallengeNotice?.let { message -> AlertDialog(onDismissRequest = { playerChallengeNotice = null }, title = { Text("Rakip kulüp bulunamadı") }, text = { Text(message) },
+        confirmButton = { MPillActionButton(text = "Tamam", tone = MPillTone.NEUTRAL, compact = true, onClick = { playerChallengeNotice = null }) }) }
 }

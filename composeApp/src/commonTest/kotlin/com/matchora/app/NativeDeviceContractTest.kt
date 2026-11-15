@@ -60,6 +60,11 @@ class NativeDeviceContractTest {
         assertTrue(notes.contains("Platform: PC"))
         assertTrue(notes.contains("Sunucu / lobi: TR-1"))
         assertTrue(notes.contains("Ses kanalı: Takım odası"))
+
+        val strippedNotes = calendarNotesForViewer(online, includeInviteLink = false)
+        assertFalse(strippedNotes.contains("matchora://"))
+        assertTrue(strippedNotes.contains("Platform: PC"))
+        assertTrue(strippedNotes.contains("Ses kanalı: Takım odası"))
     }
 
     @Test fun approximateDistanceStaysFiniteAtTheSamePointAndAntipode() {

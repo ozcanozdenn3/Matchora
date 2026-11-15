@@ -63,6 +63,45 @@ private enum class ShowcaseFeedMode(val label: String) {
     MINE("Paylaşımlarım")
 }
 
+internal fun resolveChatParticipantPlayer(
+    name: String,
+    threadId: String?,
+    backendMode: Boolean,
+    livePlayers: List<Player>,
+    directOtherUserId: String?,
+    fallbackArea: String
+): Player {
+    if (!backendMode) {
+        val found = DemoData.players.firstOrNull { it.name.equals(name, ignoreCase = true) }
+        if (found != null) return found
+    }
+    val livePool = if (backendMode) livePlayers else emptyList()
+    val matched = (directOtherUserId?.let { id -> livePool.firstOrNull { it.id == id } }
+        ?: livePool.firstOrNull { it.name.equals(name, ignoreCase = true) })
+    if (matched != null) return matched
+    val fallbackId = directOtherUserId ?: "u_${name.lowercase().replace(" ", "_")}"
+    return Player(
+        id = fallbackId,
+        name = name,
+        area = if (!backendMode) fallbackArea else "",
+        sports = listOf(Sport.FOOTBALL),
+        level = SkillLevel.INTERMEDIATE,
+        reliability = 0,
+        verifiedMatches = 0,
+        rating = 1000,
+        chemistry = null,
+        verified = false,
+        position = "Sporcu",
+        distanceKm = null,
+        playedTogether = 0,
+        availableNow = false,
+        color = MColors.Brand,
+        bio = "",
+        reliabilityVisible = false,
+        profileAvailable = false
+    )
+}
+
 @Composable
 fun ChatHubScreen(
     paddingValues: PaddingValues,
@@ -92,8 +131,10 @@ fun ChatHubScreen(
     onDeleteMemory: (MatchMemoryPost) -> Unit = {},
     onReportMemory: (MatchMemoryPost) -> Unit = {},
     onAddMemoryComment: (String, String) -> Unit = { _, _ -> },
+    players: List<Player> = DemoData.players,
     onOpenRelatedEvent: ((String) -> Unit)? = null,
-    onOpenRelatedTeam: ((String) -> Unit)? = null
+    onOpenRelatedTeam: ((String) -> Unit)? = null,
+    onOpenDirectChat: (Player) -> Unit = {}
 ) {
     val backend = LocalBackendRepository.current
     val requireAccount = LocalRequireAccount.current
@@ -118,6 +159,7 @@ fun ChatHubScreen(
     }
     var editingMemory by remember { mutableStateOf<MatchMemoryPost?>(null) }
     var messageMenu by remember { mutableStateOf<ChatMsg?>(null) }
+    var confirmBlockThreadId by remember { mutableStateOf<String?>(null) }
     var deletingMessage by remember { mutableStateOf<Pair<ChatMsg, Boolean>?>(null) }
     var editingMessage by remember { mutableStateOf<ChatMsg?>(null) }
     var editedText by remember { mutableStateOf("") }
@@ -140,28 +182,19 @@ fun ChatHubScreen(
     var inspectedPlayer by remember { mutableStateOf<Player?>(null) }
 
     fun resolvePlayerForName(name: String, threadId: String? = null): Player {
-        val found = DemoData.players.firstOrNull { it.name.equals(name, ignoreCase = true) }
-        if (found != null) return found
         val otherId = if (threadId != null && backend != null) {
-            inboxSnapshot?.let { BackendSnapshot(it).otherUserForThread(threadId) } ?: "u_${name.lowercase().replace(" ", "_")}"
-        } else "u_${name.lowercase().replace(" ", "_")}"
-        return Player(
-            id = otherId,
+            inboxSnapshot?.let { BackendSnapshot(it).otherUserForThread(threadId) }
+        } else null
+        val livePool = if (backend != null) {
+            inboxSnapshot?.let { BackendSnapshot(it).players }.orEmpty() + players
+        } else emptyList()
+        return resolveChatParticipantPlayer(
             name = name,
-            area = currentDistrict,
-            sports = listOf(Sport.FOOTBALL),
-            level = SkillLevel.INTERMEDIATE,
-            reliability = 96,
-            verifiedMatches = 12,
-            rating = 1350,
-            chemistry = 85,
-            verified = true,
-            position = "Sporcu",
-            distanceKm = 1.2f,
-            playedTogether = 1,
-            availableNow = true,
-            color = MColors.Brand,
-            bio = "Matchora sporcusu"
+            threadId = threadId,
+            backendMode = backend != null,
+            livePlayers = livePool,
+            directOtherUserId = otherId,
+            fallbackArea = currentDistrict
         )
     }
 
@@ -200,8 +233,8 @@ fun ChatHubScreen(
                 visibleMemories.sortedWith(
                     compareBy<MatchMemoryPost> {
                         when {
-                            it.area.equals(currentDistrict, ignoreCase = true) -> 0
-                            it.city.equals(currentCity, ignoreCase = true) -> 1
+                            com.matchora.app.state.matchesTurkishPlace(it.area, currentDistrict) -> 0
+                            com.matchora.app.state.matchesTurkishPlace(it.city, currentCity) -> 1
                             else -> 2
                         }
                     }.thenBy { it.distanceKm ?: Float.MAX_VALUE }
@@ -228,6 +261,30 @@ fun ChatHubScreen(
                 (query.isBlank() || it.title.contains(query, true) || it.lastMessage?.text?.contains(query, true) == true)
         }
 
+        val nextShowcaseCursor = feed?.s("nextCursor").orEmpty()
+        LaunchedEffect(hubListState, activeSection, nextShowcaseCursor, feedBusy, feedError, backend) {
+            if (backend != null && activeSection == ChatHubSection.SHOWCASE && nextShowcaseCursor.isNotBlank() && !feedBusy && feedError == null) {
+                snapshotFlow {
+                    val info = hubListState.layoutInfo
+                    val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+                    info.totalItemsCount > 0 && lastVisible >= info.totalItemsCount - 3
+                }.collect { nearBottom ->
+                    if (nearBottom && !feedBusy && feed?.s("nextCursor")?.isNotBlank() == true) {
+                        feedBusy = true
+                        feedError = null
+                        try {
+                            backend.loadMoreMemories()
+                        } catch (cancel: kotlinx.coroutines.CancellationException) {
+                            throw cancel
+                        } catch (error: Exception) {
+                            feedError = error.message
+                        } finally {
+                            feedBusy = false
+                        }
+                    }
+                }
+            }
+        }
         LazyColumn(
             state = hubListState,
             modifier = Modifier
@@ -366,7 +423,8 @@ fun ChatHubScreen(
                 }
                 // 3C. SOHBET LİSTESİ
                 items(filteredThreads, key = { it.id }) { thread ->
-                    val hasPhotoInLast = thread.lastMessage?.attachedMemory != null
+            val directOtherId = inboxSnapshot?.let { BackendSnapshot(it).otherUserForThread(thread.id) }
+            val hasPhotoInLast = thread.lastMessage?.attachedMemory != null
                     MCard(
                         modifier = Modifier.fillMaxWidth().animateItem(),
                         onClick = { requireAccount { open(thread.id) } }
@@ -375,7 +433,7 @@ fun ChatHubScreen(
                             modifier = Modifier.fillMaxWidth().padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            ChatAvatar(thread)
+                            ChatAvatar(thread, directUserId = directOtherId)
                             Spacer(Modifier.width(12.dp))
                             Column(
                                 modifier = Modifier.weight(1f),
@@ -435,32 +493,105 @@ fun ChatHubScreen(
                 }
 
                 if (backend != null && inboxSnapshot?.s("nextThreadCursor")?.isNotBlank() == true) item {
-                    inboxError?.let { Text(it, color = MColors.Rose, style = MaterialTheme.typography.bodySmall) }
-                    OutlinedButton(onClick = { feedScope.launch {
-                        inboxBusy = true; inboxError = null
-                        try { backend.loadMoreThreads() }
-                        catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-                        catch (error: Exception) { inboxError = error.message }
-                        finally { inboxBusy = false }
-                    } }, enabled = !inboxBusy, modifier = Modifier.fillMaxWidth()) { Text(if (inboxBusy) "Sohbetler yükleniyor…" else "Daha eski sohbetleri göster") }
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        inboxError?.let { Text(it, color = MColors.Rose, style = MaterialTheme.typography.bodySmall) }
+                        MPillActionButton(
+                            text = if (inboxBusy) "Sohbetler yükleniyor…" else "Daha eski sohbetleri göster",
+                            icon = Icons.Rounded.ExpandMore,
+                            tone = MPillTone.NEUTRAL,
+                            enabled = !inboxBusy,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                feedScope.launch {
+                                    inboxBusy = true; inboxError = null
+                                    try { backend.loadMoreThreads() }
+                                    catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                                    catch (error: Exception) { inboxError = error.message }
+                                    finally { inboxBusy = false }
+                                }
+                            }
+                        )
+                    }
                 }
             } else {
                 // ═══════════════════════════════════════════════════════════════
                 // 4. INSTAGRAM KEŞFET TARZI SAHA ANILARI VİTRİNİ (KONUM & RANDOM AKIŞ)
                 // ═══════════════════════════════════════════════════════════════
-                // 4. INSTAGRAM KEŞFET TARZI SAHA ANILARI VİTRİNİ
-                if (backend != null && feed?.s("nextCursor")?.isNotBlank() == true) item {
-                    OutlinedButton(onClick = { feedScope.launch { feedBusy = true; try { backend.loadMoreMemories() } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel } catch (error: Exception) { feedError = error.message } finally { feedBusy = false } } }, enabled = !feedBusy, modifier = Modifier.fillMaxWidth()) { Text("Daha fazla fotoğraf göster") }
-                }
                 if (backend != null && showcaseMode == ShowcaseFeedMode.NEARBY_LOCATION) item {
-                    Column { Text(if (feed?.s("locationBasis") == "gps") "GPS konumuna göre · fotoğraf noktaları yaklaşık" else "$currentCity · $currentDistrict bölgesine göre", style = MaterialTheme.typography.bodySmall)
-                        TextButton(onClick = requestFeedLocation) { Text("Güncel konumumu kullan") }
-                        locationError?.let { Text(it, color = MColors.Rose) }
-                        if (locationSettings) TextButton(onClick = ::openApplicationSettings) { Text("Konum ayarlarını aç") }
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color.White,
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.NearMe,
+                                    contentDescription = null,
+                                    tint = MColors.BrandDeep,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = if (feed?.s("locationBasis") == "gps") "GPS konumuna göre · fotoğraf noktaları yaklaşık" else "$currentCity · $currentDistrict bölgesine göre",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MColors.Ink700,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                MPillActionButton(
+                                    text = "Konumum",
+                                    icon = Icons.Rounded.MyLocation,
+                                    tone = MPillTone.BRAND,
+                                    compact = true,
+                                    onClick = requestFeedLocation
+                                )
+                            }
+                            locationError?.let { Text(it, color = MColors.Rose, style = MaterialTheme.typography.bodySmall) }
+                            if (locationSettings) {
+                                MPillActionButton(
+                                    text = "Konum ayarlarını aç",
+                                    icon = Icons.Rounded.Settings,
+                                    tone = MPillTone.NEUTRAL,
+                                    compact = true,
+                                    onClick = ::openApplicationSettings
+                                )
+                            }
+                        }
                     }
                 }
-                if (feedBusy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-                feedError?.let { error -> item { Column { Text(error, color = MColors.Rose); TextButton(onClick = { shuffleSeed++ }) { Text("Tekrar dene") } } } }
+                if (feedBusy && displayedMemories.isEmpty()) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                feedError?.let { error ->
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFFFF1F2),
+                            border = BorderStroke(1.dp, Color(0xFFFECDD3)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(error, color = MColors.Rose, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                                MPillActionButton(
+                                    text = "Tekrar dene",
+                                    icon = Icons.Rounded.Refresh,
+                                    tone = MPillTone.DANGER,
+                                    compact = true,
+                                    onClick = { shuffleSeed++ }
+                                )
+                            }
+                        }
+                    }
+                }
                 item {
                     var expandedFilter by remember { mutableStateOf(false) }
                     val filterOptions = listOf(
@@ -473,17 +604,21 @@ fun ChatHubScreen(
                     val currentLabel = filterOptions.firstOrNull { it.first == showcaseMode }?.second ?: "Konuma Göre"
 
                     MCard(modifier = Modifier.fillMaxWidth()) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Tek Açılır Menü (Konuma Göre / Karışık / En Çok Beğenilen)
                             Box(modifier = Modifier.weight(1f)) {
                                 Surface(
-                                    onClick = { requireAccount { expandedFilter = true } },
+                                    onClick = { expandedFilter = true },
                                     shape = RoundedCornerShape(13.dp),
                                     color = Color(0xFFF8FAFC),
                                     shadowElevation = 2.dp,
@@ -554,7 +689,7 @@ fun ChatHubScreen(
                                                 }
                                             },
                                             onClick = {
-                                                if (mode == ShowcaseFeedMode.MINE && backend != null && !backend.authenticated) onRequireLogin() else showcaseMode = mode
+                                                if (mode == ShowcaseFeedMode.MINE) requireAccount { showcaseMode = mode } else showcaseMode = mode
                                                 expandedFilter = false
                                             }
                                         )
@@ -562,7 +697,17 @@ fun ChatHubScreen(
                                 }
                             }
 
-                            IconButton(onClick = { requireAccount { shuffleSeed++ } }) { Icon(Icons.Rounded.Refresh, "Akışı yenile") }
+                            Surface(
+                                onClick = { shuffleSeed++ },
+                                shape = RoundedCornerShape(13.dp),
+                                color = Color(0xFFF8FAFC),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Rounded.Refresh, "Akışı yenile", tint = MColors.Ink700, modifier = Modifier.size(20.dp))
+                                }
+                            }
                             // Fotoğraf Ekle Butonu
                             Surface(
                                 onClick = {
@@ -573,9 +718,9 @@ fun ChatHubScreen(
                                 },
                                 shape = RoundedCornerShape(13.dp),
                                 color = MColors.Ink900,
-                                shadowElevation = 4.dp,
+                                shadowElevation = 2.dp,
                                 border = BorderStroke(1.dp, Color(0xFFFFB37B).copy(alpha = 0.45f)),
-                                modifier = Modifier.height(46.dp)
+                                modifier = Modifier.height(44.dp)
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -600,6 +745,27 @@ fun ChatHubScreen(
                                 }
                             }
                         }
+                        val hasMoreMemories = backend != null && nextShowcaseCursor.isNotBlank()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${displayedMemories.size}${if (hasMoreMemories) "+" else ""} saha karesi",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MColors.Ink700
+                            )
+                            Text(
+                                text = if (hasMoreMemories) "Aşağı kaydırdıkça yeni kareler yüklenir" else "Düzenli 2'li kare akışı",
+                                fontSize = 10.5.sp,
+                                color = MColors.Ink500
+                            )
+                        }
+                        }
                     }
                 }
 
@@ -619,31 +785,26 @@ fun ChatHubScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Text("Henüz saha anısı yok", fontWeight = FontWeight.Bold, color = MColors.Ink900)
-                                TextButton(onClick = {
-                                    requireAccount {
-                                        preselectedChatIdForMemory = null
-                                        showCreateMemorySheet = true
+                                MPillActionButton(
+                                    text = "İlk anıyı sen ekle",
+                                    icon = Icons.Rounded.AddAPhoto,
+                                    tone = MPillTone.BRAND,
+                                    onClick = {
+                                        requireAccount {
+                                            preselectedChatIdForMemory = null
+                                            showCreateMemorySheet = true
+                                        }
                                     }
-                                }) {
-                                    Text("İlk anıyı sen ekle 📸", color = MColors.BrandDeep)
-                                }
+                                )
                             }
                         }
                     }
                 } else {
-                    // Öne Çıkan Büyük Vitrin Karesi (Hero Explore Card)
-                    val heroPost = displayedMemories.first()
-                    item(key = "hero_${heroPost.id}") {
-                        HeroMemoryExploreCard(
-                            post = heroPost,
-                            onClick = { requireAccount { selectedMemoryForDetail = heroPost } },
-                            onLike = { requireAccount { onToggleLikeMemory(heroPost.id, !heroPost.likedByMe) } }
-                        )
-                    }
-
-                    // 2 Sütunlu Instagram Keşfet Izgarası (Birebir Aynı Boyutta Kareler)
-                    val gridPosts = displayedMemories.drop(1)
-                    items(gridPosts.chunked(2)) { rowPosts ->
+                    // 2 Sütunlu Düzenli Instagram Explore Kare Izgarası (Her resim eşit 1:1 kare, sonsuz akış)
+                    items(
+                        items = displayedMemories.chunked(2),
+                        key = { row -> "mem_row_" + row.joinToString("_") { it.id } }
+                    ) { rowPosts ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -652,13 +813,53 @@ fun ChatHubScreen(
                                 Box(modifier = Modifier.weight(1f)) {
                                     GridMemoryExploreTile(
                                         post = post,
-                                        onClick = { requireAccount { selectedMemoryForDetail = post } },
+                                        onClick = { selectedMemoryForDetail = post },
                                         onLike = { requireAccount { onToggleLikeMemory(post.id, !post.likedByMe) } }
                                     )
                                 }
                             }
                             if (rowPosts.size == 1) {
                                 Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+
+                    if (backend != null && (feedBusy || nextShowcaseCursor.isNotBlank())) {
+                        item(key = "showcase_load_more") {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (feedBusy) {
+                                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                                }
+                                if (nextShowcaseCursor.isNotBlank()) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            feedScope.launch {
+                                                feedBusy = true
+                                                feedError = null
+                                                try {
+                                                    backend.loadMoreMemories()
+                                                } catch (cancel: kotlinx.coroutines.CancellationException) {
+                                                    throw cancel
+                                                } catch (error: Exception) {
+                                                    feedError = error.message
+                                                } finally {
+                                                    feedBusy = false
+                                                }
+                                            }
+                                        },
+                                        enabled = !feedBusy,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(14.dp)
+                                    ) {
+                                        Text(if (feedBusy) "Daha fazla kare yükleniyor…" else "Daha fazla fotoğraf göster")
+                                    }
+                                }
                             }
                         }
                     }
@@ -682,7 +883,7 @@ fun ChatHubScreen(
                     venue = "",
                     area = currentDistrict,
                     city = currentCity,
-                    distanceKm = 0f,
+                    distanceKm = null,
                     caption = captionText,
                     matchScoreTag = null,
                     timeAgo = "Şimdi",
@@ -708,12 +909,13 @@ fun ChatHubScreen(
                     IconButton(onClick = { open(null) }) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Sohbetlere dön", tint = MColors.Ink800)
                     }
+                    val activeDirectOtherId = inboxSnapshot?.let { BackendSnapshot(it).otherUserForThread(active.id) }
                     Box(
                         modifier = Modifier.clickable(enabled = active.type == ThreadType.DIRECT) {
                             inspectedPlayer = resolvePlayerForName(active.title, active.id)
                         }
                     ) {
-                        ChatAvatar(active, compact = true)
+                        ChatAvatar(active, compact = true, directUserId = activeDirectOtherId)
                     }
                     Spacer(Modifier.width(10.dp))
                     Column(
@@ -789,7 +991,7 @@ fun ChatHubScreen(
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier.clickable {
-                                                inspectedPlayer = resolvePlayerForName(message.senderName)
+                                                inspectedPlayer = resolvePlayerForName(message.senderName, message.senderId)
                                             }
                                         ) {
                                             UserAvatar(
@@ -925,56 +1127,54 @@ fun ChatHubScreen(
         }
 
         if (showInfo) {
+            val infoDirectOtherId = inboxSnapshot?.let { BackendSnapshot(it).otherUserForThread(active.id) }
             AlertDialog(
                 shape = RoundedCornerShape(24.dp),
                 containerColor = Color(0xFFFAFBFC),
                 tonalElevation = 0.dp,
                 onDismissRequest = { showInfo = false },
-                icon = { ChatAvatar(active) },
+                icon = { ChatAvatar(active, directUserId = infoDirectOtherId) },
                 title = { Text(active.title) },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(if (active.locked) "Bu sohbet yalnızca katılımcılara açık." else "${active.type.label} · ${active.memberCount} kişi")
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = if (active.locked) "Bu sohbet yalnızca katılımcılara açık." else "${active.type.label} · ${active.memberCount} kişi",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MColors.Ink500
+                        )
                         if (active.relatedEventId != null && onOpenRelatedEvent != null) {
-                            TextButton(onClick = {
+                            MPremiumMenuRow("Maç / Etkinlik Detayı", Icons.Rounded.Sports, {
                                 showInfo = false
                                 onOpenRelatedEvent(active.relatedEventId)
-                            }) {
-                                Icon(Icons.Rounded.Sports, null, Modifier.size(17.dp), tint = MColors.BrandDeep)
-                                Spacer(Modifier.width(6.dp))
-                                Text("Maç / Etkinlik Detayına Git", fontWeight = FontWeight.Bold, color = MColors.BrandDeep)
-                            }
+                            })
                         }
                         if (active.type == ThreadType.TEAM && onOpenRelatedTeam != null) {
-                            TextButton(onClick = {
+                            MPremiumMenuRow("Takım Sayfasına Git", Icons.Rounded.Shield, {
                                 showInfo = false
                                 onOpenRelatedTeam(active.title)
-                            }) {
-                                Icon(Icons.Rounded.Shield, null, Modifier.size(17.dp), tint = MColors.BrandDeep)
-                                Spacer(Modifier.width(6.dp))
-                                Text("Takım Sayfasına Git", fontWeight = FontWeight.Bold, color = MColors.BrandDeep)
-                            }
+                            })
                         }
                         if (active.type == ThreadType.DIRECT) {
-                            TextButton(onClick = {
+                            MPremiumMenuRow("Sporcu Pasaportunu Gör", Icons.Rounded.Badge, {
                                 showInfo = false
                                 inspectedPlayer = resolvePlayerForName(active.title, active.id)
-                            }) {
-                                Icon(Icons.Rounded.Badge, null, Modifier.size(17.dp), tint = MColors.BrandDeep)
-                                Spacer(Modifier.width(6.dp))
-                                Text("Sporcu Pasaportunu Görüntüle 🪪", fontWeight = FontWeight.Bold, color = MColors.BrandDeep)
-                            }
+                            })
                         }
                         BackendChatMuteAction(active)
-                        TextButton(onClick = { showInfo = false; clearChatConfirmation = false }) { Text("Sohbet geçmişini temizle") }
-                        TextButton(onClick = { showInfo = false; deleteAndBlock = false; clearChatConfirmation = true }) { Text("Sohbeti sil", color = MColors.Rose) }
-                        TextButton(onClick = { showInfo = false; onReportThread(active) }) { Icon(Icons.Rounded.Flag, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("Sohbeti bildir") }
-                        if (active.type == ThreadType.DIRECT) TextButton(onClick = { onToggleBlock(active.id); showInfo = false }) {
-                            Text(if (active.id in ownBlockedThreadIds) "Engeli kaldır" else "Sohbeti engelle", color = MColors.Rose)
+                        MPremiumMenuRow("Geçmişi temizle", Icons.Rounded.CleaningServices, { showInfo = false; clearChatConfirmation = false })
+                        MPremiumMenuRow("Sohbeti sil", Icons.Rounded.DeleteOutline, { showInfo = false; deleteAndBlock = false; clearChatConfirmation = true }, destructive = true)
+                        MPremiumMenuRow("Sohbeti bildir", Icons.Rounded.Flag, { showInfo = false; onReportThread(active) }, destructive = true)
+                        if (active.type == ThreadType.DIRECT) {
+                            MPremiumMenuRow(
+                                text = if (active.id in ownBlockedThreadIds) "Engeli kaldır" else "Sohbeti engelle",
+                                icon = Icons.Rounded.Block,
+                                onClick = { showInfo = false; confirmBlockThreadId = active.id },
+                                destructive = true
+                            )
                         }
                     }
                 },
-                confirmButton = { TextButton(onClick = { showInfo = false }) { Text("Tamam") } }
+                confirmButton = { MPillActionButton("Kapat", tone = MPillTone.NEUTRAL, compact = true, onClick = { showInfo = false }) }
             )
         }
     }
@@ -982,6 +1182,20 @@ fun ChatHubScreen(
     // ═══════════════════════════════════════════════════════════════════════════
     // MAÇ SONRASI ANI BIRAK / SOHBETTE FOTOĞRAF PAYLAŞ SHEET
     // ═══════════════════════════════════════════════════════════════════════════
+    confirmBlockThreadId?.let { targetThreadId ->
+        val isBlocked = targetThreadId in ownBlockedThreadIds
+        AlertDialog(
+            onDismissRequest = { confirmBlockThreadId = null },
+            title = { Text(if (isBlocked) "Engel kaldırılsın mı?" else "Sohbet engellensin mi?") },
+            text = { Text(if (isBlocked) "Bu kişiyle tekrar direkt mesajlaşabilirsin." else "Bu kişiyle yeni direkt mesajlaşma engellenir.") },
+            confirmButton = {
+                TextButton(onClick = { onToggleBlock(targetThreadId); confirmBlockThreadId = null }) {
+                    Text(if (isBlocked) "Engeli kaldır" else "Engelle", color = if (isBlocked) MColors.BrandDeep else MColors.Rose)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmBlockThreadId = null }) { Text("Vazgeç") } }
+        )
+    }
     if (showCreateMemorySheet) {
         CreateMemoryPostSheet(
             currentUser = currentUser,
@@ -1006,37 +1220,41 @@ fun ChatHubScreen(
             post = livePost,
             threads = threads.filter { !it.locked },
             onDismiss = { selectedMemoryForDetail = null },
-            onLike = if (livePost.isShowcase && livePost.status == "approved") ({ onToggleLikeMemory(livePost.id, !livePost.likedByMe) }) else null,
-            onAddComment = if (livePost.isShowcase && livePost.status == "approved") ({ text -> onAddMemoryComment(livePost.id, text) }) else null,
-            onDelete = if (livePost.authorId == DemoData.ME && livePost.isShowcase) ({ onDeleteMemory(livePost); selectedMemoryForDetail = null }) else null,
-            onEdit = if (livePost.authorId == DemoData.ME && livePost.isShowcase) ({ editingMemory = livePost; selectedMemoryForDetail = null }) else null,
-            onReport = { onReportMemory(livePost); selectedMemoryForDetail = null },
+            onLike = if (livePost.isShowcase && livePost.status == "approved") ({ requireAccount { onToggleLikeMemory(livePost.id, !livePost.likedByMe) } }) else null,
+            onAddComment = if (livePost.isShowcase && livePost.status == "approved") ({ text -> requireAccount { onAddMemoryComment(livePost.id, text) } }) else null,
+            onDelete = if (livePost.authorId == DemoData.ME && livePost.isShowcase) ({ requireAccount { onDeleteMemory(livePost); selectedMemoryForDetail = null } }) else null,
+            onEdit = if (livePost.authorId == DemoData.ME && livePost.isShowcase) ({ requireAccount { editingMemory = livePost; selectedMemoryForDetail = null } }) else null,
+            onReport = { requireAccount { onReportMemory(livePost); selectedMemoryForDetail = null } },
             onShareToThread = { threadId ->
-                onSendMemoryToChat(threadId, livePost.caption, livePost)
-                selectedMemoryForDetail = null
-                open(threadId)
+                requireAccount {
+                    onSendMemoryToChat(threadId, livePost.caption, livePost)
+                    selectedMemoryForDetail = null
+                    open(threadId)
+                }
             }
         )
     }
     messageMenu?.let { message -> AlertDialog(onDismissRequest = { messageMenu = null }, title = { Text("Mesaj işlemleri") }, text = {
         Column {
-            if (!message.deleted && active?.locked != true) TextButton(onClick = { replyTarget = message; messageMenu = null }) { Text("Yanıtla") }
-            if (message.isMine && !message.deleted && (backend == null || kotlinx.datetime.Clock.System.now().toEpochMilliseconds() - message.createdAt <= 15 * 60000)) TextButton(onClick = { editingMessage = message; editedText = message.text; messageMenu = null }) { Text("Düzenle") }
-            TextButton(onClick = { deletingMessage = message to false; messageMenu = null }) { Text("Benden sil") }
-            if (message.isMine && !message.deleted) TextButton(onClick = { deletingMessage = message to true; messageMenu = null }) { Text("Herkesten sil", color = MColors.Rose) }
-            if (!message.isMine && !message.deleted) TextButton(onClick = { onReportMessage(message); messageMenu = null }) { Text("Mesajı bildir", color = MColors.Rose) }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!message.deleted && active?.locked != true) MPremiumMenuRow("Yanıtla", Icons.Rounded.Reply, { replyTarget = message; messageMenu = null })
+                if (message.isMine && !message.deleted && (backend == null || kotlinx.datetime.Clock.System.now().toEpochMilliseconds() - message.createdAt <= 15 * 60000)) MPremiumMenuRow("Düzenle", Icons.Rounded.Edit, { editingMessage = message; editedText = message.text; messageMenu = null })
+                MPremiumMenuRow("Benden sil", Icons.Rounded.VisibilityOff, { deletingMessage = message to false; messageMenu = null })
+                if (message.isMine && !message.deleted) MPremiumMenuRow("Herkesten sil", Icons.Rounded.DeleteOutline, { deletingMessage = message to true; messageMenu = null }, destructive = true)
+                if (!message.isMine && !message.deleted) MPremiumMenuRow("Mesajı bildir", Icons.Rounded.Flag, { onReportMessage(message); messageMenu = null }, destructive = true)
+            }
         }
     }, confirmButton = { TextButton(onClick = { messageMenu = null }) { Text("Kapat") } }) }
     deletingMessage?.let { (message, everyone) -> AlertDialog(onDismissRequest = { deletingMessage = null }, title = { Text(if (everyone) "Mesaj herkesten silinsin mi?" else "Mesaj senden silinsin mi?") }, text = { Text(if (everyone) "İçerik kaldırılır; diğer katılımcılar silinen mesaj işaretini görür." else "Mesaj yalnız senin geçmişinden kaldırılır.") },
-        confirmButton = { TextButton(onClick = { onDeleteMessage(message, everyone); deletingMessage = null }) { Text("Sil") } }, dismissButton = { TextButton(onClick = { deletingMessage = null }) { Text("Vazgeç") } }) }
+        confirmButton = { TextButton(onClick = { onDeleteMessage(message, everyone); deletingMessage = null }) { Text("Sil", color = MColors.Rose) } }, dismissButton = { TextButton(onClick = { deletingMessage = null }) { Text("Vazgeç") } }) }
     editingMessage?.let { message -> AlertDialog(onDismissRequest = { editingMessage = null }, title = { Text("Mesajı düzenle") }, text = { OutlinedTextField(editedText, { editedText = it.take(4000) }, modifier = Modifier.fillMaxWidth()) },
         confirmButton = { TextButton(enabled = editedText.isNotBlank(), onClick = { onEditMessage(message, editedText.trim()); editingMessage = null }) { Text("Kaydet") } }, dismissButton = { TextButton(onClick = { editingMessage = null }) { Text("Vazgeç") } }) }
     clearChatConfirmation?.let { remove -> active?.let { thread -> AlertDialog(onDismissRequest = { clearChatConfirmation = null }, title = { Text(if (remove) "Sohbet silinsin mi?" else "Geçmiş temizlensin mi?") }, text = {
         Column { Text("Bu işlem yalnız senin geçmişini temizler. Karşı tarafın mesajları değişmez.${if (remove) " Yeni mesaj gelirse sohbet tekrar görünür; grup üyeliğin devam eder." else ""}")
             if (remove && thread.type == ThreadType.DIRECT) Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(deleteAndBlock, { deleteAndBlock = it }); Text("Kişiyi de engelle") }
         }
-    }, confirmButton = { TextButton(onClick = { if (remove) { onDeleteChat(thread, deleteAndBlock); open(null) } else onClearChat(thread); clearChatConfirmation = null }) { Text(if (remove) "Sohbeti sil" else "Geçmişi temizle") } }, dismissButton = { TextButton(onClick = { clearChatConfirmation = null }) { Text("Vazgeç") } }) } }
-    editingMemory?.let { post -> CreateMemoryPostSheet(currentUser, post.city, post.area, emptyList(), null, { editingMemory = null }, { updated, _ -> onUpdateMemory(updated); editingMemory = null }, initialPost = post) }
+    }, confirmButton = { TextButton(onClick = { if (remove) { onDeleteChat(thread, deleteAndBlock); open(null) } else onClearChat(thread); clearChatConfirmation = null }) { Text(if (remove) "Sohbeti sil" else "Geçmişi temizle", color = MColors.Rose) } }, dismissButton = { TextButton(onClick = { clearChatConfirmation = null }) { Text("Vazgeç") } }) } }
+    editingMemory?.let { post -> CreateMemoryPostSheet(currentUser, post.city, post.area, threads.filter { !it.locked }, null, { editingMemory = null }, { updated, _ -> onUpdateMemory(updated); editingMemory = null }, initialPost = post) }
 
     inspectedPlayer?.let { player ->
         PlayerProfileSheet(
@@ -1047,17 +1265,16 @@ fun ChatHubScreen(
             player = player,
             sport = Sport.FOOTBALL,
             onDismiss = { inspectedPlayer = null },
-            onChallenge = {
-                inspectedPlayer = null
-            },
-            onInviteTeam = {
-                inspectedPlayer = null
-            },
+            onChallenge = null,
+            onInviteTeam = null,
             onDirectMessage = {
+                val target = player
                 inspectedPlayer = null
-                val existingThread = threads.firstOrNull { it.type == ThreadType.DIRECT && it.title.equals(player.name, ignoreCase = true) }
+                val existingThread = threads.firstOrNull { it.type == ThreadType.DIRECT && it.title.equals(target.name, ignoreCase = true) }
                 if (existingThread != null) {
                     open(existingThread.id)
+                } else {
+                    onOpenDirectChat(target)
                 }
             }
         )
@@ -1325,7 +1542,7 @@ private fun GridMemoryExploreTile(
         border = BorderStroke(1.dp, Color(0xFFD8E2EE)),
         modifier = Modifier
             .fillMaxWidth()
-            .height(184.dp)
+            .aspectRatio(1f)
             .shadow(8.dp, RoundedCornerShape(18.dp), ambientColor = Color(0x2E0B1220), spotColor = Color(0x420B1220))
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -1568,7 +1785,7 @@ private fun CreateMemoryPostSheet(
 ) {
     val liveMode = LocalBackendRepository.current != null
     var selectedSport by remember { mutableStateOf(initialPost?.sport ?: Sport.FOOTBALL) }
-    val venueOptions = listOf(
+    val venueOptions = if (liveMode) emptyList() else listOf(
         "Moda Sahil Arena · Moda",
         "Kalamış Tenis Kulübü · Kalamış",
         "Caddebostan Sahil Kortu · Caddebostan",
@@ -1619,7 +1836,7 @@ private fun CreateMemoryPostSheet(
             item {
                 MSheetHeading(
                     title = if (initialPost == null) "Saha Anısı Bırak" else "Paylaşımını düzenle",
-                    subtitle = if (initialPost == null) "Saha karesini konuma göre vitrine veya sohbete ekle" else "Değişiklikler yeniden içerik incelemesine gönderilir",
+                    subtitle = if (initialPost == null) "Saha karesini anında vitrine ve konuma göre akışa ekle" else "Güncellediğin bilgiler anında vitrinde görünür",
                     icon = Icons.Rounded.AddAPhoto,
                     onDismiss = onDismiss
                 )
@@ -1636,7 +1853,7 @@ private fun CreateMemoryPostSheet(
                     venue = selectedVenue.substringBefore(" · "),
                     area = selectedVenue.substringAfter(" · ", postDistrict),
                     city = postCity,
-                    distanceKm = if (liveMode) null else 0.5f,
+                    distanceKm = null,
                     caption = caption.ifBlank { "Saha karesi 🔥" },
                     matchScoreTag = scoreTag.takeIf { it.isNotBlank() },
                     timeAgo = "Şimdi",
@@ -1747,7 +1964,7 @@ private fun CreateMemoryPostSheet(
                                     venue = selectedVenue.substringBefore(" · "),
                                     area = selectedVenue.substringAfter(" · ", postDistrict),
                                     city = postCity,
-                                    distanceKm = if (liveMode) null else 0.4f,
+                                    distanceKm = null,
                                     caption = caption.trim().ifBlank { "Sahadan güzel bir anı! 🔥" },
                                     matchScoreTag = scoreTag.trim().takeIf { it.isNotBlank() },
                                     timeAgo = "Şimdi",
@@ -1755,7 +1972,7 @@ private fun CreateMemoryPostSheet(
                                     likedByMe = true,
                                     sceneTheme = selectedTheme,
                                     customBitmap = pickedBitmap, remoteUploadId = initialPost?.remoteUploadId,
-                                    version = initialPost?.version ?: 1, status = "pending", approximateLocation = mapPoint
+                                    version = initialPost?.version ?: 1, status = if (initialPost?.status == "rejected") "pending" else "approved", approximateLocation = mapPoint
                                 )
                                 onPublish(post, selectedShareTarget.first)
                             },
@@ -1793,7 +2010,7 @@ private fun MemoryDetailSheet(
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
     var commentInput by remember { mutableStateOf("") }
-    if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false }, title = { Text("Anı silinsin mi?") }, text = { Text("Bu paylaşım vitrinden kaldırılacak.") }, confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete?.invoke() }) { Text("Sil") } }, dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Vazgeç") } })
+    if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false }, title = { Text("Anı silinsin mi?") }, text = { Text("Bu paylaşım vitrinden kaldırılacak.") }, confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete?.invoke() }) { Text("Sil", color = MColors.Rose) } }, dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Vazgeç") } })
     var selectedThread by remember(threads) { mutableStateOf(threads.firstOrNull()) }
 
     val scrollState = rememberScrollState()
@@ -1823,11 +2040,20 @@ private fun MemoryDetailSheet(
                 onDismiss = onDismiss
             )
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                if (post.status != "approved") Text(if (post.status == "rejected") "Bu paylaşım yayınlanmadı. Düzenleyip yeniden incelemeye gönderebilirsin." else "Paylaşımın içerik incelemesi bekliyor.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
-                if (onEdit != null) TextButton(onClick = onEdit) { Text("Paylaşımı düzenle") }
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (post.status != "approved") {
+                    Surface(shape = RoundedCornerShape(10.dp), color = MColors.SurfaceSunken, border = BorderStroke(1.dp, MColors.Line), modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            if (post.status == "rejected") "Bu paylaşım yayınlanmadı. Düzenleyip yeniden incelemeye gönderebilirsin." else "Paylaşımın içerik incelemesi bekliyor.",
+                            style = MaterialTheme.typography.bodySmall, color = MColors.Ink600, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                        )
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    if (onEdit != null) TextButton(onClick = onEdit) { Text("Paylaşımı düzenle") }
                     if (onDelete != null) TextButton(onClick = { confirmDelete = true }) { Text("Paylaşımı sil", color = MColors.Rose) }
-                else TextButton(onClick = onReport) { Text("İçeriği bildir", color = MColors.Ink500) }
+                    if (onEdit == null && onDelete == null) TextButton(onClick = onReport) { Text("İçeriği bildir", color = MColors.Ink500) }
+                }
             }
 
             MCard(modifier = Modifier.fillMaxWidth()) {
@@ -2021,9 +2247,9 @@ private fun MemoryDetailSheet(
 }
 
 @Composable
-private fun ChatAvatar(thread: ChatThread, compact: Boolean = false) {
+private fun ChatAvatar(thread: ChatThread, compact: Boolean = false, directUserId: String? = null) {
     if (thread.type == ThreadType.DIRECT) {
-        val otherUserId = thread.messages.firstOrNull { !it.isMine }?.senderId ?: thread.id
+        val otherUserId = directUserId?.takeIf { it.isNotBlank() } ?: thread.messages.firstOrNull { !it.isMine }?.senderId ?: thread.id
         UserAvatar(
             userId = otherUserId,
             name = thread.title,

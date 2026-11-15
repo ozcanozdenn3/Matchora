@@ -69,10 +69,13 @@ fun PlayNowModalSheet(
     onDismiss: () -> Unit,
     onSelectEvent: (SportEvent) -> Unit,
     onQuickJoin: (SportEvent) -> Unit,
+    onToggleWaitlist: (SportEvent) -> Unit = {},
     onCreateEvent: (SportEvent) -> Unit = {},
     allEvents: List<SportEvent>,
     tokenBalance: Int = 0,
     joinedEventIds: Set<String> = emptySet(),
+    waitlistedEventIds: Set<String> = emptySet(),
+    pendingRequestEventIds: Set<String> = emptySet(),
     currentArea: String = "",
     currentCity: String = "İstanbul",
     currentCampus: String? = null,
@@ -104,14 +107,14 @@ fun PlayNowModalSheet(
     var adSport by remember { mutableStateOf(Sport.FOOTBALL) }
     var customSportName by remember { mutableStateOf("") }
     var customIsGaming by remember { mutableStateOf(false) }
-    var adLocation by remember(currentArea) { mutableStateOf(currentArea.ifBlank { "Kadıköy" }) }
+    var adLocation by remember(currentArea, currentCity) { mutableStateOf(currentArea.ifBlank { currentCity }) }
     var adVenue by remember(initialVenue) { mutableStateOf(initialVenue) }
     var adPosition by remember { mutableStateOf("") }
     var adCostPerPlayer by remember { mutableStateOf("") }
     var adDescription by remember { mutableStateOf("") }
     var adFormat by remember { mutableStateOf("7v7") }
     var adLevelRange by remember { mutableStateOf("Orta – İleri") }
-    var adDurationMin by remember { mutableIntStateOf(60) }
+    var adDurationText by remember { mutableStateOf("60") }
     var adNetworkScope by remember { mutableStateOf(initialNetworkScope) }
     var adCommunityId by remember { mutableStateOf<String?>(null) }
     var adNetworkName by remember(currentCampus, currentCompany) {
@@ -152,19 +155,24 @@ fun PlayNowModalSheet(
             is LocationOutcome.Failed -> { DeviceLocationState.current.value = null; locationError = result.message; locationSettings = result.settingsAvailable }
         }
     }
-    val filteredEvents = remember(backendMode, currentCity, allEvents, searchCategory, selectedSport, selectedMode, verifiedOnly, maxDistanceKm, customDate, customHour, customMinute) {
+    val regionCenter = rememberRegionCenter(currentCity, currentArea)
+    val origin = deviceLocation ?: regionCenter
+    fun effectiveDistanceKm(event: SportEvent): Float? =
+        origin?.let { ref -> event.approximateLocation?.let { pt -> approximateDistanceKm(ref, pt.latitude, pt.longitude) } }
+            ?: event.distanceKm
+    val filteredEvents = remember(backendMode, currentCity, currentArea, origin, allEvents, searchCategory, selectedSport, selectedMode, verifiedOnly, maxDistanceKm, customDate, customHour, customMinute) {
         val selectedClock = customHour * 60 + customMinute
         allEvents.filter { event ->
-            (!backendMode || event.city.equals(currentCity, ignoreCase = true)) &&
-            event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING) && event.freeSpots > 0 &&
+            (!backendMode || matchesTurkishPlace(event.city, currentCity)) &&
+            event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING, EventStatus.FULL) &&
             (searchCategory == null || event.sport.category == searchCategory) &&
             (selectedSport == null || event.sport == selectedSport) &&
             (selectedMode == null || event.mode == selectedMode) &&
             (!verifiedOnly || event.verifiedOnly) &&
-            (maxDistanceKm?.toFloat()?.let { limit -> event.distanceKm?.let { distance -> distance <= limit } == true } ?: true) &&
+            (maxDistanceKm?.toFloat()?.let { limit -> effectiveDistanceKm(event)?.let { distance -> distance <= limit } == true } ?: true) &&
             event.matchesDayFilter(customDate) &&
             (customDate == "Tümü" || (parseClockMinutes(event.time)?.let { it >= selectedClock } ?: false))
-        }.sortedByDescending { it.score.total }
+        }.sortedWith(compareByDescending<SportEvent> { it.freeSpots > 0 }.thenByDescending { it.score.total })
     }
 
     ModalBottomSheet(
@@ -379,8 +387,9 @@ fun PlayNowModalSheet(
                                         color = MColors.Ink900,
                                         maxLines = 1
                                     )
+                                    val dist = effectiveDistanceKm(event)
                                     Text(
-                                        text = "${event.venue} · ${event.time}",
+                                        text = "${event.venue}${dist?.let { " · $it km" }.orEmpty()} · ${event.time}",
                                         style = MaterialTheme.typography.bodySmall,
                                         fontSize = 11.sp,
                                         color = MColors.Ink500
@@ -388,17 +397,42 @@ fun PlayNowModalSheet(
                                 }
                             }
 
+                            val alreadyJoined = joinedEventIds.contains(event.id)
+                            val alreadyPending = pendingRequestEventIds.contains(event.id)
+                            val alreadyWaiting = waitlistedEventIds.contains(event.id)
+                            val isHost = event.hostId == DemoData.ME
+                            val canJoin = event.freeSpots > 0 && event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING)
+                            val canWaitlist = event.status == EventStatus.FULL
+                            val canAct = !isHost && !alreadyJoined && !alreadyPending && (alreadyWaiting || canJoin || canWaitlist)
                             Button(
-                                onClick = { onQuickJoin(event) },
-                                enabled = !joinedEventIds.contains(event.id),
-                                colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
+                                onClick = {
+                                    when {
+                                        alreadyWaiting || (!canJoin && canWaitlist) -> onToggleWaitlist(event)
+                                        canJoin -> onQuickJoin(event)
+                                        else -> onSelectEvent(event)
+                                    }
+                                },
+                                enabled = canAct,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (canAct) MColors.Brand else MColors.SurfaceSunken,
+                                    contentColor = if (canAct) Color.White else MColors.Ink500
+                                ),
                                 shape = RoundedCornerShape(10.dp),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                 modifier = Modifier.height(34.dp)
                             ) {
                                 Text(
-                                    if (joinedEventIds.contains(event.id)) "Katıldın" else "Katıl",
-                                    color = Color.White,
+                                    when {
+                                        isHost -> "İlanın"
+                                        alreadyJoined -> "Katıldın"
+                                        alreadyPending -> "Bekliyor"
+                                        alreadyWaiting -> "Listeden çık"
+                                        canWaitlist -> "Bekleme"
+                                        event.approvalRequired -> "Başvur"
+                                        canJoin -> "Katıl"
+                                        else -> "Kapalı"
+                                    },
+                                    color = if (canAct) Color.White else MColors.Ink500,
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -556,8 +590,8 @@ fun PlayNowModalSheet(
                                 singleLine = true,
                                 isError = adFormError != null && adTitle.isBlank(),
                                 suggestions = listOf(
-                                    "Moda akşam maçı · Orta saha aranıyor",
-                                    "Kadıköy dostluk maçı · 2 eksik",
+                                    "$adLocation akşam maçı · Orta saha aranıyor",
+                                    "$adLocation dostluk maçı · 2 eksik",
                                     "Hafta sonu kondisyon maçı"
                                 )
                             )
@@ -763,31 +797,9 @@ fun PlayNowModalSheet(
                             val isGaming = (adSport.isESport || adSport == Sport.CHESS) || (adSport == Sport.CUSTOM && customIsGaming)
 
                             if (adStep == 1) {
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = Color.White,
-                                shadowElevation = 5.dp,
-                                border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp)
-                                    .shadow(
-                                        elevation = 7.dp,
-                                        shape = RoundedCornerShape(16.dp),
-                                        ambientColor = Color(0x280B1220),
-                                        spotColor = Color(0x380B1220)
-                                    )
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text("Tarih ve saat", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold, color = MColors.Ink900)
-                                    EventDateTimeField(adCalendarDate, adHour, adMinute) { date, hour, minute ->
-                                        adCalendarDate = date; adHour = hour; adMinute = minute; adFormError = null
-                                    }
+                                EventDateTimeField(adCalendarDate, adHour, adMinute) { date, hour, minute ->
+                                    adCalendarDate = date; adHour = hour; adMinute = minute; adFormError = null
                                 }
-                            }
                             if (isGaming) {
                                 // ── E-SPOR & GAMING AYARLARI ──
                                 MFloatingDropdownBox(
@@ -842,8 +854,7 @@ fun PlayNowModalSheet(
                                         onValueChange = { esNeededRole = it; adFormError = null },
                                         placeholder = "Örn. Düellocu, destek",
                                         icon = Icons.Rounded.PersonSearch,
-                                        badgeText = "Zorunlu",
-                                        suggestions = listOf("Düellocu", "Destek / Support", "Oyun Kurucu / IGL")
+                                        badgeText = "Zorunlu"
                                     )
                                 }
                             } else {
@@ -880,9 +891,9 @@ fun PlayNowModalSheet(
                                     icon = Icons.Rounded.Stadium,
                                     badgeText = "Konum",
                                     suggestions = listOf(
-                                        "Moda Spor Parkı · Saha 1",
-                                        "Kalamış Sahil Kortları",
-                                        "Caddebostan Halı Saha"
+                                        "$adLocation Merkez Saha",
+                                        "$adCity Spor Kompleksi",
+                                        "$adLocation Açık Kort"
                                     )
                                 )
 
@@ -891,10 +902,9 @@ fun PlayNowModalSheet(
                                     label = "Aranan Pozisyon / Rol",
                                     value = adPosition,
                                     onValueChange = { adPosition = it; adFormError = null },
-                                    placeholder = "Örn. Kaleci, orta saha",
+                                    placeholder = "İstediğin pozisyonu veya rolü yaz",
                                     icon = Icons.Rounded.PersonSearch,
-                                    badgeText = "Kadro",
-                                    suggestions = listOf("Orta saha", "Kaleci", "Defans", "Forvet", "Farketmez")
+                                    badgeText = "Kadro"
                                 )
                             }
 
@@ -920,13 +930,18 @@ fun PlayNowModalSheet(
                                 icon = Icons.Rounded.Leaderboard
                             )
 
-                            MFloatingDropdownBox(
-                                label = "Maç Süresi",
-                                selectedValue = adDurationMin,
-                                options = listOf(60, 90, 120),
-                                optionLabel = { "$it Dakika" },
-                                onSelect = { adDurationMin = it },
-                                icon = Icons.Rounded.Timer
+                            val parsedDurationMin = adDurationText.toIntOrNull()
+                            MFloatingInputBox(
+                                label = "Maç Süresi (Dakika)",
+                                value = adDurationText,
+                                onValueChange = { raw ->
+                                    adDurationText = raw.filter(Char::isDigit).take(3)
+                                    adFormError = null
+                                },
+                                placeholder = "İstediğin süreyi dakika olarak gir (15–720)",
+                                icon = Icons.Rounded.Timer,
+                                badgeText = parsedDurationMin?.let { "$it dk" } ?: "Dakika",
+                                isError = adFormError != null && (parsedDurationMin == null || parsedDurationMin !in 15..720)
                             )
 
                             MFloatingDropdownBox(
@@ -943,28 +958,45 @@ fun PlayNowModalSheet(
                                 icon = Icons.Rounded.EmojiEvents
                             )
 
-                            val currentTrustSelection = if (!adVerifiedOnly) 0 else (if (adMinReliability in listOf(70, 80, 90)) adMinReliability else 80)
+                            val trustOptions = remember {
+                                listOf(
+                                    false to 0,
+                                    false to 50,
+                                    false to 60,
+                                    false to 70,
+                                    false to 80,
+                                    false to 90,
+                                    true to 0,
+                                    true to 50,
+                                    true to 60,
+                                    true to 70,
+                                    true to 75,
+                                    true to 80,
+                                    true to 85,
+                                    true to 90,
+                                    true to 95,
+                                    true to 100
+                                )
+                            }
+                            val currentTrustSelection = (adVerifiedOnly to adMinReliability).let { current ->
+                                if (current in trustOptions) current else (false to 0)
+                            }
                             MFloatingDropdownBox(
                                 label = "Katılımcı Güveni",
                                 selectedValue = currentTrustSelection,
-                                options = listOf(0, 70, 80, 90),
-                                optionLabel = { level ->
-                                    when (level) {
-                                        0 -> "Tüm Sporcular"
-                                        70 -> "Doğrulanmış · Min %70"
-                                        80 -> "Doğrulanmış · Min %80"
-                                        90 -> "Doğrulanmış · Min %90"
-                                        else -> "Tüm Sporcular"
+                                options = trustOptions,
+                                optionLabel = { (verified, minRel) ->
+                                    when {
+                                        !verified && minRel == 0 -> "Tüm Sporcular"
+                                        !verified -> "Min %$minRel Güven"
+                                        minRel == 0 -> "Doğrulanmış"
+                                        minRel == 100 -> "Doğrulanmış · %100"
+                                        else -> "Doğrulanmış · %$minRel+"
                                     }
                                 },
-                                onSelect = { level ->
-                                    if (level == 0) {
-                                        adVerifiedOnly = false
-                                        adMinReliability = 0
-                                    } else {
-                                        adVerifiedOnly = true
-                                        adMinReliability = level
-                                    }
+                                onSelect = { (verified, minRel) ->
+                                    adVerifiedOnly = verified
+                                    adMinReliability = minRel
                                 },
                                 icon = Icons.Rounded.VerifiedUser
                             )
@@ -980,8 +1012,7 @@ fun PlayNowModalSheet(
                                 },
                                 placeholder = "0 ücretsiz",
                                 icon = Icons.Rounded.Toll,
-                                badgeText = if (adCostPerPlayer == "0" || adCostPerPlayer.isBlank()) "Ücretsiz" else "₺$adCostPerPlayer",
-                                suggestions = listOf("0", "120", "160", "200")
+                                badgeText = if (adCostPerPlayer == "0" || adCostPerPlayer.isBlank()) "Ücretsiz" else "₺$adCostPerPlayer"
                             )
 
                             MSubCard(onClick = { adStep = 1 }) {
@@ -995,7 +1026,7 @@ fun PlayNowModalSheet(
                                         verticalArrangement = Arrangement.spacedBy(2.dp)
                                     ) {
                                         Text("Buluşma Özeti", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold, color = MColors.Ink900)
-                                        Text("${eventDateLabel(adCalendarDate)} · ${formatTime(adHour, adMinute)} · $adDurationMin dk", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MColors.Ink700)
+                                        Text("${eventDateLabel(adCalendarDate)} · ${formatTime(adHour, adMinute)} · ${adDurationText.ifBlank { "--" }} dk", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MColors.Ink700)
                                         Text(
                                             text = if (isGaming) "$esPlatform · ${esServer.ifBlank { "Sunucu seçilmedi" }}" else "$adCity · $adLocation${if (adVenue.isNotBlank()) " · $adVenue" else ""}",
                                             fontSize = 11.5.sp,
@@ -1024,8 +1055,8 @@ fun PlayNowModalSheet(
                 item {
                     if (adFormError != null) Text(adFormError!!, style = MaterialTheme.typography.bodyMedium, color = MColors.Rose)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (adStep > 0) OutlinedButton(onClick = { adStep-- }, modifier = Modifier.weight(1f)) { Text("Geri") }
-                        if (adStep < 2) Button(onClick = { adStep++ }, modifier = Modifier.weight(1f)) { Text("Devam et") }
+                        if (adStep > 0) MButton("Geri", { adStep-- }, isPrimary = false, modifier = Modifier.weight(1f))
+                        if (adStep < 2) MButton("Devam et", { adStep++ }, modifier = Modifier.weight(1f))
                     }
                 }
                 if (adStep == 2) {
@@ -1038,8 +1069,10 @@ fun PlayNowModalSheet(
                     val cleanRole = if (isGaming) esNeededRole.trim() else adPosition.trim()
                     val cleanFormat = if (isGaming) esAdType.trim() else adFormat.trim()
                     val fee = adCostPerPlayer.ifBlank { "0" }.toIntOrNull()
+                    val parsedDuration = adDurationText.toIntOrNull()
                     val eventCapacity = capacityForFormat(cleanFormat)
-                    Button(
+                    MButton(
+                        text = if (tokenBalance < 10) "Token yükle · 10 TKN gerekli" else "İlanı yayınla · 10 TKN kilitle",
                         onClick = {
                             val error = when {
                                 cleanTitle.isBlank() -> "İlan başlığını gir."
@@ -1052,6 +1085,7 @@ fun PlayNowModalSheet(
                                 eligibleCommunities != null && adNetworkScope in listOf(EventNetworkScope.CAMPUS, EventNetworkScope.COMPANY) && adCommunityId == null -> "İlanın yayınlanacağı onaylı topluluğunu seç. Üyeliğin yoksa Ağ bölümünden katılım isteği gönder."
                                 adNetworkScope in listOf(EventNetworkScope.CAMPUS, EventNetworkScope.COMPANY) && adNetworkName.isBlank() -> "Seçtiğin ağın adını gir."
                                 listingIntent == ListingIntent.FIND_PLAYERS && cleanRole.isBlank() -> "Aranan rolü veya formatı gir."
+                                parsedDuration == null || parsedDuration !in 15..720 -> "Maç süresi için 15 ile 720 dakika arasında bir değer gir."
                                 fee == null -> "Kişi başı ücret için sayı gir; ücretsizse 0 yaz."
                                 else -> null
                             }
@@ -1074,14 +1108,14 @@ fun PlayNowModalSheet(
                                     approximateLocation = adPoint.takeUnless { isGaming },
                                     time = formatTime(adHour, adMinute),
                                     startsInMin = null,
-                                    durationMin = adDurationMin,
+                                    durationMin = parsedDuration!!,
                                     distanceKm = null,
                                     capacity = eventCapacity,
                                     participantIds = listOf(DemoData.ME),
                                     waitlistCount = 0,
                                     mode = adMode,
                                     levelRange = adLevelRange,
-                                    minReliability = if (adVerifiedOnly) adMinReliability else 0,
+                                    minReliability = adMinReliability,
                                     verifiedOnly = adVerifiedOnly,
                                     pricePerPersonTry = fee!!,
                                     commitmentTokens = 10,
@@ -1111,24 +1145,8 @@ fun PlayNowModalSheet(
                                 onDismiss()
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
-                        shape = RoundedCornerShape(14.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
-                    ) {
-                        Icon(Icons.Rounded.Campaign, null, tint = Color.White)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (tokenBalance < 10) "Token yükle · 10 TKN gerekli" else "İlanı yayınla · 10 TKN kilitle",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                        icon = Icons.Rounded.Campaign
+                    )
                 }
                 }
             }

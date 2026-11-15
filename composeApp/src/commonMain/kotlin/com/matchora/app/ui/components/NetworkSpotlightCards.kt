@@ -10,7 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -93,10 +93,13 @@ fun CommunitySpotlightCard(
     joined: Boolean,
     requested: Boolean,
     onShare: (() -> Unit)? = null,
+    onCardClick: (() -> Unit)? = null,
     onJoin: () -> Unit
 ) {
-    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp, onClick = onJoin) {
-        SpotlightTitle(community.name, community.area, community.emoji, "${community.type.label} · ${community.access.label}", MintAccent)
+    val backendEnabled = LocalBackendRepository.current?.enabled == true
+    val placeLabel = listOf(community.area, community.city).filter { it.isNotBlank() }.distinct().joinToString(", ")
+    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp, onClick = onCardClick ?: onJoin) {
+        SpotlightTitle(community.name, placeLabel, community.emoji, "${community.type.label} · ${community.access.label}", MintAccent)
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 SpotlightStats(listOf("${community.members + if (joined) 1 else 0}" to "Üye", "${community.upcomingEvents}" to "Yaklaşan oyun"))
@@ -136,7 +139,7 @@ fun CommunitySpotlightCard(
                     community.access == CommunityAccess.OPEN -> "Topluluğa katıl"
                     community.access == CommunityAccess.APPROVAL -> "Katılım başvurusu"
                     else -> "Davet gerekli"
-                }, onJoin, Modifier.weight(1f), enabled = joined || requested || community.access != CommunityAccess.INVITE, isPrimary = !joined && !requested, height = 38.dp)
+                }, onJoin, Modifier.weight(1f), enabled = joined || requested || community.access != CommunityAccess.INVITE, isPrimary = !joined && !requested, isDestructive = joined || requested, height = 38.dp)
                 if (onShare != null) {
                     FilledTonalButton(
                         onClick = onShare,
@@ -144,7 +147,11 @@ fun CommunitySpotlightCard(
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                         modifier = Modifier.height(38.dp)
                     ) {
-                        Icon(Icons.Rounded.Share, "Paylaş (+2 TKN)", modifier = Modifier.size(16.dp))
+                        Icon(
+                            Icons.Rounded.Share,
+                            if (backendEnabled) "Paylaş" else "Paylaş (+2 TKN)",
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 }
             }
@@ -233,6 +240,7 @@ fun TeamSpotlightCard(team: TeamProfile, primaryLabel: String, onPrimary: () -> 
 
 @Composable
 fun ChallengeSpotlightCard(challenge: ChallengeOffer, opponent: TeamProfile, onDetails: () -> Unit, onAccept: () -> Unit, onDecline: () -> Unit, onChat: () -> Unit, canRespond: Boolean = true) {
+    var confirmDecline by remember(challenge.id) { mutableStateOf(false) }
     MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp, onClick = onDetails) {
         Column(Modifier.clickable(onClick = onDetails)) {
             SpotlightTitle(opponent.name, if (challenge.incoming) "Gelen meydan okuma · Detayları aç →" else "Gönderilen teklif · Detayları aç →", opponent.badge, challenge.status.label, GoldAccent)
@@ -262,10 +270,31 @@ fun ChallengeSpotlightCard(challenge: ChallengeOffer, opponent: TeamProfile, onD
             if (canRespond && challenge.incoming && challenge.status == ChallengeStatus.PENDING) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     MButton("Kabul et", onAccept, Modifier.weight(1f), height = 38.dp)
-                    MButton("Reddet", onDecline, Modifier.weight(1f), isPrimary = false, height = 38.dp)
+                    MButton("Reddet", { confirmDecline = true }, Modifier.weight(1f), isPrimary = false, isDestructive = true, height = 38.dp)
                 }
-                TextButton(onClick = onChat, modifier = Modifier.fillMaxWidth().height(34.dp), contentPadding = PaddingValues(0.dp)) { Text("Kaptana mesaj gönder", fontSize = 12.sp, color = MColors.Ink700) }
+                TextButton(onClick = onChat, modifier = Modifier.fillMaxWidth().height(36.dp), contentPadding = PaddingValues(0.dp)) { Text("Kaptana mesaj gönder", fontSize = 12.sp, color = MColors.Ink700) }
             }
         }
+    }
+    if (confirmDecline) {
+        AlertDialog(
+            onDismissRequest = { confirmDecline = false },
+            title = { Text("Meydan okumayı reddet?", fontWeight = FontWeight.Bold) },
+            text = { Text("${opponent.name} takımının ${challenge.proposedTime} teklifi reddedilecek.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirmDecline = false
+                        onDecline()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MColors.Rose)
+                ) {
+                    Text("Reddet", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDecline = false }) { Text("Vazgeç") }
+            }
+        )
     }
 }

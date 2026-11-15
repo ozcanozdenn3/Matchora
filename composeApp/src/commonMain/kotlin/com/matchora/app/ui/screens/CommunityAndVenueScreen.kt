@@ -6,6 +6,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -35,6 +37,7 @@ import com.matchora.app.ui.theme.MColors
 // Birleşik modüler kart yapısı, her öğenin arkasında şık bir zemin var!
 // ═══════════════════════════════════════════════════════════════════════════════
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CommunityAndVenueScreen(
     paddingValues: PaddingValues,
@@ -54,14 +57,39 @@ fun CommunityAndVenueScreen(
     onReportReview: (String, String, String) -> Unit = { _, _, _ -> },
     onShareVenue: ((VenueInfo) -> Unit)? = null,
     onShareCommunity: ((CommunityInfo) -> Unit)? = null,
-    onDirections: ((VenueInfo) -> Unit)? = null
+    onDirections: ((VenueInfo) -> Unit)? = null,
+    deviceLocation: DeviceLocation? = null
 ) {
+    var detailVenue by remember { mutableStateOf<VenueInfo?>(null) }
     var reviewVenue by remember { mutableStateOf<VenueInfo?>(null) }
     var manageVenue by remember { mutableStateOf(false) }
     var createCommunity by remember { mutableStateOf(false) }
     var venueApplication by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Topluluk & Kampüs, 1: Tesisler & Saha Bul
     var selectedSportFilter by remember { mutableStateOf<com.matchora.app.domain.Sport?>(null) }
+    var maxVenueRadiusKm by remember { mutableStateOf<Int?>(25) }
+    var allCommunityCities by remember(currentCity) { mutableStateOf(false) }
+    var pickedCommunityCity by remember(currentCity) { mutableStateOf<String?>(null) }
+    var showCommunityCityPicker by remember { mutableStateOf(false) }
+    var pendingWithdrawApp by remember { mutableStateOf<kotlinx.serialization.json.JsonObject?>(null) }
+    val withdrawCommand = rememberBackendAction()
+    val venueOrigin = deviceLocation ?: rememberRegionCenter(currentCity, currentDistrict)
+    var detailCommunity by remember { mutableStateOf<CommunityInfo?>(null) }
+    var leaveCommunityConfirm by remember { mutableStateOf<CommunityInfo?>(null) }
+    pendingWithdrawApp?.let { targetApp ->
+        AlertDialog(
+            onDismissRequest = { pendingWithdrawApp = null },
+            title = { Text("Tesis başvurusu geri çekilsin mi?") },
+            text = { Text("Bekleyen tesis başvurunu iptal etmek istediğine emin misin?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    withdrawCommand("venue.application.withdraw", apiPayload("applicationId" to targetApp.s("id"), "expectedVersion" to targetApp.i("version", 1)))
+                    pendingWithdrawApp = null
+                }) { Text("Geri çek", color = MColors.Rose) }
+            },
+            dismissButton = { TextButton(onClick = { pendingWithdrawApp = null }) { Text("Vazgeç") } }
+        )
+    }
     LaunchedEffect(initialTab, focusedId) { selectedTab = initialTab.coerceIn(0, 1) }
     var travelModeActive by remember { mutableStateOf(false) }
     var travelCity by remember { mutableStateOf("") }
@@ -71,7 +99,7 @@ fun CommunityAndVenueScreen(
     val wire = if (backend != null) backend.snapshots.collectAsState().value else null
     val command = rememberBackendAction()
     LaunchedEffect(wire) { wire?.o("discovery")?.let { travelModeActive = it.b("travelMode"); travelCity = it.s("city") } }
-    if (showTravelLocation) CityAndLocationSelectorSheet(travelCity.ifBlank { "İstanbul" }, currentDistrict, false,
+    if (showTravelLocation) CityAndLocationSelectorSheet(travelCity.ifBlank { currentCity }, currentDistrict, false,
         onDismiss = { showTravelLocation = false }, onSelectLocation = { city, district, _ ->
             if (backend?.enabled == true) command("discovery.save", apiPayload("city" to city, "district" to district, "travelMode" to true))
             else { travelModeActive = true; travelCity = city }
@@ -96,100 +124,275 @@ fun CommunityAndVenueScreen(
                 .fillMaxSize()
                 .padding(top = paddingValues.calculateTopPadding()),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = paddingValues.calculateBottomPadding() + 28.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // ═══════════════════════════════════════════════════════════════════
-            // 0. ÜST BAŞLIK VE PRO OBSIDIAN SEKME KONTROLÜ
+            // 0. KOMPAKT BAŞLIK + AKSİYON & SEKME KONTROLÜ
             // ═══════════════════════════════════════════════════════════════════
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    MFeatureHeader("Spor ağı", "Yeni insanlar. Yeni sahalar. Aynı tutku.", Icons.Rounded.Hub, accent = Color(0xFF85DFCC))
+                val isOperator = wire?.s("role") in listOf("admin", "venue_owner")
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MCompactHeroStrip(
+                        title = "Spor ağı",
+                        subtitle = if (selectedTab == 0) "Topluluklar ve misafir spor" else "Kort ve saha rezervasyonu",
+                        icon = Icons.Rounded.Hub,
+                        accent = Color(0xFF85DFCC),
+                        trailingAction = {
+                            if (selectedTab == 0) {
+                                MHeroActionButton(
+                                    text = "Topluluk aç",
+                                    icon = Icons.Rounded.Add,
+                                    onClick = { requireAccount { createCommunity = true } }
+                                )
+                            } else {
+                                MHeroActionButton(
+                                    text = if (isOperator) "Tesis yönet" else "Tesis ekle",
+                                    icon = if (isOperator) Icons.Rounded.Storefront else Icons.Rounded.AddBusiness,
+                                    onClick = { requireAccount { if (isOperator) manageVenue = true else venueApplication = true } }
+                                )
+                            }
+                        }
+                    )
                     MSegmentedControl(listOf("Topluluklar", "Tesisler"), selectedTab, { selectedTab = it })
                 }
             }
 
         when (selectedTab) {
             0 -> {
-                // ═══════════════ TAB 0: TOPLULUK & KAMPÜS MODÜLLERİ ═══════════════
-                // Modül A: Travel Mode
+                // ═══════════════ TAB 0: TEK DERLİ TOPLU FİLTRE KARTI ═══════════════
                 item {
-                    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp, onClick = { requireAccount { showTravelLocation = true } }) {
-                        Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Surface(
-                                shape = RoundedCornerShape(11.dp),
-                                color = MColors.Ink900,
-                                shadowElevation = 4.dp,
-                                modifier = Modifier.shadow(6.dp, RoundedCornerShape(11.dp), ambientColor = Color(0x360B1220), spotColor = Color(0x480B1220))
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.White,
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Rounded.FlightTakeoff, null, Modifier.padding(8.dp).size(18.dp), tint = Color(0xFF9EDDC8))
-                            }
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text("Seyahat modu", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
-                                Text(if (travelModeActive) "$travelCity · Misafir sporcu" else "Spor pasaportun seninle", fontSize = 11.sp, color = MColors.Ink500)
-                            }
-                            Switch(checked = travelModeActive, onCheckedChange = { enabled ->
-                                requireAccount {
-                                    if (enabled) showTravelLocation = true
-                                    else if (backend?.enabled == true) command("discovery.save", apiPayload("city" to wire?.o("profile")?.s("city", "İstanbul"), "district" to wire?.o("profile")?.s("area", currentDistrict), "travelMode" to false))
-                                    else travelModeActive = false
+                                MCompactSportPill(
+                                    selectedSport = selectedSportFilter,
+                                    onSelect = { selectedSportFilter = it },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Surface(
+                                    onClick = { requireAccount { showTravelLocation = true } },
+                                    shape = RoundedCornerShape(11.dp),
+                                    color = if (travelModeActive) Color(0xFFECFDF5) else Color(0xFFF8FAFC),
+                                    border = BorderStroke(1.dp, if (travelModeActive) Color(0xFF85DFCC) else Color(0xFFE2E8F0)),
+                                    modifier = Modifier.height(38.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.FlightTakeoff,
+                                            contentDescription = "Seyahat modu",
+                                            tint = if (travelModeActive) Color(0xFF1E5E4B) else MColors.Ink500,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Text(
+                                            text = if (travelModeActive) travelCity.ifBlank { "Seyahat açık" } else "Seyahat modu",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (travelModeActive) Color(0xFF1E5E4B) else MColors.Ink700,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (travelModeActive) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Close,
+                                                contentDescription = "Seyahat modunu kapat",
+                                                tint = Color(0xFF1E5E4B),
+                                                modifier = Modifier
+                                                    .size(15.dp)
+                                                    .clickable {
+                                                        requireAccount {
+                                                            if (backend?.enabled == true) {
+                                                                command(
+                                                                    "discovery.save",
+                                                                    apiPayload(
+                                                                        "city" to wire?.o("profile")?.s("city", "İstanbul"),
+                                                                        "district" to wire?.o("profile")?.s("area", currentDistrict),
+                                                                        "travelMode" to false
+                                                                    )
+                                                                )
+                                                            } else {
+                                                                travelModeActive = false
+                                                            }
+                                                        }
+                                                    }
+                                            )
+                                        }
+                                    }
                                 }
-                            }, modifier = Modifier.height(28.dp))
+                            }
+                            MCityFilterBar(
+                                currentCity = currentCity,
+                                selectedCity = pickedCommunityCity,
+                                useAllCities = allCommunityCities,
+                                onSelectCurrentCity = { allCommunityCities = false; pickedCommunityCity = null },
+                                onSelectAllCities = { allCommunityCities = true; pickedCommunityCity = null },
+                                onOpenCityPicker = { showCommunityCityPicker = true }
+                            )
+                        }
+                    }
+                }
+                val activeCommunityCity = when {
+                    allCommunityCities -> null
+                    pickedCommunityCity != null -> pickedCommunityCity
+                    else -> currentCity
+                }
+                val filteredCommunities = communities.filter { community ->
+                    val isFocused = focusedId != null && community.id == focusedId
+                    val isJoined = community.id in joinedCommunityIds
+                    val matchesSport = selectedSportFilter == null || selectedSportFilter in community.sports
+                    val matchesRegion = activeCommunityCity == null || matchesTurkishPlace(community.city, activeCommunityCity) || (pickedCommunityCity == null && isJoined)
+                    isFocused || (matchesSport && matchesRegion)
+                }.sortedBy { it.id != focusedId }
+                if (filteredCommunities.isEmpty()) {
+                    item {
+                        MSubCard {
+                            Text(
+                                text = if (activeCommunityCity != null) "$activeCommunityCity içinde uygun topluluk bulunamadı." else "Bu filtrede uygun topluluk bulunamadı.",
+                                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MColors.Ink600
+                            )
                         }
                     }
                 }
 
-                item { MButton("Topluluğunu oluştur", { requireAccount { createCommunity = true } }, icon = Icons.Rounded.Add) }
-                item { SportPickerField(selectedSportFilter, { selectedSportFilter = it }) }
-
                 // Modül B: Topluluklar Listesi
-                items(communities.filter { selectedSportFilter == null || selectedSportFilter in it.sports }.sortedBy { it.id != focusedId }, key = { it.id }) { community ->
+                items(filteredCommunities, key = { it.id }) { community ->
                     val isJoined = community.id in joinedCommunityIds
                     CommunitySpotlightCard(
                         community = community,
                         joined = isJoined,
                         requested = community.id in requestedCommunityIds,
                         onShare = { onShareCommunity?.invoke(community) },
-                        onJoin = { onJoinCommunity(community) }
+                        onJoin = {
+                            if (isJoined) leaveCommunityConfirm = community
+                            else onJoinCommunity(community)
+                        },
+                        onCardClick = { detailCommunity = community }
                     )
-                    if (isJoined) {
-                        TextButton(onClick = { requireAccount { onOpenCommunityChat(community) } }) {
-                            Icon(Icons.Rounded.Forum, null, Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Topluluk sohbeti")
-                        }
-                    }
-                    BackendCommunityActions(community)
                 }
                 item { BackendMoreCatalogButton("communities") }
             }
 
             1 -> {
-                // ═══════════════ TAB 1: SAHA VE KORT REZERVASYONU MODÜLLERİ ═══════════════
-                if (wire?.s("role") in listOf("admin", "venue_owner")) item { TextButton(onClick = { requireAccount { manageVenue = true } }) { Text("Tesis yönetimi") } }
-                else item { MButton("Tesisini ekle", { requireAccount { venueApplication = true } }, icon = Icons.Rounded.AddBusiness) }
-                item { SportPickerField(selectedSportFilter, { selectedSportFilter = it }) }
+                // ═══════════════ TAB 1: TEK DERLİ TOPLU TESİS FİLTRE KARTI ═══════════════
+                item {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.White,
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            MCompactSportPill(
+                                selectedSport = selectedSportFilter,
+                                onSelect = { selectedSportFilter = it },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf(5, 10, 25, 50, null).forEach { km ->
+                                    val label = if (km == null) "Tüm $currentCity" else "$km km"
+                                    val selected = maxVenueRadiusKm == km
+                                    Surface(
+                                        onClick = { maxVenueRadiusKm = km },
+                                        shape = RoundedCornerShape(9.dp),
+                                        color = if (selected) MColors.Ink900 else Color(0xFFF1F5F9),
+                                        border = BorderStroke(1.dp, if (selected) MColors.Ink900 else Color(0xFFE2E8F0))
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                                            color = if (selected) Color.White else MColors.Ink700,
+                                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 wire?.a("venueApplications").orEmpty().forEach { application -> item(key = "application-${application.s("id")}") {
                     MCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(application.s("name"), style = MaterialTheme.typography.titleSmall)
                         Text(when (application.s("status")) { "approved" -> "Onaylandı · tesisin yayında"; "rejected" -> "Başvuru kabul edilmedi"; "withdrawn" -> "Başvurun geri çekildi"; else -> "İşletmeci başvurun inceleniyor" }, style = MaterialTheme.typography.bodySmall)
                         if (application.s("response").isNotBlank()) Text(application.s("response"), style = MaterialTheme.typography.bodySmall)
-                        if (application.s("status") == "pending") TextButton(onClick = { command("venue.application.withdraw", apiPayload("applicationId" to application.s("id"), "expectedVersion" to application.i("version", 1))) }) { Text("Başvuruyu geri çek") }
+                        if (application.s("status") == "pending") {
+                            MPillActionButton(
+                                text = "Başvuruyu geri çek",
+                                icon = Icons.Rounded.Close,
+                                tone = MPillTone.DANGER,
+                                compact = true,
+                                onClick = { pendingWithdrawApp = application }
+                            )
+                        }
                     } }
                 } }
-                items(venues.filter { selectedSportFilter == null || selectedSportFilter in it.sports }.sortedBy { it.id != focusedId }, key = { it.id }) { venue ->
+                val scopedVenues = venues.map { venue ->
+                    val effectiveKm = venue.distanceKm ?: venue.approximateLocation?.let { pt ->
+                        venueOrigin?.let { approximateDistanceKm(it, pt.latitude, pt.longitude) }
+                    }
+                    venue.copy(distanceKm = effectiveKm)
+                }.filter { venue ->
+                    val isFocused = focusedId != null && venue.id == focusedId
+                    val matchesSport = selectedSportFilter == null || selectedSportFilter in venue.sports
+                    val matchesCity = matchesTurkishPlace(venue.city, currentCity)
+                    val matchesRadius = when (val limit = maxVenueRadiusKm) {
+                        null -> true
+                        else -> {
+                            val d = venue.distanceKm
+                            if (d != null) d <= limit.toFloat()
+                            else currentDistrict.isBlank() || matchesTurkishPlace(venue.area, currentDistrict)
+                        }
+                    }
+                    isFocused || (matchesSport && matchesCity && matchesRadius)
+                }.sortedWith(compareBy<VenueInfo> { it.id != focusedId }.thenBy { it.distanceKm ?: Float.MAX_VALUE })
+                if (scopedVenues.isEmpty()) {
+                    item {
+                        MSubCard {
+                            Text(
+                                text = "$currentCity için ${maxVenueRadiusKm?.let { "$it km içinde " }.orEmpty()}uygun tesis bulunamadı.",
+                                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MColors.Ink600
+                            )
+                        }
+                    }
+                }
+                items(scopedVenues, key = { it.id }) { venue ->
                     VenueSpotlightCard(
                         venue = venue,
                         bookedSlotIds = bookedSlotIds,
                         onDirections = { onDirections?.invoke(venue) },
                         onShareVenue = { onShareVenue?.invoke(venue) },
                         onCardClick = {
-                            requireAccount {
-                                val firstAvailable = venue.slots.firstOrNull { it.available && "${venue.id}:${it.id}" !in bookedSlotIds }
-                                if (firstAvailable != null) selectedBookingSlot = venue to firstAvailable else reviewVenue = venue
-                            }
+                            detailVenue = venue
                         }
                     ) { slot -> requireAccount { selectedBookingSlot = venue to slot } }
-                    TextButton(onClick = { requireAccount { reviewVenue = venue } }) { Text("Tesis değerlendirmeleri") }
                 }
                 item { BackendMoreCatalogButton("venues") }
 
@@ -199,6 +402,95 @@ fun CommunityAndVenueScreen(
         item {
             Spacer(modifier = Modifier.height(70.dp))
         }
+    }
+
+    leaveCommunityConfirm?.let { community ->
+        AlertDialog(
+            onDismissRequest = { leaveCommunityConfirm = null },
+            title = { Text("Topluluktan ayrıl?") },
+            text = { Text("${community.name} üyeliğinden ayrılmak istediğine emin misin?") },
+            confirmButton = {
+                TextButton(onClick = { onJoinCommunity(community); leaveCommunityConfirm = null }) {
+                    Text("Ayrıl", color = MColors.Rose)
+                }
+            },
+            dismissButton = { TextButton(onClick = { leaveCommunityConfirm = null }) { Text("Vazgeç") } }
+        )
+    }
+
+    detailCommunity?.let { selected ->
+        val fresh = communities.firstOrNull { it.id == selected.id } ?: selected
+        val isJoined = fresh.id in joinedCommunityIds
+        val isRequested = fresh.id in requestedCommunityIds
+        ModalBottomSheet(
+            onDismissRequest = { detailCommunity = null },
+            containerColor = Color(0xFFF5F6F8),
+            dragHandle = { MPremiumSheetHandle() },
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                contentPadding = PaddingValues(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item { MSheetHeading(fresh.name, "${fresh.city} · ${fresh.area} · ${fresh.type.label}", Icons.Rounded.Hub, { detailCommunity = null }) }
+                item {
+                    MCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(fresh.description.ifBlank { "Yerel sporcuları aynı çatı altında buluşturan topluluk ağı." }, style = MaterialTheme.typography.bodyMedium, color = MColors.Ink700)
+                            Text("${fresh.members} üye · ${fresh.sports.joinToString { it.label }}", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+                        }
+                    }
+                }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (isJoined) {
+                            MButton("Topluluk sohbeti", { detailCommunity = null; requireAccount { onOpenCommunityChat(fresh) } }, icon = Icons.Rounded.Forum)
+                            MButton("Topluluktan ayrıl", { detailCommunity = null; leaveCommunityConfirm = fresh }, isPrimary = false, isDestructive = true, icon = Icons.Rounded.ExitToApp)
+                        } else {
+                            MButton(
+                                text = if (isRequested) "Başvuru bekliyor · İptal et" else "Topluluğa katıl",
+                                onClick = { detailCommunity = null; onJoinCommunity(fresh) },
+                                isPrimary = !isRequested,
+                                isDestructive = isRequested,
+                                icon = Icons.Rounded.GroupAdd
+                            )
+                        }
+                        onShareCommunity?.let { share ->
+                            MButton(
+                                text = if (LocalBackendRepository.current?.enabled == true) "Topluluğu paylaş" else "Topluluğu paylaş (+2 TKN)",
+                                onClick = { share(fresh) },
+                                isPrimary = false,
+                                icon = Icons.Rounded.Share
+                            )
+                        }
+                    }
+                }
+                item { BackendCommunityActions(fresh) }
+            }
+        }
+    }
+
+    detailVenue?.let { selected ->
+        val rawVenue = venues.firstOrNull { it.id == selected.id } ?: selected
+        val freshVenue = rawVenue.copy(distanceKm = rawVenue.distanceKm ?: rawVenue.approximateLocation?.let { pt -> venueOrigin?.let { approximateDistanceKm(it, pt.latitude, pt.longitude) } })
+        VenueDetailSheet(
+            venue = freshVenue,
+            bookedSlotIds = bookedSlotIds,
+            onDismiss = { detailVenue = null },
+            onDirections = { onDirections?.invoke(freshVenue) },
+            onShare = { onShareVenue?.invoke(freshVenue) },
+            onOpenReviews = {
+                detailVenue = null
+                reviewVenue = freshVenue
+            },
+            onSelectSlot = { slot ->
+                requireAccount {
+                    detailVenue = null
+                    selectedBookingSlot = freshVenue to slot
+                }
+            }
+        )
     }
 
     if (selectedBookingSlot != null) {
@@ -211,6 +503,19 @@ fun CommunityAndVenueScreen(
                 onBookSlot(v, s, splitCount, finalAmount, method)
                 selectedBookingSlot = null
             }
+        )
+    }
+
+    if (showCommunityCityPicker) {
+        CityFilterPickerSheet(
+            selectedCity = pickedCommunityCity,
+            currentCity = currentCity,
+            title = "Topluluk ili seç",
+            onSelectCity = { chosen ->
+                allCommunityCities = false
+                pickedCommunityCity = chosen
+            },
+            onDismiss = { showCommunityCityPicker = false }
         )
     }
 }

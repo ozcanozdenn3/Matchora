@@ -241,7 +241,8 @@ class BackendRepository(val baseUrl: String = BackendBuildConfig.BASE_URL, val m
         require(kind in catalogKinds)
         val snapshot = mutableSnapshot.value ?: return@withLock
         val cursor = snapshot.o("nextCatalogCursors").s(kind).ifBlank { return@withLock }
-        val page = request("/v1/catalog/$kind?after=${queryValue(cursor)}&limit=100")
+        val cityQuery = if (kind in listOf("venues", "communities")) browseCity?.let { "&city=${queryValue(it)}" }.orEmpty() else ""
+        val page = request("/v1/catalog/$kind?after=${queryValue(cursor)}&limit=100$cityQuery")
         activeCatalogs = activeCatalogs + kind
         applySnapshot(mergeCatalogPage(snapshot, kind, page)); catalogPages[kind] = (catalogPages[kind] ?: 0) + 1
     }
@@ -476,13 +477,16 @@ class BackendRepository(val baseUrl: String = BackendBuildConfig.BASE_URL, val m
         return data.getValue("id").jsonPrimitive.content
     }
     suspend fun photo(uploadId: String): ImageBitmap {
-        imageCache[uploadId]?.let { return it }
+        imageCache.remove(uploadId)?.let { cached ->
+            imageCache[uploadId] = cached
+            return cached
+        }
         require(Regex("[a-f0-9-]{36}").matches(uploadId))
         val headers = session?.get("accessToken")?.jsonPrimitive?.content?.let { mapOf("Authorization" to "Bearer $it") } ?: emptyMap()
         val response = authorizedRaw("/v1/media/$uploadId", "GET", null, headers)
         if (response.status !in 200..299) throw BackendFailure("PHOTO_UNAVAILABLE", "Fotoğraf yüklenemedi.")
         val bitmap = decodeApiPhoto(response.bytes)
-        if (imageCache.size >= 12) imageCache.remove(imageCache.keys.first())
+        if (imageCache.size >= 72) imageCache.remove(imageCache.keys.first())
         imageCache[uploadId] = bitmap; return bitmap
     }
     fun serverUserId(uiId: String): String = if (uiId == com.matchora.app.state.DemoData.ME) userId ?: uiId else uiId
