@@ -105,8 +105,123 @@ export function createApi(service,auth){
   }catch(error){const known=error instanceof ApiError;send(known?error.status:500,{error:{code:known?error.code:'INTERNAL_ERROR',message:known?error.message:'İşlem tamamlanamadı. Tekrar dene.',requestId}});if(!known)console.error(JSON.stringify({level:'error',requestId,type:error.name,code:error.code??'internal'}));}
  });server.realtime=realtime;server.once('close',()=>realtime.close());server.requestTimeout=45000;server.headersTimeout=15000;server.keepAliveTimeout=5000;server.maxHeadersCount=50;server.maxRequestsPerSocket=100;return server;
 }
+export function createFetchHandler(service, auth) {
+ const server = createApi(service, auth);
+ const encoder = new TextEncoder();
+ const toBytes = chunk => typeof chunk === 'string' ? encoder.encode(chunk) : chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
+ return async request => {
+  const incomingUrl = new URL(request.url);
+  const strippedPath = incomingUrl.pathname.replace(/^\/functions\/v1\/matchora-api(?=\/|$)|^\/matchora-api(?=\/|$)/, '') || '/';
+  const reqUrl = strippedPath + incomingUrl.search;
+  const reqHeaders = {};
+  for (const [k, v] of request.headers.entries()) {
+   const lower = k.toLowerCase();
+   if (lower !== 'accept-encoding') reqHeaders[lower] = v;
+  }
+  const forwardedFor = reqHeaders['x-forwarded-for']?.split(',')[0]?.trim();
+  const remoteAddress = reqHeaders['cf-connecting-ip'] || forwardedFor || 'edge-client';
+  const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
+  const bodyBytes = hasBody ? Buffer.from(await request.arrayBuffer()) : Buffer.alloc(0);
+  const abortedListeners = [];
+  const fireAborted = () => { while (abortedListeners.length) abortedListeners.shift()(); };
+  request.signal?.addEventListener?.('abort', fireAborted, { once: true });
+  const req = {
+   method: request.method, url: reqUrl, headers: reqHeaders, socket: { remoteAddress },
+   once(event, fn) { if (event === 'aborted') { if (request.signal?.aborted) fn(); else abortedListeners.push(fn); } return this; },
+   async *[Symbol.asyncIterator]() { if (bodyBytes.length > 0) yield bodyBytes; }
+  };
+  return await new Promise(resolveResponse => {
+   const headers = new Headers();
+   const chunks = [];
+   const closeListeners = [];
+   let settled = false;
+   let streamController = null;
+   const fireClose = () => {
+    while (closeListeners.length) closeListeners.shift()();
+    fireAborted();
+   };
+   const ensureStream = () => {
+    if (settled) return;
+    const contentType = (headers.get('content-type') ?? '').toLowerCase();
+    if (!contentType.startsWith('text/event-stream')) return;
+    settled = true;
+    const stream = new ReadableStream({
+     start(controller) { streamController = controller; },
+     cancel() { res.destroyed = true; fireClose(); }
+    });
+    resolveResponse(new Response(stream, { status: res.statusCode, headers }));
+   };
+   const res = {
+    statusCode: 200, destroyed: false, writableEnded: false, writableLength: 0,
+    setHeader(name, value) { headers.set(name, String(value)); },
+    appendHeader(name, value) { headers.append(name, String(value)); },
+    writeHead(status, extraHeaders) {
+     this.statusCode = status;
+     if (extraHeaders && typeof extraHeaders === 'object') {
+      for (const [k, v] of Object.entries(extraHeaders)) headers.set(k, String(v));
+     }
+     return this;
+    },
+    flushHeaders() { ensureStream(); },
+    once(event, fn) {
+     if (event === 'close') { if (this.destroyed || this.writableEnded) fn(); else closeListeners.push(fn); }
+     return this;
+    },
+    write(chunk) {
+     if (this.destroyed || this.writableEnded) return false;
+     ensureStream();
+     const bytes = toBytes(chunk);
+     if (streamController) {
+      try { streamController.enqueue(bytes); } catch { this.destroyed = true; fireClose(); return false; }
+     } else {
+      chunks.push(bytes);
+     }
+     return true;
+    },
+    end(chunk) {
+     if (this.writableEnded) return this;
+     if (chunk !== undefined && chunk !== null) {
+      const bytes = toBytes(chunk);
+      if (streamController) { try { streamController.enqueue(bytes); } catch {} }
+      else chunks.push(bytes);
+     }
+     this.writableEnded = true;
+     if (streamController) {
+      try { streamController.close(); } catch {}
+     } else if (!settled) {
+      settled = true;
+      const status = this.statusCode;
+      if (status === 204 || status === 304) {
+       resolveResponse(new Response(null, { status, headers }));
+      } else {
+       const total = chunks.reduce((sum, part) => sum + part.length, 0);
+       const body = new Uint8Array(total);
+       let offset = 0;
+       for (const part of chunks) { body.set(part, offset); offset += part.length; }
+       resolveResponse(new Response(body, { status, headers }));
+      }
+     }
+     fireClose();
+     return this;
+    },
+    destroy() {
+     if (this.destroyed) return this;
+     this.destroyed = true;
+     try { streamController?.close(); } catch {}
+     if (!settled && !this.writableEnded) {
+      settled = true;
+      resolveResponse(new Response(null, { status: 500, headers }));
+     }
+     fireClose();
+     return this;
+    }
+   };
+   server.emit('request', req, res);
+  });
+ };
+}
 export async function start(config=configFromEnv()){
  const store=config.databaseUrl?await PostgresStore.open(config.databaseUrl):await SqliteStore.open(config.databasePath);await migrate(store);const media=config.supabaseUrl&&config.storageServiceKey?new SupabaseMediaStore(config.supabaseUrl,config.storageServiceKey,config.storageBucket):new LocalMediaStore(config.storagePath),service=new MatchoraService(store,config,media),auth=new Auth(store,config),server=createApi(service,auth);let running=false;const timer=setInterval(async()=>{if(running)return;running=true;try{await runJobs(service);}catch(error){console.error(JSON.stringify({level:'error',task:'jobs',type:error.name}));}finally{running=false;}},15000);timer.unref();await new Promise(resolve=>server.listen(config.port,config.host,resolve));console.log(`Matchora API listening on ${config.host}:${config.port}`);
  const close=async()=>{clearInterval(timer);server.realtime.close();await new Promise(resolve=>server.close(resolve));await store.close();};return{server,service,auth,close};
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){process.on('uncaughtException',err=>console.error(JSON.stringify({level:'error',type:'uncaughtException',message:err?.message})));process.on('unhandledRejection',reason=>console.error(JSON.stringify({level:'error',type:'unhandledRejection',message:reason?.message??String(reason)})));const app=await start();for(const signal of ['SIGTERM','SIGINT'])process.once(signal,async()=>{await app.close();process.exit(0);});}
+if(globalThis.process?.argv?.[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){process.on('uncaughtException',err=>console.error(JSON.stringify({level:'error',type:'uncaughtException',message:err?.message})));process.on('unhandledRejection',reason=>console.error(JSON.stringify({level:'error',type:'unhandledRejection',message:reason?.message??String(reason)})));const app=await start();for(const signal of ['SIGTERM','SIGINT'])process.once(signal,async()=>{await app.close();process.exit(0);});}

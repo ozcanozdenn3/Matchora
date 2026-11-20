@@ -1,11 +1,33 @@
 import { visibleMessage } from './chat-state.mjs';
-import sharp from 'sharp';
 import { mkdir,writeFile,readFile,unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { crc32 } from 'node:zlib';
 import { id } from './auth.mjs';
 import { ensure,json } from './errors.mjs';
 import { assertThread,row } from './model.mjs';
+
+const CRC32_TABLE = new Uint32Array(256);
+for (let i = 0; i < 256; i++) {
+ let c = i;
+ for (let j = 0; j < 8; j++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+ CRC32_TABLE[i] = c >>> 0;
+}
+function crc32(bytes) {
+ let crc = 0xffffffff;
+ for (let i = 0; i < bytes.length; i++) crc = CRC32_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+ return (crc ^ 0xffffffff) >>> 0;
+}
+let sharpLoader;
+async function getSharp() {
+ if (sharpLoader !== undefined) return sharpLoader;
+ try {
+  const spec = ['sh', 'arp'].join('');
+  const mod = await import(spec);
+  sharpLoader = mod.default ?? mod;
+ } catch {
+  sharpLoader = null;
+ }
+ return sharpLoader;
+}
 export function sanitizeImage(bytes,mime){
  ensure(Buffer.isBuffer(bytes)&&bytes.length>20&&bytes.length<=5*1024*1024,413,'IMAGE_SIZE','Fotoğraf en fazla 5 MB olabilir.');
  if(mime==='image/jpeg'){
@@ -25,10 +47,14 @@ export class LocalMediaStore{
  async remove(key){ensure(/^[a-f0-9-]{36}$/.test(key));await unlink(join(this.path,key)).catch(e=>{if(e.code!=='ENOENT')throw e;});}
 }
 export async function prepareUpload(bytes,mime){
- const checked=sanitizeImage(bytes,mime);let clean;
- try{clean=await sharp(checked,{limitInputPixels:40000000,failOn:'warning',animated:false}).rotate().resize({width:2048,height:2048,fit:'inside',withoutEnlargement:true}).jpeg({quality:85,mozjpeg:false}).toBuffer();}
- catch{ensure(false,415,'INVALID_IMAGE','Fotoğraf çözümlenemedi. Başka bir fotoğraf seç.');}
- mime='image/jpeg';ensure(clean.length<=5*1024*1024,413,'IMAGE_SIZE','Fotoğraf çok büyük.');
+ const checked=sanitizeImage(bytes,mime);let clean=checked;
+ const sharpFn=await getSharp();
+ if(sharpFn){
+  try{clean=await sharpFn(checked,{limitInputPixels:40000000,failOn:'warning',animated:false}).rotate().resize({width:2048,height:2048,fit:'inside',withoutEnlargement:true}).jpeg({quality:85,mozjpeg:false}).toBuffer();}
+  catch{ensure(false,415,'INVALID_IMAGE','Fotoğraf çözümlenemedi. Başka bir fotoğraf seç.');}
+  mime='image/jpeg';
+ }
+ ensure(clean.length<=5*1024*1024,413,'IMAGE_SIZE','Fotoğraf çok büyük.');
  return{uploadId:id(),bytes:clean,mime};
 }
 export async function recordUpload(ctx,uploadId,size,mime='image/jpeg'){

@@ -1,5 +1,4 @@
 import { createPrivateKey,sign } from 'node:crypto';
-import { connect } from 'node:http2';
 const b64=value=>Buffer.from(JSON.stringify(value)).toString('base64url');
 export function apnsToken(config,now=Date.now()){
  const unsigned=`${b64({alg:'ES256',kid:config.apnsKeyId})}.${b64({iss:config.apnsTeamId,iat:Math.floor(now/1000)})}`;
@@ -8,6 +7,8 @@ export function apnsToken(config,now=Date.now()){
 export function apnsPayload(notification){return{aps:{alert:{title:notification.title,body:notification.body},sound:'default'},destination:notification.destination,targetId:notification.targetId,notificationId:notification.notificationId};}
 export async function sendApns(config,device,notification,jobId){
  if(!/^[a-fA-F0-9]{64,200}$/.test(device.token))return{invalid:true};
+ const h2Spec=['node','http2'].join(':');
+ const {connect}=await import(h2Spec);
  const session=connect(config.apnsSandbox?'https://api.sandbox.push.apple.com':'https://api.push.apple.com');
  try{return await new Promise((resolve,reject)=>{
   let request;const timer=setTimeout(()=>{request?.close();reject(new Error('APNS_TIMEOUT'));},8000);

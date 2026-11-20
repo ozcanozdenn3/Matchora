@@ -19,6 +19,7 @@ DerivedData/
 # Local backend state and credentials
 backend/node_modules/
 backend/var/
+supabase/.temp/
 .env
 .env.*
 !.env.example

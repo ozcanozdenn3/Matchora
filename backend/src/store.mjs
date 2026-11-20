@@ -1,10 +1,11 @@
-import { DatabaseSync } from 'node:sqlite';
 import { readFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 export class SqliteStore {
   constructor(db) { this.db = db; this.tail = Promise.resolve(); this.statements = new Map(); }
   static async open(path = ':memory:') {
+    const sqliteSpec = ['node', 'sqlite'].join(':');
+    const { DatabaseSync } = await import(sqliteSpec);
     if (path !== ':memory:') await mkdir(dirname(path), { recursive: true, mode: 0o700 });
     const db = new DatabaseSync(path);
     db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;');
@@ -39,15 +40,18 @@ export class SqliteStore {
 export class PostgresStore {
   constructor(pool, client = null) { this.pool = pool; this.client = client; }
   static async open(url, ssl = true) {
-    const { Pool, types } = await import('pg');
+    const pgMod = await import('pg');
+    const Pool = pgMod.Pool ?? pgMod.default?.Pool;
+    const types = pgMod.types ?? pgMod.default?.types;
     types.setTypeParser(20, value => { const n=Number(value); if(!Number.isSafeInteger(n)) throw new Error('Unsafe database integer'); return n; });
     const connection = new URL(url);
     for (const key of ['sslmode','sslcert','sslkey','sslrootcert']) connection.searchParams.delete(key);
-    const rejectUnauthorized = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false';
+    const env = { ...(globalThis.Deno?.env?.toObject?.() ?? {}), ...(globalThis.process?.env ?? {}) };
+    const rejectUnauthorized = env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false';
     const pool = new Pool({
       connectionString: connection.toString(),
       ssl: ssl ? { rejectUnauthorized } : false,
-      max: 10,
+      max: Number(env.DATABASE_POOL_MAX ?? 10),
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
       statement_timeout: 15000,

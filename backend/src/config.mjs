@@ -1,14 +1,16 @@
 import { randomBytes } from 'node:crypto';
 import { ensure } from './errors.mjs';
-export function configFromEnv(env = process.env) {
+export function configFromEnv(env = globalThis.process?.env ?? globalThis.Deno?.env?.toObject?.() ?? {}) {
   const production = env.MATCHORA_ENV === 'production';
   const config = {
     production, host: env.HOST ?? '127.0.0.1', port: Number(env.PORT ?? 8787),
     databaseUrl: env.DATABASE_URL, databasePath: env.SQLITE_PATH ?? './var/matchora.sqlite',
-    supabaseUrl:env.SUPABASE_URL,storageServiceKey:env.SUPABASE_SERVICE_ROLE_KEY,storageBucket:env.SUPABASE_STORAGE_BUCKET??'matchora-private',
+    supabaseUrl: env.MATCHORA_SUPABASE_URL || env.SUPABASE_URL,
+    storageServiceKey: env.MATCHORA_SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY,
+    storageBucket: env.MATCHORA_SUPABASE_STORAGE_BUCKET || env.SUPABASE_STORAGE_BUCKET || 'matchora-private',
     storagePath: env.STORAGE_PATH ?? './var/uploads', publicUrl: env.PUBLIC_API_URL,
     userInfoUrl: env.AUTH_USERINFO_URL, authPublicKey: env.AUTH_PUBLIC_KEY,
-    authAdminKey: env.SUPABASE_AUTH_ADMIN_KEY || env.SUPABASE_SERVICE_ROLE_KEY,
+    authAdminKey: env.MATCHORA_SUPABASE_AUTH_ADMIN_KEY || env.SUPABASE_AUTH_ADMIN_KEY || env.MATCHORA_SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY,
     twilioAccountSid:env.TWILIO_ACCOUNT_SID,twilioAuthToken:env.TWILIO_AUTH_TOKEN,twilioFrom:env.TWILIO_FROM,twilioMessagingServiceSid:env.TWILIO_MESSAGING_SERVICE_SID,
     smsUrl: env.SMS_GATEWAY_URL, smsToken: env.SMS_GATEWAY_TOKEN,
     pushUrl: env.PUSH_GATEWAY_URL, pushToken: env.PUSH_GATEWAY_TOKEN,
