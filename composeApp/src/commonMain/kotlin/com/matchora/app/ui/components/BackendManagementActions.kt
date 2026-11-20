@@ -1,6 +1,8 @@
 package com.matchora.app.ui.components
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -61,14 +63,37 @@ fun BackendPlayerSafetyActions(player: Player) {
         dismissButton = { TextButton(onClick = { reporting = false }) { Text("Vazgeç") } })
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BackendChatMuteAction(thread: ChatThread) {
+fun BackendChatMuteAction(thread: ChatThread, modifier: Modifier = Modifier, iconOnly: Boolean = false) {
     val backend = LocalBackendRepository.current ?: return
     if (!backend.enabled || thread.locked) return
     val command = rememberBackendAction()
+    val label = if (thread.muted) "Sohbet bildirimlerini aç" else "Sohbeti sessize al"
+    val icon = if (thread.muted) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsOff
+    if (iconOnly) {
+        TooltipBox(
+            positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+            tooltip = { PlainTooltip { Text(label) } },
+            state = rememberTooltipState()
+        ) {
+            OutlinedIconButton(
+                onClick = { command("chat.mute", apiPayload("threadId" to thread.id, "muted" to !thread.muted)) },
+                modifier = modifier.size(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, if (thread.muted) MColors.BrandDeep.copy(alpha = .24f) else MColors.Line),
+                colors = IconButtonDefaults.outlinedIconButtonColors(
+                    containerColor = if (thread.muted) MColors.BrandTint else MColors.Surface,
+                    contentColor = if (thread.muted) MColors.BrandDeep else MColors.Ink600
+                )
+            ) { Icon(icon, label, Modifier.size(21.dp)) }
+        }
+        return
+    }
     MPillActionButton(
-        text = if (thread.muted) "Sohbet bildirimlerini aç" else "Sohbeti sessize al",
-        icon = if (thread.muted) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsOff,
+        text = label,
+        icon = icon,
+        modifier = modifier,
         tone = MPillTone.NEUTRAL,
         compact = true,
         onClick = { command("chat.mute", apiPayload("threadId" to thread.id, "muted" to !thread.muted)) }

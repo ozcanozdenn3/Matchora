@@ -191,11 +191,52 @@ CREATE INDEX IF NOT EXISTS venues_owner ON venues(owner_id);
 INSERT INTO schema_migrations(version,applied_at) VALUES(11,0) ON CONFLICT(version) DO NOTHING;
 
 
+-- 012_discovery_history.sql
+CREATE INDEX IF NOT EXISTS profiles_search_order ON profiles(updated_at DESC,user_id DESC);
+CREATE INDEX IF NOT EXISTS blocks_target_actor ON blocks(target_id,user_id);
+CREATE INDEX IF NOT EXISTS rating_history_user_page ON rating_history(user_id,created_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS reliability_history_user_page ON reliability_history(user_id,created_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS wallet_entries_user_page ON wallet_entries(user_id,created_at DESC,id DESC);
+INSERT INTO schema_migrations(version,applied_at) VALUES(12,0) ON CONFLICT(version) DO NOTHING;
+
+-- 013_upload_receipts.sql
+CREATE TABLE IF NOT EXISTS upload_receipts (
+ owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ request_key TEXT NOT NULL,
+ request_hash TEXT NOT NULL,
+ upload_id TEXT NOT NULL REFERENCES uploads(id) ON DELETE CASCADE,
+ created_at BIGINT NOT NULL,
+ PRIMARY KEY(owner_id,request_key)
+);
+CREATE INDEX IF NOT EXISTS upload_receipts_created ON upload_receipts(created_at);
+INSERT INTO schema_migrations(version,applied_at) VALUES(13,0) ON CONFLICT(version) DO NOTHING;
+
+-- 014_identity_cleanup_history.sql
+CREATE TABLE IF NOT EXISTS identity_deletions (
+ user_id TEXT PRIMARY KEY REFERENCES users(id),
+ provider_user_id TEXT,
+ auth_origin TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','processing','completed')),
+ attempts INTEGER NOT NULL DEFAULT 0,
+ next_at BIGINT NOT NULL,
+ claim_token TEXT,
+ last_error TEXT NOT NULL DEFAULT '',
+ created_at BIGINT NOT NULL,
+ completed_at BIGINT,
+ UNIQUE(auth_origin,provider_user_id)
+);
+CREATE INDEX IF NOT EXISTS identity_deletions_due ON identity_deletions(status,next_at);
+CREATE INDEX IF NOT EXISTS bookings_user_history ON bookings(user_id,created_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS support_user_history ON support_requests(user_id,created_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS reports_user_history ON reports(user_id,created_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS audit_support_reply ON audit_log(target_id,action,created_at DESC,id DESC);
+INSERT INTO schema_migrations(version,applied_at) VALUES(14,0) ON CONFLICT(version) DO NOTHING;
+
 -- 002_postgres_security.sql
 -- Private server-owned schema. Mobile clients use the authenticated API, never direct table writes.
 DO $$ DECLARE t RECORD; BEGIN
   FOR t IN SELECT tablename FROM pg_tables WHERE schemaname=current_schema() AND tablename IN
-    ('users','profiles','preferences','sessions','auth_challenges','rate_limits','commands','wallet_entries','holds','rewards','store_transactions','subscriptions','webhook_events','events','event_members','join_requests','waitlist','results','result_confirmations','feedback','rating_history','reliability_history','teams','team_members','team_invites','challenges','tournaments','tournament_members','tournament_fixtures','communities','community_members','venues','venue_slots','bookings','venue_payments','threads','thread_members','blocks','uploads','messages','memories','memory_likes','notifications','outbox','push_devices','support_requests','reports','deletion_requests','audit_log','feature_flags','legal_documents','legal_acceptances','discovery_preferences','oauth_flows','storage_deletions','subscription_windows','job_checkpoints','venue_reviews','message_metadata','thread_member_state','thread_revisions','message_hides','memory_locations','notification_hides','venue_applications','event_locations')
+    ('users','profiles','preferences','sessions','auth_challenges','rate_limits','commands','wallet_entries','holds','rewards','store_transactions','subscriptions','webhook_events','events','event_members','join_requests','waitlist','results','result_confirmations','feedback','rating_history','reliability_history','teams','team_members','team_invites','challenges','tournaments','tournament_members','tournament_fixtures','communities','community_members','venues','venue_slots','bookings','venue_payments','threads','thread_members','blocks','uploads','messages','memories','memory_likes','notifications','outbox','push_devices','support_requests','reports','deletion_requests','audit_log','feature_flags','legal_documents','legal_acceptances','discovery_preferences','oauth_flows','storage_deletions','subscription_windows','job_checkpoints','venue_reviews','message_metadata','thread_member_state','thread_revisions','message_hides','memory_locations','notification_hides','venue_applications','event_locations','upload_receipts','identity_deletions')
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',t.tablename);
     IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='anon') THEN EXECUTE format('REVOKE ALL ON TABLE %I FROM anon',t.tablename); END IF;

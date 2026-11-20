@@ -30,6 +30,14 @@ function eligibility(event, members, userId, profiles) {
   return null;
 }
 
+function nonnegativeStat(value, fallback = 0) {
+  return Number.isFinite(value) && value >= 0 ? Math.trunc(value) : fallback;
+}
+
+function recordedSkill(data, sport) {
+  return data.skills?.find(skill => skill.sport === sport) ?? data.skillArchive?.[sport];
+}
+
 export async function ratingStatus(ctx, result) {
   const event = await row(ctx, 'events', 'id', result.event_id);
   const members = await ctx.db.all("SELECT * FROM event_members WHERE event_id=? AND status='joined'", [event.id]);
@@ -44,6 +52,8 @@ export async function ratingStatus(ctx, result) {
 
 /** Runs inside the same transaction as finalizing a result and its wallet commitments. */
 export async function settleResult(ctx, result) {
+  result = await row(ctx, 'results', 'event_id', result.event_id);
+  if (result.status !== 'pending' || Number(result.dispute_until) > ctx.now) return;
   const event = await row(ctx, 'events', 'id', result.event_id);
   if (Number(event.ends_at) > ctx.now) return;
   const members = await ctx.db.all("SELECT * FROM event_members WHERE event_id=? AND status='joined'", [event.id]);
@@ -55,7 +65,7 @@ export async function settleResult(ctx, result) {
     const saved = await ctx.db.get('SELECT payload FROM profiles WHERE user_id=?', [member.user_id]);
     if (saved) profiles.set(member.user_id, json(saved.payload));
   }
-  const rating = m => profiles.get(m.user_id)?.skills?.find(s => s.sport === event.sport)?.rating ?? 1000;
+  const rating = member => nonnegativeStat(recordedSkill(profiles.get(member.user_id) ?? {}, event.sport)?.rating, RATING_POLICY.initial);
   const home = members.filter(m => m.side === 'home' && m.checked_in_at && profiles.has(m.user_id));
   const away = members.filter(m => m.side === 'away' && m.checked_in_at && profiles.has(m.user_id));
   const mean = side => side.reduce((sum, m) => sum + rating(m), 0) / Math.max(1, side.length);
@@ -66,23 +76,30 @@ export async function settleResult(ctx, result) {
     const userId = member.user_id, data = profiles.get(userId);
     if (!data || await ctx.db.get('SELECT id FROM reliability_history WHERE user_id=? AND event_id=?', [userId, event.id])) continue;
     const attended = !!member.checked_in_at, reason = eligibility(event, members, userId, profiles);
-    const before = data.skills.find(s => s.sport === event.sport)?.rating ?? 1000;
+    const before = nonnegativeStat(recordedSkill(data, event.sport)?.rating, RATING_POLICY.initial);
     const outcome = member.side === 'home' ? homeOutcome : 1 - homeOutcome;
     const desired = reason ? 0 : eloDelta(member.side === 'home' ? mean(home) : mean(away), member.side === 'home' ? mean(away) : mean(home), outcome);
     const after = Math.max(0, before + desired), delta = after - before;
-    const skills = data.skills.map(s => {
-      if (s.sport !== event.sport) return s;
-      const played = s.verifiedMatches + (attended ? 1 : 0);
-      const won = (s.wonMatches ?? Math.round((s.winRate ?? 0) * s.verifiedMatches / 100)) + (attended && member.side && outcome === 1 ? 1 : 0);
-      return { ...s, rating: after, verifiedMatches: played, wonMatches: won, winRate: played ? Math.round(100 * won / played) : 0 };
-    });
-    const reliability = Math.max(0, Math.min(100, data.reliability + (attended ? 2 : -10)));
+    const updateSkill = skill => {
+      const previousPlayed = nonnegativeStat(skill.verifiedMatches);
+      const played = previousPlayed + (attended ? 1 : 0);
+      const previousWon = nonnegativeStat(skill.wonMatches, Math.round(Math.min(100, nonnegativeStat(skill.winRate)) * previousPlayed / 100));
+      const won = Math.min(played, previousWon + (attended && member.side && outcome === 1 ? 1 : 0));
+      return { ...skill, rating: after, verifiedMatches: played, wonMatches: won, winRate: played ? Math.round(100 * won / played) : 0 };
+    };
+    const skills = (data.skills ?? []).map(skill => skill.sport === event.sport ? updateSkill(skill) : skill);
+    const skillArchive = { ...(data.skillArchive ?? {}) };
+    const activeSkill = skills.find(skill => skill.sport === event.sport);
+    if (activeSkill) skillArchive[event.sport] = activeSkill;
+    else if (skillArchive[event.sport]) skillArchive[event.sport] = updateSkill(skillArchive[event.sport]);
+    const previousReliability = Math.min(100, nonnegativeStat(data.reliability, 100));
+    const reliability = Math.max(0, Math.min(100, previousReliability + (attended ? 2 : -10)));
     const fair = await ctx.db.get("SELECT AVG(f.fair_play) AS score FROM feedback f JOIN results r ON r.event_id=f.event_id WHERE f.to_id=? AND (r.status='verified' OR r.event_id=?)", [userId, event.id]);
-    const next = { ...data, skills, verifiedMatches: data.verifiedMatches + (attended ? 1 : 0), reliability,
+    const next = { ...data, skills, skillArchive, verifiedMatches: nonnegativeStat(data.verifiedMatches) + (attended ? 1 : 0), reliability,
       fairPlay: fair.score ? Math.round(fair.score * 10) / 10 : data.fairPlay };
     await ctx.db.run('UPDATE profiles SET payload=?,version=version+1,updated_at=? WHERE user_id=?', [encode(next), ctx.now, userId]);
     await ctx.db.run('INSERT INTO rating_history(id,user_id,event_id,sport,delta,rating,created_at) VALUES(?,?,?,?,?,?,?)', [id(), userId, event.id, event.sport, delta, after, ctx.now]);
-    await ctx.db.run('INSERT INTO reliability_history(id,user_id,event_id,delta,reason,created_at) VALUES(?,?,?,?,?,?)', [id(), userId, event.id, reliability - data.reliability, attended ? 'Doğrulanmış katılım' : 'Check-in kaydı yok', ctx.now]);
+    await ctx.db.run('INSERT INTO reliability_history(id,user_id,event_id,delta,reason,created_at) VALUES(?,?,?,?,?,?)', [id(), userId, event.id, reliability - previousReliability, attended ? 'Doğrulanmış katılım' : 'Check-in kaydı yok', ctx.now]);
     await release(ctx, userId, `event:${event.id}`, !attended);
     if (next.verifiedMatches >= 10) await reward(ctx, userId, 'ten_verified_matches', 20);
     changes.push({ userId, before, after, delta, reason: reason ?? 'VERIFIED' });

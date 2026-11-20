@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.matchora.app.data.*
 import com.matchora.app.domain.Sport
 import com.matchora.app.state.TeamProfile
 import com.matchora.app.state.emoji
@@ -39,20 +40,23 @@ fun CreateTeamSheet(
     onDismiss: () -> Unit,
     onCreateTeam: (TeamProfile) -> Unit,
     currentCity: String = "İstanbul",
-    currentArea: String = "Kadıköy"
+    currentArea: String = "Kadıköy",
+    onPublished: (String) -> Unit = {}
 ) {
-    var teamName by remember { mutableStateOf("") }
-    var selectedSport by remember { mutableStateOf(Sport.FOOTBALL) }
-    var selectedArea by remember { mutableStateOf(currentArea) }
-    var selectedCity by remember { mutableStateOf(currentCity) }
-    var homeVenue by remember { mutableStateOf("") }
-    var availability by remember { mutableStateOf("Hafta içi & Hafta sonu") }
+    val form = rememberCreationForm("team")
+    val draft = form.restored
+    var teamName by remember(form) { mutableStateOf(draft.s("name")) }
+    var selectedSport by remember(form) { mutableStateOf(draft.formEnum("sport", Sport.FOOTBALL)) }
+    var selectedArea by remember(form) { mutableStateOf(draft.s("area", currentArea)) }
+    var selectedCity by remember(form) { mutableStateOf(draft.s("city", currentCity)) }
+    var homeVenue by remember(form) { mutableStateOf(draft.s("venue")) }
+    var availability by remember(form) { mutableStateOf(draft.s("availability", "Hafta içi & Hafta sonu")) }
     var showRegion by remember { mutableStateOf(false) }
-    var badgeText by remember { mutableStateOf("") }
-    var selectedColorIndex by remember { mutableIntStateOf(0) }
-    var minMmr by remember { mutableIntStateOf(1000) }
-    var recruitingOpen by remember { mutableStateOf(true) }
-    var bio by remember { mutableStateOf("") }
+    var badgeText by remember(form) { mutableStateOf(draft.s("badge")) }
+    var selectedColorIndex by remember(form) { mutableIntStateOf(draft.i("color").coerceIn(0, 7)) }
+    var minMmr by remember(form) { mutableIntStateOf(draft.i("mmr", 1000)) }
+    var recruitingOpen by remember(form) { mutableStateOf(draft.b("recruiting", true)) }
+    var bio by remember(form) { mutableStateOf(draft.s("bio")) }
 
     val teamColors = listOf(
         MColors.Brand,
@@ -72,16 +76,23 @@ fun CreateTeamSheet(
         else teamName.split(" ").mapNotNull { it.firstOrNull()?.uppercase() }.take(2).joinToString("").ifEmpty { "TK" }
     }
 
+    CreationDraftEffect(form) { apiPayload(
+        "name" to teamName, "sport" to selectedSport, "area" to selectedArea, "city" to selectedCity,
+        "venue" to homeVenue, "availability" to availability, "badge" to badgeText,
+        "color" to selectedColorIndex, "mmr" to minMmr, "recruiting" to recruitingOpen, "bio" to bio
+    ) }
+
     ModalBottomSheet(
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         tonalElevation = 0.dp,
         scrimColor = Color(0xFF0B1220).copy(alpha = .48f),
-        onDismissRequest = onDismiss,
+        onDismissRequest = { form.requestDismiss(onDismiss) },
         modifier = Modifier.statusBarsPadding().padding(top = 12.dp),
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = { it != SheetValue.Hidden || form.confirmDismiss(onDismiss) }),
         containerColor = Color(0xFFF8FAFC),
         dragHandle = { MPremiumSheetHandle() }
     ) {
+        CreationFormBody(form) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
@@ -90,7 +101,7 @@ fun CreateTeamSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                MSheetHeading("Kulüp kur", "Renklerini seç, kadronu bir araya getir.", Icons.Rounded.Groups, onDismiss)
+                MSheetHeading("Kulüp kur", "Renklerini seç, kadronu bir araya getir.", Icons.Rounded.Groups, { form.requestDismiss(onDismiss) })
             }
 
             // Kart 1: Kulüp Kimliği, Canlı Arma & Renk Stüdyosu
@@ -249,8 +260,9 @@ fun CreateTeamSheet(
 
             // Takımı Kur Butonu
             item {
+                CreationFormNotice(form)
                 MButton(
-                    text = "Kulübü kur ve devam et",
+                    text = if (form.busy) "Kulübün kaydediliyor…" else "Kulübü kur ve devam et",
                     onClick = {
                         if (teamName.isNotBlank()) {
                             val newTeam = TeamProfile(
@@ -280,17 +292,18 @@ fun CreateTeamSheet(
                                 city = selectedCity,
                                 homeVenue = homeVenue.trim()
                             )
-                            onCreateTeam(newTeam)
-                            onDismiss()
+                            form.submit("team.create", newTeam.toApiPayload(), { onCreateTeam(newTeam) }, onPublished, onDismiss)
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     icon = Icons.Rounded.Shield,
-                    enabled = teamName.trim().length >= 3
+                    enabled = !form.busy && teamName.trim().length >= 3
                 )
             }
         }
     }
+    }
+    CreationFormDialogs(form, onDismiss)
     if (showRegion) CityAndLocationSelectorSheet(selectedCity, selectedArea, false, { showRegion = false }, { city, area, _ -> selectedCity = city; selectedArea = area })
 }
 

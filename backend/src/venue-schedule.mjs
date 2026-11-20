@@ -1,3 +1,4 @@
+const slotTimeFormat = new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Istanbul',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 import { ensure, keys, integer, text, json } from './errors.mjs';
 import { row, audit } from './model.mjs';
 import { assertVenueOpen } from './operations.mjs';
@@ -12,7 +13,7 @@ export const venueScheduleHandlers={
   ensure(venue.owner_id===ctx.actor.id||ctx.actor.role==='admin',403,'FORBIDDEN','Tesis yetkisi gerekiyor.');
   const start=integer(p.startsAtEpochMillis,'Başlangıç',ctx.now+60000,ctx.now+300*86400000),days=integer(p.days,'Gün sayısı',1,60),perDay=integer(p.slotsPerDay,'Günlük saat',1,12),duration=integer(p.durationMin,'Süre',15,240),price=integer(p.priceMinor,'Kuruş',100,100000000),court=text(p.court,'Saha',1,60);
   ensure(Array.isArray(p.weekdays)&&p.weekdays.length>0&&p.weekdays.length<=7&&new Set(p.weekdays).size===p.weekdays.length&&p.weekdays.every(d=>Number.isSafeInteger(d)&&d>=1&&d<=7),400,'INVALID_INPUT','Haftanın günlerini seç.');
-  const local=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Istanbul',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(start).split(':').map(Number);
+  const local=slotTimeFormat.format(start).split(':').map(Number);
   ensure(local[0]*60+local[1]+perDay*duration<=1440,400,'INVALID_INPUT','Günlük saat aralığı gece yarısını geçemez.');
   const starts=[];for(let day=0;day<days;day++){
    const base=start+day*86400000;if(!p.weekdays.includes(weekdays.indexOf(weekday.format(base))+1))continue;

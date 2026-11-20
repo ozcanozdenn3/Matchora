@@ -1,6 +1,13 @@
 package com.matchora.app.ui.components
 
 import com.matchora.app.ui.components.premiumSurface
+import com.matchora.app.data.*
+import kotlinx.serialization.json.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -35,6 +42,7 @@ import com.matchora.app.domain.EventStatus
 import com.matchora.app.domain.Sport
 import com.matchora.app.state.*
 import com.matchora.app.ui.theme.MColors
+import com.matchora.app.ui.theme.MGradients
 import kotlin.random.Random
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -63,6 +71,9 @@ private enum class ListingIntent(val title: String) {
     FIND_PLAYERS("Eksik oyuncu ara")
 }
 
+private inline fun <reified T : Enum<T>> draftEnum(value: String, fallback: T): T =
+    enumValues<T>().firstOrNull { it.name == value } ?: fallback
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayNowModalSheet(
@@ -85,11 +96,23 @@ fun PlayNowModalSheet(
     initialVenue: String = "",
     initialTime: String? = null,
     newEventId: () -> String = { "draft_${Random.nextLong().toString(16)}" },
-    onRequestTokens: () -> Unit = {}
+    onRequestTokens: () -> Unit = {},
+    draftOwnerKey: String = "preview",
+    onPublishEvent: (suspend (SportEvent, String) -> Unit)? = null,
+    onRecoveredPublication: (String, Boolean) -> Unit = { _, _ -> }
 ) {
-    var adStep by remember { mutableIntStateOf(if (initialVenue.isNotBlank()) 1 else 0) }
+    val backend = LocalBackendRepository.current
+    val draftStore = remember(draftOwnerKey) { ListingDraftStore(draftOwnerKey) }
+    val restored = remember(draftOwnerKey) { draftStore.restore() ?: apiPayload() }
+    val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
+    var publishing by remember(draftOwnerKey) { mutableStateOf(false) }
+    var draftFinished by remember(draftOwnerKey) { mutableStateOf(false) }
+    var showDraftClose by remember(draftOwnerKey) { mutableStateOf(false) }
+
+    var adStep by remember(draftOwnerKey) { mutableIntStateOf(restored.i("step", if (initialVenue.isNotBlank()) 1 else 0).coerceIn(0, 2)) }
     var showSearchOptions by remember { mutableStateOf(false) }
-    var activeTab by remember { mutableIntStateOf(if (initialVenue.isNotBlank()) 1 else 0) } // 0: Hızlı Eşleş, 1: İlan oluştur
+    var activeTab by remember(draftOwnerKey) { mutableIntStateOf(if (restored.isNotEmpty()) 1 else if (initialVenue.isNotBlank()) 1 else 0) } // 0: Hızlı Eşleş, 1: İlan oluştur
 
     // ── Hızlı Eşleş Durumları ──
     var selectedSport by remember { mutableStateOf<Sport?>(Sport.FOOTBALL) }
@@ -102,48 +125,100 @@ fun PlayNowModalSheet(
     var maxDistanceKm by remember { mutableStateOf<Int?>(null) }
 
     // ── İlan Verme Durumları ──
-    var adTitle by remember(initialVenue) { mutableStateOf(if (initialVenue.isNotBlank()) "$initialVenue Maçı" else "") }
-    var adCategory by remember { mutableStateOf(SportCategory.PHYSICAL) }
-    var adSport by remember { mutableStateOf(Sport.FOOTBALL) }
-    var customSportName by remember { mutableStateOf("") }
-    var customIsGaming by remember { mutableStateOf(false) }
-    var adLocation by remember(currentArea, currentCity) { mutableStateOf(currentArea.ifBlank { currentCity }) }
-    var adVenue by remember(initialVenue) { mutableStateOf(initialVenue) }
-    var adPosition by remember { mutableStateOf("") }
-    var adCostPerPlayer by remember { mutableStateOf("") }
-    var adDescription by remember { mutableStateOf("") }
-    var adFormat by remember { mutableStateOf("7v7") }
-    var adLevelRange by remember { mutableStateOf("Orta – İleri") }
-    var adDurationText by remember { mutableStateOf("60") }
-    var adNetworkScope by remember { mutableStateOf(initialNetworkScope) }
-    var adCommunityId by remember { mutableStateOf<String?>(null) }
-    var adNetworkName by remember(currentCampus, currentCompany) {
-        mutableStateOf("")
-    }
-    var adCalendarDate by remember { mutableStateOf(LocalDate.fromEpochDays(todayDate().toEpochDays() + 1)) }
-    var adCity by remember(currentCity) { mutableStateOf(currentCity) }
-    var adPoint by remember { mutableStateOf<EventGeoPoint?>(null) }
+    var adTitle by remember(draftOwnerKey) { mutableStateOf(restored.s("title", if (initialVenue.isNotBlank()) "$initialVenue Maçı" else "")) }
+    var adCategory by remember(draftOwnerKey) { mutableStateOf(draftEnum(restored.s("category"), SportCategory.PHYSICAL)) }
+    var adSport by remember(draftOwnerKey) { mutableStateOf(draftEnum(restored.s("sport"), Sport.FOOTBALL)) }
+    var customSportName by remember(draftOwnerKey) { mutableStateOf(restored.s("customSportName", "")) }
+    var customIsGaming by remember(draftOwnerKey) { mutableStateOf(restored.b("customGaming", false)) }
+    var adLocation by remember(draftOwnerKey) { mutableStateOf(restored.s("area", currentArea.ifBlank { currentCity })) }
+    var adVenue by remember(draftOwnerKey) { mutableStateOf(restored.s("venue", initialVenue)) }
+    var adPosition by remember(draftOwnerKey) { mutableStateOf(restored.s("role", "")) }
+    var adCostPerPlayer by remember(draftOwnerKey) { mutableStateOf(restored.s("fee", "")) }
+    var adDescription by remember(draftOwnerKey) { mutableStateOf(restored.s("description", "")) }
+    var adFormat by remember(draftOwnerKey) { mutableStateOf(restored.s("format", "7v7")) }
+    var adLevelRange by remember(draftOwnerKey) { mutableStateOf(restored.s("levelRange", "Orta – İleri")) }
+    var adDurationText by remember(draftOwnerKey) { mutableStateOf(restored.s("duration", "60")) }
+    var adNetworkScope by remember(draftOwnerKey) { mutableStateOf(draftEnum(restored.s("networkScope"), initialNetworkScope)) }
+    var adCommunityId by remember(draftOwnerKey) { mutableStateOf(restored.s("communityId").ifBlank { null }) }
+    var adNetworkName by remember(draftOwnerKey) { mutableStateOf(restored.s("networkName")) }
+    var adCalendarDate by remember(draftOwnerKey) { mutableStateOf(runCatching { LocalDate.parse(restored.s("date")) }.getOrElse { LocalDate.fromEpochDays(todayDate().toEpochDays() + 1) }) }
+    var adCity by remember(draftOwnerKey) { mutableStateOf(restored.s("city", currentCity)) }
+    var adPoint by remember(draftOwnerKey) { mutableStateOf((restored["point"] as? JsonObject)?.let { point -> val latitude = point["latitude"]?.jsonPrimitive?.doubleOrNull; val longitude = point["longitude"]?.jsonPrimitive?.doubleOrNull; if (latitude != null && longitude != null) EventGeoPoint(latitude, longitude) else null }) }
     var showAdMap by remember { mutableStateOf(false) }
     var showAdRegion by remember { mutableStateOf(false) }
     val parsedInitialHour = remember(initialTime) { initialTime?.substringBefore(':')?.trim()?.toIntOrNull() }
     val parsedInitialMinute = remember(initialTime) { initialTime?.substringAfter(':')?.substringBefore(' ')?.trim()?.toIntOrNull() }
-    var adHour by remember(initialTime) { mutableIntStateOf(parsedInitialHour ?: 20) }
-    var adMinute by remember(initialTime) { mutableIntStateOf(parsedInitialMinute ?: 30) }
-    var adMode by remember { mutableStateOf(PlayMode.SOCIAL) }
-    var listingIntent by remember { mutableStateOf(ListingIntent.FIND_PLAYERS) }
-    var adVerifiedOnly by remember { mutableStateOf(false) }
-    var adMinReliability by remember { mutableIntStateOf(0) }
-    var adApprovalRequired by remember { mutableStateOf(true) }
+    var adHour by remember(draftOwnerKey) { mutableIntStateOf(restored.i("hour", parsedInitialHour ?: 20).coerceIn(0, 23)) }
+    var adMinute by remember(draftOwnerKey) { mutableIntStateOf(restored.i("minute", parsedInitialMinute ?: 30).coerceIn(0, 59)) }
+    var adMode by remember(draftOwnerKey) { mutableStateOf(draftEnum(restored.s("mode"), PlayMode.SOCIAL)) }
+    var listingIntent by remember(draftOwnerKey) { mutableStateOf(draftEnum(restored.s("intent"), ListingIntent.FIND_PLAYERS)) }
+    var adVerifiedOnly by remember(draftOwnerKey) { mutableStateOf(restored.b("verifiedOnly", false)) }
+    var adMinReliability by remember(draftOwnerKey) { mutableIntStateOf(restored.i("minReliability").coerceIn(0, 100)) }
+    var adApprovalRequired by remember(draftOwnerKey) { mutableStateOf(restored.b("approvalRequired", true)) }
     var adFormError by remember { mutableStateOf<String?>(null) }
 
     // E-Spor & Akıl Oyunları Özelleştirmeleri
-    var esPlatform by remember { mutableStateOf("🖥️ PC") }
-    var esServer by remember { mutableStateOf("") }
-    var esVoiceComm by remember { mutableStateOf("") }
-    var esGamerTag by remember { mutableStateOf("") }
-    var esAdType by remember { mutableStateOf("5v5") }
-    var esNeededRole by remember { mutableStateOf("") }
-    var urgentPlayerFill by remember { mutableStateOf(false) }
+    var esPlatform by remember(draftOwnerKey) { mutableStateOf(restored.s("platform", "🖥️ PC")) }
+    var esServer by remember(draftOwnerKey) { mutableStateOf(restored.s("server", "")) }
+    var esVoiceComm by remember(draftOwnerKey) { mutableStateOf(restored.s("voice", "")) }
+    var esGamerTag by remember(draftOwnerKey) { mutableStateOf(restored.s("gamerTag", "")) }
+    var esAdType by remember(draftOwnerKey) { mutableStateOf(restored.s("gamingFormat", "5v5")) }
+    var esNeededRole by remember(draftOwnerKey) { mutableStateOf(restored.s("gamingRole", "")) }
+    var urgentPlayerFill by remember(draftOwnerKey) { mutableStateOf(restored.b("urgent", false)) }
+
+    fun draftFields() = apiPayload(
+        "step" to adStep, "title" to adTitle, "category" to adCategory, "sport" to adSport,
+        "customSportName" to customSportName, "customGaming" to customIsGaming,
+        "area" to adLocation, "venue" to adVenue, "role" to adPosition, "fee" to adCostPerPlayer,
+        "description" to adDescription, "format" to adFormat, "levelRange" to adLevelRange,
+        "duration" to adDurationText, "networkScope" to adNetworkScope, "communityId" to adCommunityId,
+        "networkName" to adNetworkName, "date" to adCalendarDate.toString(), "city" to adCity,
+        "point" to adPoint?.let { mapOf("latitude" to it.latitude, "longitude" to it.longitude) },
+        "hour" to adHour, "minute" to adMinute, "mode" to adMode, "intent" to listingIntent,
+        "verifiedOnly" to adVerifiedOnly, "minReliability" to adMinReliability,
+        "approvalRequired" to adApprovalRequired, "platform" to esPlatform, "server" to esServer,
+        "voice" to esVoiceComm, "gamerTag" to esGamerTag, "gamingFormat" to esAdType,
+        "gamingRole" to esNeededRole, "urgent" to urgentPlayerFill,
+        "gaming" to (adSport.isESport || adSport == Sport.CHESS || adSport == Sport.CUSTOM && customIsGaming),
+        "startsAt" to eventStartMillis(adCalendarDate, adHour, adMinute)
+    )
+    val currentDraftFields = draftFields()
+    val initialFields = remember(draftOwnerKey) { JsonObject(currentDraftFields - "step") }
+    val hasDraft = restored.isNotEmpty() || JsonObject(currentDraftFields - "step") != initialFields
+    fun persistDraft(): Boolean = try {
+        draftStore.save(draftFields())
+        true
+    } catch (error: Exception) {
+        adFormError = error.message ?: "İlan taslağı kaydedilemedi."
+        false
+    }
+    LaunchedEffect(draftStore, currentDraftFields, hasDraft, draftFinished, publishing) {
+        if (hasDraft && !draftFinished && !publishing) {
+            delay(250)
+            try { draftStore.save(currentDraftFields) }
+            catch (error: Exception) { adFormError = error.message ?: "İlan taslağı kaydedilemedi." }
+        }
+    }
+    key(draftStore) {
+        val latestFields by rememberUpdatedState(currentDraftFields)
+        val latestHasDraft by rememberUpdatedState(hasDraft)
+        DisposableEffect(Unit) {
+            onDispose { if (latestHasDraft && !draftFinished) runCatching { draftStore.save(latestFields) } }
+        }
+    }
+    fun requestDismiss() {
+        if (publishing) return
+        if (hasDraft && !draftFinished) showDraftClose = true else onDismiss()
+    }
+    fun stepError(through: Int) = listingDraftError(draftFields(), through,
+        eligibleCommunities?.filter { if (adNetworkScope == EventNetworkScope.CAMPUS) it.type == CommunityType.CAMPUS else it.type == CommunityType.COMPANY }?.map { it.id }?.toSet(), Clock.System.now().toEpochMilliseconds())
+    fun selectStep(target: Int) {
+        if (publishing) return
+        if (target <= adStep) { adStep = target; adFormError = null; return }
+        val error = stepError(target - 1)
+        if (error == null) { adStep = target; adFormError = null }
+        else { adStep = error.first; adFormError = error.second }
+    }
 
     val backendMode = LocalBackendRepository.current?.enabled == true
     val deviceLocation by DeviceLocationState.current.collectAsState()
@@ -180,16 +255,22 @@ fun PlayNowModalSheet(
         tonalElevation = 0.dp,
         scrimColor = androidx.compose.ui.graphics.Color(0xFF0B1220).copy(alpha = .48f),
 
-        onDismissRequest = onDismiss,
+        onDismissRequest = ::requestDismiss,
         containerColor = MColors.Canvas,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = { state ->
+            if (state == SheetValue.Hidden && publishing) false
+            else if (state == SheetValue.Hidden && hasDraft && !draftFinished) { showDraftClose = true; false }
+            else true
+        }),
         dragHandle = { MPremiumSheetHandle() }
     ) {
+        Box {
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
                 .imePadding()
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 20.dp)
+                .then(if (publishing) Modifier.clearAndSetSemantics { } else Modifier),
             contentPadding = PaddingValues(bottom = 36.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -197,7 +278,7 @@ fun PlayNowModalSheet(
             item {
                 MSheetHeading(if (activeTab == 0) "Şimdi oyna" else "İlan oluştur",
                     if (activeTab == 0) "Sana uygun buluşmayı keşfet." else "Oyunu başlat. Ekibini tamamla.",
-                    Icons.Rounded.Sports, onDismiss)
+                    Icons.Rounded.Sports, ::requestDismiss)
                 Spacer(Modifier.height(12.dp))
                 MSegmentedControl(listOf("Maç bul", "İlan ver"), activeTab, { activeTab = it })
             }
@@ -528,7 +609,7 @@ fun PlayNowModalSheet(
                                 }
                             }
 
-                            MSegmentedControl(listOf("1 · Branş", "2 · Buluşma", "3 · Tercihler"), adStep, { adStep = it })
+                            MSegmentedControl(listOf("1 · Branş", "2 · Buluşma", "3 · Tercihler"), adStep, ::selectStep)
                             if (adStep == 0) {
                             // İlan Başlığı (Yüzen Premium Kutu)
                             MFloatingInputBox(
@@ -566,7 +647,10 @@ fun PlayNowModalSheet(
                                     adNetworkName = ""
                                     adFormError = null
                                 },
-                                fontSizeSp = 11f
+                                fontSizeSp = 11f,
+                                modifier = Modifier.background(MGradients.BrandSoft, RoundedCornerShape(12.dp)),
+                                containerColor = Color.Transparent,
+                                borderColor = MColors.Brand.copy(alpha = 0.16f)
                             )
                             Text(when (adNetworkScope) {
                                 EventNetworkScope.CITY -> "Seçtiğin şehirdeki sporculara açık tek buluşma ilanı."
@@ -952,94 +1036,105 @@ fun PlayNowModalSheet(
                 item {
                     if (adFormError != null) Text(adFormError!!, style = MaterialTheme.typography.bodyMedium, color = MColors.Rose)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (adStep > 0) MButton("Geri", { adStep-- }, isPrimary = false, modifier = Modifier.weight(1f))
-                        if (adStep < 2) MButton("Devam et", { adStep++ }, modifier = Modifier.weight(1f))
+                        if (adStep > 0) MButton("Geri", { selectStep(adStep - 1) }, isPrimary = false, enabled = !publishing, modifier = Modifier.weight(1f))
+                        if (adStep < 2) MButton("Devam et", { selectStep(adStep + 1) }, enabled = !publishing, modifier = Modifier.weight(1f))
                     }
                 }
-                if (adStep == 2) {
-                // İlanı Yayınla Butonu
+                if (adStep == 2 || (draftStore.hasPublicationAttempt && backend != null)) {
+                // A previous publication can be checked from every draft step, even with an expired date.
                 item {
-                    val isGaming = (adSport.isESport || adSport == Sport.CHESS) || (adSport == Sport.CUSTOM && customIsGaming)
-                    val cleanTitle = adTitle.trim()
-                    val cleanLocation = adLocation.trim()
-                    val cleanVenue = adVenue.trim()
-                    val cleanRole = if (isGaming) esNeededRole.trim() else adPosition.trim()
-                    val cleanFormat = if (isGaming) esAdType.trim() else adFormat.trim()
-                    val fee = adCostPerPlayer.ifBlank { "0" }.toIntOrNull()
-                    val parsedDuration = adDurationText.toIntOrNull()
-                    val eventCapacity = capacityForFormat(cleanFormat)
                     MButton(
-                        text = if (tokenBalance < 10) "Token yükle · 10 TKN gerekli" else "İlanı yayınla · 10 TKN kilitle",
+                        text = if (publishing) "Yayın durumu kontrol ediliyor…" else if (draftStore.hasPublicationAttempt && backend != null) "Yayın durumunu kontrol et" else if (tokenBalance < 10) "Token yükle · 10 TKN gerekli" else "İlanı yayınla · 10 TKN kilitle",
+                        enabled = !publishing,
                         onClick = {
-                            val error = when {
-                                cleanTitle.isBlank() -> "İlan başlığını gir."
-                                adSport == Sport.CUSTOM && customSportName.isBlank() -> "Özel branş adını gir."
-                                isGaming && esServer.isBlank() -> "Oyun sunucusu veya bölgesini gir."
-                                !isGaming && cleanLocation.isBlank() -> "Maç konumunu gir."
-                                !isGaming && cleanVenue.isBlank() -> "Tesis veya saha bilgisini gir."
-                                !isGaming && adPoint == null -> "Buluşma noktasını haritadan seç."
-                                !isFutureEvent(adCalendarDate, adHour, adMinute) -> "Gelecekte bir tarih ve saat seç."
-                                eligibleCommunities != null && adNetworkScope in listOf(EventNetworkScope.CAMPUS, EventNetworkScope.COMPANY) && adCommunityId == null -> "İlanın yayınlanacağı onaylı topluluğunu seç. Üyeliğin yoksa Ağ bölümünden katılım isteği gönder."
-                                adNetworkScope in listOf(EventNetworkScope.CAMPUS, EventNetworkScope.COMPANY) && adNetworkName.isBlank() -> "Seçtiğin ağın adını gir."
-                                listingIntent == ListingIntent.FIND_PLAYERS && cleanRole.isBlank() -> "Aranan rolü veya formatı gir."
-                                parsedDuration == null || parsedDuration !in 15..720 -> "Maç süresi için 15 ile 720 dakika arasında bir değer gir."
-                                fee == null -> "Kişi başı ücret için sayı gir; ücretsizse 0 yaz."
-                                else -> null
-                            }
-                            if (error != null) {
-                                adFormError = error
-                            } else if (tokenBalance < 10) {
-                                onRequestTokens()
-                            } else {
-                                val customName = if (adSport == Sport.CUSTOM) customSportName.trim() else null
-                                val cleanNetworkName = if (adNetworkScope == EventNetworkScope.TRAVEL) adCity.trim() else adNetworkName.trim()
-                                val newEvent = SportEvent(
-                                    id = newEventId(),
-                                    title = cleanTitle,
-                                    sport = adSport,
-                                    venue = if (isGaming) "$esPlatform · ${esServer.trim()}".trim() else cleanVenue,
-                                    area = if (isGaming) "Online" else cleanLocation,
-                                    day = eventDateLabel(adCalendarDate),
-                                    startsAtEpochMillis = eventStartMillis(adCalendarDate, adHour, adMinute),
-                                    city = adCity,
-                                    approximateLocation = adPoint.takeUnless { isGaming },
-                                    time = formatTime(adHour, adMinute),
-                                    startsInMin = null,
-                                    durationMin = parsedDuration!!,
-                                    distanceKm = null,
-                                    capacity = eventCapacity,
-                                    participantIds = listOf(DemoData.ME),
-                                    waitlistCount = 0,
-                                    mode = adMode,
-                                    levelRange = adLevelRange,
-                                    minReliability = adMinReliability,
-                                    verifiedOnly = adVerifiedOnly,
-                                    pricePerPersonTry = fee!!,
-                                    commitmentTokens = 10,
-                                    hostId = DemoData.ME,
-                                    status = if (listingIntent == ListingIntent.FIND_PLAYERS) {
-                                        com.matchora.app.domain.EventStatus.FILLING
-                                    } else {
-                                        com.matchora.app.domain.EventStatus.PUBLISHED
-                                    },
-                                    score = ScoreBreakdown(0, 0, 0, 0, 0, emptyList()),
-                                    neededRoles = cleanRole.split(',').map { it.trim() }.filter { it.isNotBlank() },
-                                    emergency = listingIntent == ListingIntent.FIND_PLAYERS && urgentPlayerFill,
-                                    description = adDescription.trim(),
-                                    customSportName = customName,
-                                    networkScope = adNetworkScope,
-                                    networkName = cleanNetworkName.takeIf { adNetworkScope != EventNetworkScope.CITY },
-                                    communityId = adCommunityId,
-                                    approvalRequired = adApprovalRequired,
-                                    listingType = if (listingIntent == ListingIntent.FIND_PLAYERS) EventListingType.SEEK_PLAYERS else EventListingType.OPEN_MATCH,
-                                    format = cleanFormat,
-                                    gamePlatform = esPlatform.takeIf { isGaming },
-                                    gameServer = esServer.trim().takeIf { isGaming && it.isNotBlank() },
-                                    voiceChannel = esVoiceComm.trim().takeIf { isGaming && it.isNotBlank() },
-                                    hostGameTag = esGamerTag.trim().takeIf { isGaming && it.isNotBlank() }
-                                )
-                                onCreateEvent(newEvent)
-                                onDismiss()
+                            if (publishing) return@MButton
+                            focusManager.clearFocus()
+                            if (!persistDraft()) return@MButton
+                            publishing = true
+                            adFormError = null
+                            scope.launch {
+                                try {
+                                    if (backend != null) {
+                                        val recovered = recoverListingPublication(draftStore, backend, draftOwnerKey)
+                                        if (recovered != null) {
+                                            draftFinished = true
+                                            onRecoveredPublication(recovered.id, recovered.keptDraft)
+                                            onDismiss()
+                                            return@launch
+                                        }
+                                        if (backend.userId != draftOwnerKey) throw BackendFailure("SESSION_CHANGED", "Hesap değişti. Tekrar giriş yap.")
+                                    }
+                                    val error = stepError(2)
+                                    if (error != null) {
+                                        adStep = error.first
+                                        adFormError = error.second
+                                        return@launch
+                                    }
+                                    if (tokenBalance < 10) { onRequestTokens(); return@launch }
+                                    val isGaming = (adSport.isESport || adSport == Sport.CHESS) || (adSport == Sport.CUSTOM && customIsGaming)
+                                    val cleanTitle = adTitle.trim()
+                                    val cleanLocation = adLocation.trim()
+                                    val cleanVenue = adVenue.trim()
+                                    val cleanRole = if (isGaming) esNeededRole.trim() else adPosition.trim()
+                                    val cleanFormat = if (isGaming) esAdType.trim() else adFormat.trim()
+                                    val fee = adCostPerPlayer.ifBlank { "0" }.toIntOrNull()
+                                    val parsedDuration = adDurationText.toIntOrNull()
+                                    val eventCapacity = capacityForFormat(cleanFormat)
+                                    val customName = if (adSport == Sport.CUSTOM) customSportName.trim() else null
+                                    val cleanNetworkName = if (adNetworkScope == EventNetworkScope.TRAVEL) adCity.trim() else adNetworkName.trim()
+                                    val newEvent = SportEvent(
+                                        id = newEventId(),
+                                        title = cleanTitle,
+                                        sport = adSport,
+                                        venue = if (isGaming) "$esPlatform · ${esServer.trim()}".trim() else cleanVenue,
+                                        area = if (isGaming) "Online" else cleanLocation,
+                                        day = eventDateLabel(adCalendarDate),
+                                        startsAtEpochMillis = eventStartMillis(adCalendarDate, adHour, adMinute),
+                                        city = adCity,
+                                        approximateLocation = adPoint.takeUnless { isGaming },
+                                        time = formatTime(adHour, adMinute),
+                                        startsInMin = null,
+                                        durationMin = parsedDuration!!,
+                                        distanceKm = null,
+                                        capacity = eventCapacity,
+                                        participantIds = listOf(DemoData.ME),
+                                        waitlistCount = 0,
+                                        mode = adMode,
+                                        levelRange = adLevelRange,
+                                        minReliability = adMinReliability,
+                                        verifiedOnly = adVerifiedOnly,
+                                        pricePerPersonTry = fee!!,
+                                        commitmentTokens = 10,
+                                        hostId = DemoData.ME,
+                                        status = if (listingIntent == ListingIntent.FIND_PLAYERS) {
+                                            com.matchora.app.domain.EventStatus.FILLING
+                                        } else {
+                                            com.matchora.app.domain.EventStatus.PUBLISHED
+                                        },
+                                        score = ScoreBreakdown(0, 0, 0, 0, 0, emptyList()),
+                                        neededRoles = cleanRole.split(',').map { it.trim() }.filter { it.isNotBlank() },
+                                        emergency = listingIntent == ListingIntent.FIND_PLAYERS && urgentPlayerFill,
+                                        description = adDescription.trim(),
+                                        customSportName = customName,
+                                        networkScope = adNetworkScope,
+                                        networkName = cleanNetworkName.takeIf { adNetworkScope != EventNetworkScope.CITY },
+                                        communityId = adCommunityId,
+                                        approvalRequired = adApprovalRequired,
+                                        listingType = if (listingIntent == ListingIntent.FIND_PLAYERS) EventListingType.SEEK_PLAYERS else EventListingType.OPEN_MATCH,
+                                        format = cleanFormat,
+                                        gamePlatform = esPlatform.takeIf { isGaming },
+                                        gameServer = esServer.trim().takeIf { isGaming && it.isNotBlank() },
+                                        voiceChannel = esVoiceComm.trim().takeIf { isGaming && it.isNotBlank() },
+                                        hostGameTag = esGamerTag.trim().takeIf { isGaming && it.isNotBlank() }
+                                    )
+                                    val requestKey = draftStore.publicationKey(newEvent.toApiPayload())
+                                    if (onPublishEvent != null) onPublishEvent(newEvent, requestKey) else onCreateEvent(newEvent)
+                                    draftStore.clear()
+                                    draftFinished = true
+                                    onDismiss()
+                                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                                catch (error: Exception) { adFormError = error.message ?: "İlan yayınlanamadı. Bilgilerin taslakta duruyor; tekrar deneyebilirsin." }
+                                finally { publishing = false }
                             }
                         },
                         icon = Icons.Rounded.Campaign
@@ -1048,7 +1143,25 @@ fun PlayNowModalSheet(
                 }
             }
         }
+        if (publishing) {
+            Box(Modifier.matchParentSize().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {})
+            LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter), color = MColors.Brand)
+        }
+        }
     }
+    if (showDraftClose) AlertDialog(
+        onDismissRequest = { showDraftClose = false },
+        title = { Text("İlan taslağı saklansın mı?") },
+        text = { Text("Girdiğin bilgilere daha sonra kaldığın yerden devam edebilirsin.") },
+        confirmButton = { TextButton(onClick = { if (persistDraft()) { showDraftClose = false; onDismiss() } }) { Text("Taslağı sakla") } },
+        dismissButton = { Row {
+            TextButton(onClick = { showDraftClose = false }) { Text("Düzenlemeye devam et") }
+            TextButton(onClick = {
+                try { draftStore.clear(); draftFinished = true; showDraftClose = false; onDismiss() }
+                catch (error: Exception) { showDraftClose = false; adFormError = error.message ?: "Taslak silinemedi." }
+            }) { Text("Vazgeç ve sil", color = MColors.Rose) }
+        } }
+    )
     if (showAdMap) EventLocationPicker(
         initialPoint = adPoint ?: if (backendMode) null else cityMapCenter(adCity), initialAddress = adVenue, city = adCity, district = adLocation,
         onDismiss = { showAdMap = false }, onConfirm = { point, address -> adPoint = point; if (adVenue.isBlank()) adVenue = address; adFormError = null })

@@ -1,6 +1,7 @@
 package com.matchora.app.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,6 +29,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -63,37 +66,30 @@ internal fun resolvePassportDisplayState(
     badgesOverride: List<BadgeInfo>?,
     missionsOverride: List<Mission>?
 ): PassportDisplayState {
-    val effectiveUser = when {
-        isLoggedIn -> user
-        liveMode -> user
-        else -> DemoData.me.copy(
-            name = user.name.ifBlank { "Özcan Özden" },
-            city = "İstanbul",
-            area = "Kadıköy"
+    if (!isLoggedIn) {
+        // Display-only sample: never reuse the identity, contact details or photo of a previous session.
+        val sample = DemoData.me.copy(
+            name = "Deniz Yılmaz",
+            city = user.city.ifBlank { "İstanbul" },
+            area = user.area.ifBlank { "Kadıköy" },
+            bio = "Sol ayağım oyunda, aklım takımda. Akşamları saha, hafta sonu tenis.",
+            dominantSide = "Sol ayak · Sağ el",
+            phone = "", email = "", avatar = null
         )
+        return PassportDisplayState(sample, DemoData.history, DemoData.badges, DemoData.missions, DemoData.reliabilityRecords)
     }
-    val history = when {
-        isLoggedIn -> historyOverride ?: if (user.verifiedMatches > 0) DemoData.history else emptyList()
-        liveMode -> emptyList()
-        else -> DemoData.history
+    val history = historyOverride ?: if (!liveMode && user.verifiedMatches > 0) DemoData.history else emptyList()
+    val badges = badgesOverride ?: if (liveMode) emptyList() else DemoData.badges.map {
+        if (user.verifiedMatches > 0) it else it.copy(earned = false, progress = 0f)
     }
-    val badges = when {
-        isLoggedIn -> badgesOverride ?: DemoData.badges.map { if (user.verifiedMatches > 0) it else it.copy(earned = false, progress = 0f) }
-        liveMode -> badgesOverride?.takeIf { it.isNotEmpty() } ?: DemoData.badges.map { it.copy(earned = false, progress = 0f) }
-        else -> DemoData.badges
+    val allMissions = missionsOverride ?: if (liveMode) emptyList() else DemoData.missions.map {
+        if (user.verifiedMatches > 0) it else it.copy(progress = 0)
     }
-    val allMissions = when {
-        isLoggedIn -> missionsOverride ?: DemoData.missions.map { if (user.verifiedMatches > 0) it else it.copy(progress = 0) }
-        liveMode -> missionsOverride?.takeIf { it.isNotEmpty() } ?: DemoData.missions.map { it.copy(progress = 0, claimed = false) }
-        else -> DemoData.missions
-    }
-    val reliabilityRecords = when {
-        liveMode && !isLoggedIn -> emptyList()
-        else -> reliabilityOverride ?: if (effectiveUser.verifiedMatches > 0) DemoData.reliabilityRecords else emptyList()
-    }
-    return PassportDisplayState(effectiveUser, history, badges, allMissions, reliabilityRecords)
+    val reliabilityRecords = reliabilityOverride ?: if (!liveMode && user.verifiedMatches > 0) DemoData.reliabilityRecords else emptyList()
+    return PassportDisplayState(user, history, badges, allMissions, reliabilityRecords)
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SportsPassportScreen(
     paddingValues: PaddingValues,
@@ -103,6 +99,7 @@ fun SportsPassportScreen(
     reliabilityOverride: List<ReliabilityRecord>? = null,
     badgesOverride: List<BadgeInfo>? = null,
     missionsOverride: List<Mission>? = null,
+    pendingMatchCount: Int = 0,
     isLoggedIn: Boolean = true,
     onOpenAuth: () -> Unit = {},
     onLogout: () -> Unit = {},
@@ -169,7 +166,8 @@ fun SportsPassportScreen(
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text("SPORCU PASAPORTU", Modifier.weight(1f), fontSize = 10.sp, letterSpacing = 1.3.sp,
                                 fontWeight = FontWeight.Bold, color = Color(0xFFE1C49D))
-                            if (activeProPlan != null) MBadge("PRO", Color(0xFFE1C49D), Color(0xFF3E423E))
+                            if (!isLoggedIn) MBadge("ÖRNEK", Color(0xFFE1C49D), Color(0xFF3E423E))
+                            else if (activeProPlan != null) MBadge("PRO", Color(0xFFE1C49D), Color(0xFF3E423E))
                             TextButton(
                                 onClick = { if (!isLoggedIn) onOpenAuth() else onOpenWallet() },
                                 modifier = Modifier.height(26.dp),
@@ -244,7 +242,7 @@ fun SportsPassportScreen(
                                 }
                             }
                         }
-                        if (effectiveUser.bio.isNotBlank()) Text(effectiveUser.bio, fontSize = 11.5.sp, lineHeight = 15.sp, color = Color(0xFFD0DADF), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (effectiveUser.bio.isNotBlank()) Text(effectiveUser.bio, fontSize = 11.5.sp, lineHeight = 16.sp, color = Color(0xFFD0DADF), maxLines = if (isLoggedIn) 1 else 2, overflow = TextOverflow.Ellipsis)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             VerificationChip(
                                 label = if (VerificationLevel.BASIC in effectiveUser.verifications) "İletişim onaylı" else "İletişimi doğrula",
@@ -255,8 +253,17 @@ fun SportsPassportScreen(
                                 verified = VerificationLevel.PHOTO in effectiveUser.verifications,
                                 onClick = if (!isLoggedIn) onOpenAuth else (if (VerificationLevel.PHOTO in effectiveUser.verifications) null else onVerifyPhoto))
                         }
-                        val profileContext = listOfNotNull(effectiveUser.dominantSide.takeIf { it.isNotBlank() }, effectiveUser.campus, effectiveUser.company).joinToString(" · ")
-                        if (profileContext.isNotBlank()) Text(profileContext, fontSize = 11.sp, color = Color(0xFF9EAFBB), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (!isLoggedIn) {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                GuestPassportTrait(Icons.Rounded.SportsSoccer, "Sol ayak")
+                                GuestPassportTrait(Icons.Rounded.SportsTennis, "Sağ el")
+                                GuestPassportTrait(Icons.Rounded.School, effectiveUser.campus.orEmpty())
+                                GuestPassportTrait(Icons.Rounded.Business, effectiveUser.company.orEmpty())
+                            }
+                        } else {
+                            val profileContext = listOfNotNull(effectiveUser.dominantSide.takeIf { it.isNotBlank() }, effectiveUser.campus, effectiveUser.company).joinToString(" · ")
+                            if (profileContext.isNotBlank()) Text(profileContext, fontSize = 11.sp, color = Color(0xFF9EAFBB), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                         if (effectiveUser.availability.isNotEmpty()) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Icon(Icons.Rounded.Schedule, null, Modifier.size(12.dp), tint = Color(0xFF9EAFBB))
@@ -265,9 +272,15 @@ fun SportsPassportScreen(
                         }
                         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             PassportMetric("GÜVEN", "%${effectiveUser.reliability}", Modifier.weight(1f).fillMaxHeight())
-                            PassportMetric("MAÇ", "${effectiveUser.verifiedMatches}", Modifier.weight(1f).fillMaxHeight())
+                            PassportMetric("ONAYLI MAÇ", "${effectiveUser.verifiedMatches}", Modifier.weight(1f).fillMaxHeight())
                             PassportMetric("FAIR PLAY", if (effectiveUser.fairPlay > 0) "${effectiveUser.fairPlay}/5" else "—", Modifier.weight(1f).fillMaxHeight())
                             PassportMetric("SERİ", "${effectiveUser.streakWeeks} hf", Modifier.weight(1f).fillMaxHeight())
+                        }
+                        if (liveMode && isLoggedIn) {
+                            Text("Maç ve haftalık seri, katılımı doğrulanmış sonuçlarla güncellenir.", fontSize = 10.sp, lineHeight = 14.sp, color = Color(0xFFB8C7CE))
+                            if (pendingMatchCount > 0) TextButton(onClick = onOpenActivity, contentPadding = PaddingValues(0.dp)) {
+                                Text("$pendingMatchCount maçın sonuç kaydı veya onayı eksik", fontSize = 11.sp, color = Color(0xFFFFD28C))
+                            }
                         }
                     }
                 }
@@ -291,6 +304,7 @@ fun SportsPassportScreen(
                     title = "Branş dereceleri",
                     detail = "${effectiveUser.skills.size} branş · MMR"
                 ) {
+                    PersonalHistoryButton("ratings", "MMR gelişim geçmişi")
                     MButton("Branş ekle", { if (!isLoggedIn) onOpenAuth() else showAddSport = true }, icon = Icons.Rounded.Add, isPrimary = false, height = 40.dp)
                     Spacer(Modifier.height(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -552,6 +566,7 @@ fun SportsPassportScreen(
 
             item {
                 PassportSectionCard(title = "Güvenilirlik geçmişi", detail = "%${effectiveUser.reliability}") {
+                    PersonalHistoryButton("reliability", "Tüm güvenilirlik geçmişi")
                     Surface(
                         onClick = { if (!isLoggedIn) onOpenAuth() else showReliabilityDetail = !showReliabilityDetail },
                         shape = RoundedCornerShape(13.dp),
@@ -647,6 +662,7 @@ fun SportsPassportScreen(
 
             item {
                 PassportSectionCard(title = "Son maçlar", detail = "${history.size} kayıt") {
+                    PersonalHistoryButton("matches", "Tüm maç geçmişi")
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (history.isEmpty()) Text("İlk doğrulanmış maçından sonra sportif geçmişin burada oluşur.", color = MColors.Ink500, style = MaterialTheme.typography.bodySmall)
                         history.take(if (showAllMatches) Int.MAX_VALUE else 3).forEach { match ->
@@ -1267,119 +1283,99 @@ private fun PassportSectionCard(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 @Composable
+private fun GuestPassportTrait(icon: ImageVector, label: String) {
+    Surface(shape = RoundedCornerShape(8.dp), color = Color.White.copy(alpha = .06f),
+        border = BorderStroke(.6.dp, Color.White.copy(alpha = .09f))) {
+        Row(Modifier.padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Icon(icon, null, Modifier.size(12.dp), tint = Color(0xFFE1C49D))
+            Text(label, fontSize = 10.5.sp, color = Color(0xFFD0DADF))
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
 private fun PassportHighlightsCard(onOpenAuth: () -> Unit) {
+    val gold = Color(0xFFE5C89E)
     Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = Color(0xFF131D28),
-        border = BorderStroke(1.2.dp, Brush.linearGradient(listOf(Color(0xFFE1C49D).copy(alpha = 0.55f), Color(0xFF334553)))),
-        shadowElevation = 5.dp,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
+        color = Color(0xFF101C29), shadowElevation = 5.dp,
+        border = BorderStroke(1.dp, Brush.linearGradient(listOf(gold.copy(alpha = .6f), Color(0xFF344858), gold.copy(alpha = .18f))))
     ) {
-        Column(
-            modifier = Modifier
-                .background(Brush.verticalGradient(listOf(Color(0xFF1B2936), Color(0xFF0F1722))))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("⚡", fontSize = 16.sp)
-                    Text(
-                        "MATCHARA AYRICALIKLARI",
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.1.sp,
-                        color = Color(0xFFE1C49D)
-                    )
-                }
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFFE1C49D).copy(alpha = 0.15f),
-                    border = BorderStroke(0.6.dp, Color(0xFFE1C49D).copy(alpha = 0.4f))
-                ) {
-                    Text(
-                        "ÖNİZLEME",
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFE1C49D)
-                    )
+        Box(Modifier.background(Brush.linearGradient(listOf(Color(0xFF233746), Color(0xFF101C29), Color(0xFF14212C))))) {
+            Canvas(Modifier.matchParentSize()) {
+                val center = Offset(size.width * 1.02f, 18.dp.toPx())
+                listOf(62.dp, 94.dp, 126.dp).forEach { radius ->
+                    drawCircle(gold.copy(alpha = .055f), radius.toPx(), center, style = Stroke(1.dp.toPx()))
                 }
             }
-
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                PassportHighlightBullet(
-                    emoji = "🎮",
-                    title = "Spor & E-Spor Portalı",
-                    desc = "Futbol, Basketbol, Tenis, Padel'den FC25 ve Satranca 10+ branşta resmi puanlama ve lisanslı sporcu profili."
-                )
-                PassportHighlightBullet(
-                    emoji = "🏆",
-                    title = "Hızlı Maç & Turnuva Kurma",
-                    desc = "Tek tıkla açık maç veya eleme usulü kupa/turnuva oluştur, eksik oyuncuları otomatik topla."
-                )
-                PassportHighlightBullet(
-                    emoji = "🏢",
-                    title = "Şirket, Kampüs & Mahalle Ligleri",
-                    desc = "İş yerin, üniversiten veya semt arkadaşların için kapalı ligler, kupa fikstürleri ve prestijli derbiler."
-                )
-                PassportHighlightBullet(
-                    emoji = "🤝",
-                    title = "Akıllı Takım Arkadaşı Bulma",
-                    desc = "Mevkisine, beceri seviyesine (MMR) ve konumuna göre eksik kadronu dakikalar içinde tamamla."
-                )
-                PassportHighlightBullet(
-                    emoji = "🎯",
-                    title = "Dinamik MMR & Seviye Eşleşmesi",
-                    desc = "Şişirilmiş puanlar yok; sadece gerçek saha ve maç performansına dayalı adil seviye eşleştirmesi."
-                )
-                PassportHighlightBullet(
-                    emoji = "🛡️",
-                    title = "Güvenilirlik & Fair Play Güvencesi",
-                    desc = "Maçı son dakika ekme riskini ortadan kaldıran katılım skoru ve centilmenlik güvencesi."
-                )
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(28.dp).background(gold.copy(alpha = .12f), RoundedCornerShape(9.dp)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(15.dp), tint = gold)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text("MATCHORA AYRICALIKLARI", Modifier.weight(1f), fontSize = 10.sp, letterSpacing = 1.sp,
+                        fontWeight = FontWeight.Bold, color = gold)
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("Oyununu bul.\nİzini bırak.", fontSize = 29.sp, lineHeight = 32.sp, letterSpacing = (-.7).sp,
+                        fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Maçtan takıma, gelişiminden rekabete.\nSpor hayatın tek bir yerde.", fontSize = 12.sp,
+                        lineHeight = 18.sp, color = Color(0xFFB5C5CF))
+                }
+                Surface(shape = RoundedCornerShape(17.dp), color = Color.White.copy(alpha = .055f),
+                    border = BorderStroke(.8.dp, gold.copy(alpha = .19f))) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                            Box(Modifier.size(40.dp).background(Brush.linearGradient(listOf(Color(0xFFE9D0AB), Color(0xFFB38D61))), RoundedCornerShape(13.dp)),
+                                contentAlignment = Alignment.Center) {
+                                Icon(Icons.Rounded.Radar, null, Modifier.size(22.dp), tint = Color(0xFF172531))
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Doğru oyuncu. Doğru maç.", fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("Sana uyan oyunu keşfet, eksik kadronu tamamla.", fontSize = 11.5.sp, lineHeight = 16.sp, color = Color(0xFFC3CFD7))
+                            }
+                        }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("Seviyene göre", "Mevkine göre", "Yakınında").forEach { label ->
+                                Surface(shape = RoundedCornerShape(7.dp), color = Color(0xFF152532), border = BorderStroke(.6.dp, Color.White.copy(alpha = .08f))) {
+                                    Text(label, Modifier.padding(horizontal = 8.dp, vertical = 5.dp), fontSize = 10.sp, color = gold, fontWeight = FontWeight.Medium)
+                                }
+                            }
+                        }
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    PassportPrivilegeRow(Icons.Rounded.Insights, "Performansın pasaportunda.",
+                        "Branş MMR’ı, sıralamalar, doğrulanmış maçlar ve fair play geçmişin.")
+                    HorizontalDivider(color = Color.White.copy(alpha = .08f))
+                    PassportPrivilegeRow(Icons.Rounded.EmojiEvents, "Takımını kur. Rekabeti büyüt.",
+                        "Meydan okumalar, turnuvalar ve fikstürlerle oyunu birlikte sürdür.")
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(Icons.Rounded.Explore, null, Modifier.size(13.dp), tint = gold.copy(alpha = .8f))
+                        Text("Sahada · kampüste · şirkette · seyahatte", fontSize = 10.5.sp, lineHeight = 15.sp, color = Color(0xFF9EB2C0))
+                    }
+                    MButton("Sporcu pasaportunu oluştur", onOpenAuth, Modifier.fillMaxWidth(), height = 46.dp,
+                        icon = Icons.AutoMirrored.Rounded.ArrowForward)
+                }
             }
-
-            Spacer(Modifier.height(4.dp))
-
-            MButton(
-                text = "Hemen Katıl / Giriş Yap 🚀",
-                onClick = onOpenAuth,
-                modifier = Modifier.fillMaxWidth(),
-                height = 42.dp,
-                isPrimary = true
-            )
         }
     }
 }
 
 @Composable
-private fun PassportHighlightBullet(
-    emoji: String,
-    title: String,
-    desc: String
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Surface(
-            shape = RoundedCornerShape(9.dp),
-            color = Color(0xFF243442),
-            modifier = Modifier.size(28.dp)
-        ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(emoji, fontSize = 13.sp)
-            }
+private fun PassportPrivilegeRow(icon: ImageVector, title: String, description: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.Top) {
+        Box(Modifier.size(31.dp).background(Color(0xFFE5C89E).copy(alpha = .09f), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
+            Icon(icon, null, Modifier.size(17.dp), tint = Color(0xFFE5C89E))
         }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Text(desc, fontSize = 11.sp, lineHeight = 15.sp, color = Color(0xFFBAC7D0))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, fontSize = 12.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFF4F6F8))
+            Text(description, fontSize = 11.5.sp, lineHeight = 17.sp, color = Color(0xFFACBDC9))
         }
     }
 }

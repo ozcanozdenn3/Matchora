@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-19",
+  "scope": "Guest passport mock presentation and premium highlights card",
+  "kmpTests": {
+    "tests": 111,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "androidBuild": true,
+  "iosAppBuild": true,
+  "uiCaptureTest": {
+    "tests": 1,
+    "failures": 0,
+    "physicalDevice": false,
+    "finalBuildVerified": true,
+    "companyTraitVisible": true,
+    "sampleTraitsVisible": true,
+    "marketingCardAndCtaNotClipped": true,
+    "leftOpenOnPassportAtTop": true
+  },
+  "newSqlRequired": false,
+  "guestDataIsDisplayOnly": true,
+  "previousAccountContactsAndAvatarNeverUsedForSample": true,
+  "authenticatedProfileUsesRealData": true
+}

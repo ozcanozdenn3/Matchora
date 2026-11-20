@@ -27,8 +27,8 @@ import com.matchora.app.ui.theme.MColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun ActivitySheet(title: String, subtitle: String, onDismiss: () -> Unit, icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Rounded.ManageAccounts, content: @Composable ColumnScope.() -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+internal fun ActivitySheet(title: String, subtitle: String, onDismiss: () -> Unit, icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Rounded.ManageAccounts, confirmDismiss: () -> Boolean = { true }, content: @Composable ColumnScope.() -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = { it != SheetValue.Hidden || confirmDismiss() }),
         modifier = Modifier.statusBarsPadding().padding(top = 12.dp), containerColor = MColors.Canvas,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), dragHandle = { MPremiumSheetHandle() }) {
         Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -109,6 +109,8 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
                 MFloatingInputBox("Başlık", subject, { subject = it.take(100) }, placeholder = "Kısaca konuyu belirt", icon = Icons.Rounded.Title)
                 MFloatingInputBox("Nasıl yardımcı olalım?", message, { message = it.take(1000) }, placeholder = "Yaşadığın durumu veya talebini detaylıca yaz...", icon = Icons.Rounded.EditNote, singleLine = false, minLines = 3, maxLines = 5)
                 MButton("Destek talebini kaydet", { onSupport(subject.trim(), message.trim(), category); subject = ""; message = "" }, enabled = subject.trim().length >= 3 && message.trim().length >= 10)
+                AccountHistoryButton("support", "Tüm destek geçmişi")
+                AccountHistoryButton("reports", "Tüm şikâyet geçmişi")
                 SettingsGroup("Taleplerin") {
                     if (supportRequests.isEmpty() && reports.isEmpty()) Text("Henüz bir talep yok.", color = MColors.Ink500)
                     supportRequests.forEach { request ->
@@ -229,6 +231,7 @@ fun MyActivitySheet(events: List<SportEvent>, joinedIds: Set<String>, waitlisted
     pendingRequests: List<JoinRequest>, reservations: List<VenuePayment>, onOpenEvent: (SportEvent) -> Unit,
     onCancelReservation: (VenuePayment) -> Unit, onDismiss: () -> Unit,
     onCreateListingForReservation: ((VenuePayment) -> Unit)? = null) {
+    val hasServerHistory = LocalBackendRepository.current != null
     var review by remember { mutableStateOf<VenuePayment?>(null) }
     var section by remember { mutableIntStateOf(0) }
     var cancel by remember { mutableStateOf<VenuePayment?>(null) }
@@ -246,6 +249,7 @@ fun MyActivitySheet(events: List<SportEvent>, joinedIds: Set<String>, waitlisted
                     }
                 } }
             } else {
+                if (hasServerHistory) item { AccountHistoryButton("reservations", "Tüm rezervasyon geçmişi") }
                 if (reservations.isEmpty()) item { Text("Saha rezervasyonların burada görünecek.", color = MColors.Ink500) }
                 items(reservations, key = { it.id }) { payment -> MCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -279,7 +283,7 @@ fun MyActivitySheet(events: List<SportEvent>, joinedIds: Set<String>, waitlisted
 @Composable
 fun MatchResultSheet(event: SportEvent, result: MatchResultDraft?, canSubmit: Boolean,
     onSubmit: (MatchResultDraft) -> Unit, onDispute: (String) -> Unit, onDismiss: () -> Unit,
-    onConfirm: (() -> Unit)? = null, onOpenFeedback: (() -> Unit)? = null, players: List<Player> = emptyList()) {
+    onConfirm: (() -> Unit)? = null, onOpenFeedback: (() -> Unit)? = null, players: List<Player> = emptyList(), isCheckedIn: Boolean = true) {
     var home by remember(result) { mutableStateOf(result?.homeScore?.toString().orEmpty()) }
     var away by remember(result) { mutableStateOf(result?.awayScore?.toString().orEmpty()) }
     var note by remember(result) { mutableStateOf(result?.note.orEmpty()) }
@@ -301,11 +305,11 @@ fun MatchResultSheet(event: SportEvent, result: MatchResultDraft?, canSubmit: Bo
         RatingStatusCard(event.id)
         if (result != null && !editingPending) {
             MFeatureHeader("${result.homeScore} – ${result.awayScore}", when { result.status == "verified" -> "Sonuç doğrulandı"; result.disputed -> "İtiraz kaydı var · inceleme bekleniyor"; else -> "Sonuç bildirildi · doğrulama bekleniyor" }, Icons.Rounded.Scoreboard)
-            if (onConfirm != null && result.status == "pending" && result.submittedBy != DemoData.ME && meOnOpposingSide) MButton("Skoru onaylıyorum", onConfirm, icon = Icons.Rounded.Verified)
+            if (onConfirm != null && result.status == "pending" && result.submittedBy != DemoData.ME && meOnOpposingSide && isCheckedIn) MButton("Skoru onaylıyorum", onConfirm, icon = Icons.Rounded.Verified)
             if (result.status == "pending" && result.submittedBy == DemoData.ME && canSubmit) {
                 MPillActionButton("Skoru düzenle", { editingPending = true }, icon = Icons.Rounded.Edit, tone = MPillTone.NEUTRAL, compact = true)
             }
-            onOpenFeedback?.let { action -> MButton("Saha deneyimini değerlendir", action, isPrimary = false, icon = Icons.Rounded.StarOutline) }
+            if (isCheckedIn && event.status in setOf(EventStatus.COMPLETED, EventStatus.VERIFIED)) onOpenFeedback?.let { action -> MButton("Saha deneyimini değerlendir", action, isPrimary = false, icon = Icons.Rounded.StarOutline) }
             Text(result.note.ifBlank { "Sonuç notu eklenmedi." }, color = MColors.Ink500)
             if (!backendMode) Text("Fair play değerlendirmen: ${result.fairPlay}/5", style = MaterialTheme.typography.bodySmall)
             if (!result.disputed && result.status == "pending" && (result.disputeUntil == null || kotlinx.datetime.Clock.System.now().toEpochMilliseconds() < result.disputeUntil)) {
@@ -313,7 +317,7 @@ fun MatchResultSheet(event: SportEvent, result: MatchResultDraft?, canSubmit: Bo
                 MButton("Sonuca itiraz et", { onDispute(reason.trim()) }, enabled = reason.trim().length >= 10, isPrimary = false)
             }
         } else if (canSubmit) {
-            Text("Skoru ve saha deneyimini kaydet. Sonuç doğrulanmadan MMR veya güvenilirlik puanı değişmez.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+            Text("Skoru ve iki tarafın kadrosunu kaydet. Maç sayısı, seri ve görevler katılımı doğrulanmış sonuçla güncellenir. Rekabetçi maçta MMR da hesaplanır.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MPremiumTextField(home, { home = it.filter(Char::isDigit).take(3) }, label = "Ev sahibi", modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 MPremiumTextField(away, { away = it.filter(Char::isDigit).take(3) }, label = "Rakip", modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
@@ -333,7 +337,7 @@ fun MatchResultSheet(event: SportEvent, result: MatchResultDraft?, canSubmit: Bo
             MPremiumTextField(note, { note = it.take(500) }, label = "Maç notu · isteğe bağlı", singleLine = false, minLines = 2, maxLines = 4)
             MButton(if (editingPending) "Skoru güncelle" else "Sonucu bildir", { editingPending = false; onSubmit(MatchResultDraft(event.id, home.toInt(), away.toInt(), note.trim(), fairPlay, homeParticipantIds = homeIds.toList(), awayParticipantIds = awayIds.toList())) }, enabled = home.toIntOrNull() != null && away.toIntOrNull() != null && (!backendMode || sidesReady))
             if (editingPending) MPillActionButton("Vazgeç", { editingPending = false }, icon = Icons.Rounded.Close, tone = MPillTone.NEUTRAL, compact = true)
-        } else Text("Sonuç kaydı tamamlanan veya devam eden maçlarda açılır.", color = MColors.Ink500)
+        } else Text(if (backendMode && !isCheckedIn) "Bu maçta saha check-in kaydın bulunmuyor. Sonuç bildirmek ve pasaportuna maç eklenmesi için maç oynanırken katılımını doğrulamalısın." else "Sonuç kaydı tamamlanan veya devam eden maçlarda açılır.", color = MColors.Ink500)
     }
 }
 

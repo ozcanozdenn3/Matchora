@@ -58,7 +58,8 @@ fun CommunityAndVenueScreen(
     onShareVenue: ((VenueInfo) -> Unit)? = null,
     onShareCommunity: ((CommunityInfo) -> Unit)? = null,
     onDirections: ((VenueInfo) -> Unit)? = null,
-    deviceLocation: DeviceLocation? = null
+    deviceLocation: DeviceLocation? = null,
+    onPublishedCommunity: (String) -> Unit = {}
 ) {
     var detailVenue by remember { mutableStateOf<VenueInfo?>(null) }
     var reviewVenue by remember { mutableStateOf<VenueInfo?>(null) }
@@ -104,7 +105,7 @@ fun CommunityAndVenueScreen(
             if (backend?.enabled == true) command("discovery.save", apiPayload("city" to city, "district" to district, "travelMode" to true))
             else { travelModeActive = true; travelCity = city }
         })
-    if (createCommunity) CreateCommunitySheet(currentCity, currentDistrict, { createCommunity = false }, onCreateCommunity)
+    if (createCommunity) CreateCommunitySheet(currentCity, currentDistrict, { createCommunity = false }, onCreateCommunity, onPublishedCommunity)
     reviewVenue?.let { VenueReviewsSheet(it, { reviewVenue = null }, onReportReview) }
     if (manageVenue) VenueOperatorSheet { manageVenue = false }
     if (venueApplication) CreateVenueSheet(application = true, onDismiss = { venueApplication = false })

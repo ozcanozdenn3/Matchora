@@ -1,0 +1,128 @@
+> Task :composeApp:preBuild UP-TO-DATE
+> Task :composeApp:preDebugBuild UP-TO-DATE
+> Task :composeApp:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :composeApp:kmpPartiallyResolvedDependenciesChecker
+> Task :composeApp:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :composeApp:convertXmlValueResourcesForAndroidMain NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForAndroidMain NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForAndroidMain NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForAndroidMain NO-SOURCE
+> Task :composeApp:convertXmlValueResourcesForCommonMain NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForCommonMain UP-TO-DATE
+> Task :composeApp:prepareComposeResourcesTaskForCommonMain UP-TO-DATE
+> Task :composeApp:generateResourceAccessorsForCommonMain UP-TO-DATE
+> Task :composeApp:generateActualResourceCollectorsForAndroidMain UP-TO-DATE
+> Task :composeApp:generateBackendConfig UP-TO-DATE
+> Task :composeApp:generateComposeResClass UP-TO-DATE
+> Task :composeApp:generateExpectResourceCollectorsForCommonMain UP-TO-DATE
+> Task :composeApp:convertXmlValueResourcesForAndroidDebug NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForAndroidDebug NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForAndroidDebug NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForAndroidDebug NO-SOURCE
+> Task :composeApp:checkDebugAarMetadata UP-TO-DATE
+> Task :composeApp:generateDebugResValues UP-TO-DATE
+> Task :composeApp:mapDebugSourceSetPaths UP-TO-DATE
+> Task :composeApp:generateDebugResources UP-TO-DATE
+> Task :composeApp:mergeDebugResources UP-TO-DATE
+> Task :composeApp:packageDebugResources UP-TO-DATE
+> Task :composeApp:parseDebugLocalResources UP-TO-DATE
+> Task :composeApp:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :composeApp:extractDeepLinksDebug UP-TO-DATE
+> Task :composeApp:processDebugMainManifest UP-TO-DATE
+> Task :composeApp:processDebugManifest UP-TO-DATE
+> Task :composeApp:processDebugManifestForPackage UP-TO-DATE
+> Task :composeApp:processDebugResources UP-TO-DATE
+> Task :composeApp:javaPreCompileDebug UP-TO-DATE
+> Task :composeApp:mergeDebugShaders UP-TO-DATE
+> Task :composeApp:compileDebugShaders NO-SOURCE
+> Task :composeApp:copyDebugComposeResourcesToAndroidAssets UP-TO-DATE
+> Task :composeApp:debugAssetsCopyForAGP NO-SOURCE
+> Task :composeApp:generateDebugAssets UP-TO-DATE
+> Task :composeApp:mergeDebugAssets UP-TO-DATE
+> Task :composeApp:compressDebugAssets UP-TO-DATE
+> Task :composeApp:checkDebugDuplicateClasses UP-TO-DATE
+> Task :composeApp:desugarDebugFileDependencies UP-TO-DATE
+> Task :composeApp:mergeExtDexDebug UP-TO-DATE
+> Task :composeApp:mergeLibDexDebug UP-TO-DATE
+> Task :composeApp:mergeDebugJniLibFolders UP-TO-DATE
+> Task :composeApp:mergeDebugNativeLibs UP-TO-DATE
+> Task :composeApp:stripDebugDebugSymbols UP-TO-DATE
+> Task :composeApp:validateSigningDebug UP-TO-DATE
+> Task :composeApp:writeDebugAppMetadata UP-TO-DATE
+> Task :composeApp:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :composeApp:convertXmlValueResourcesForAndroidUnitTest NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForAndroidUnitTest NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForAndroidUnitTest NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForAndroidUnitTest NO-SOURCE
+> Task :composeApp:convertXmlValueResourcesForAndroidUnitTestDebug NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForAndroidUnitTestDebug NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForAndroidUnitTestDebug NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForAndroidUnitTestDebug NO-SOURCE
+> Task :composeApp:convertXmlValueResourcesForCommonTest NO-SOURCE
+> Task :composeApp:copyNonXmlValueResourcesForCommonTest NO-SOURCE
+> Task :composeApp:prepareComposeResourcesTaskForCommonTest NO-SOURCE
+> Task :composeApp:generateResourceAccessorsForCommonTest NO-SOURCE
+> Task :composeApp:preDebugUnitTestBuild UP-TO-DATE
+> Task :composeApp:javaPreCompileDebugUnitTest UP-TO-DATE
+
+> Task :composeApp:compileDebugKotlinAndroid
+w: file:///Users/md/Desktop/Matchora/composeApp/src/androidMain/kotlin/com/matchora/app/data/BackendTransport.android.kt:50:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+w: file:///Users/md/Desktop/Matchora/composeApp/src/androidMain/kotlin/com/matchora/app/data/ListingDraftStorage.android.kt:5:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+w: file:///Users/md/Desktop/Matchora/composeApp/src/androidMain/kotlin/com/matchora/app/data/PendingSendPersistence.android.kt:13:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+w: file:///Users/md/Desktop/Matchora/composeApp/src/androidMain/kotlin/com/matchora/app/ui/components/NativeMapView.android.kt:43:8 'class MarkerOptions : BaseMarkerOptions<Marker!, MarkerOptions!>, Parcelable' is deprecated. Deprecated in Java.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/androidMain/kotlin/com/matchora/app/ui/components/NativeMapView.android.kt:44:8 'class IconFactory : Any' is deprecated. Deprecated in Java.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/androidMain/kotlin/com/matchora/app/ui/components/NativeMapView.android.kt:112:26 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/App.kt:97:28 'val LocalClipboardManager: ProvidableCompositionLocal<ClipboardManager>' is deprecated. Use LocalClipboard instead which supports suspend functions.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/App.kt:1341:128 Unnecessary safe call on a non-null receiver of type 'BackendSnapshot'.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/data/BackendTransport.kt:8:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/data/ListingDraft.kt:6:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/data/PendingSends.kt:13:1 'expect'/'actual' classes (including interfaces, objects, annotations, enums, and 'actual' typealiases) are in Beta. Consider using the '-Xexpect-actual-classes' flag to suppress this warning. Also see: https://youtrack.jetbrains.com/issue/KT-61573
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt:187:99 'val Icons.Rounded.Logout: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Logout.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt:382:34 'val Icons.Rounded.EventNote: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.EventNote.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/BackendManagementActions.kt:388:285 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CheckInCodeActions.kt:25:13 Condition is always 'true'.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CityAndLocationSelectorSheet.kt:83:41 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes MenuAnchorType and enabled parameters.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CompetitionHighlights.kt:50:32 'val Icons.Rounded.ArrowForward: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.ArrowForward.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CompetitionHighlights.kt:106:32 'val Icons.Rounded.ArrowForward: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.ArrowForward.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/CreateEventAndChallengeSheets.kt:520:42 'val Icons.Rounded.Send: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Send.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/EventDetailSheet.kt:800:82 'val LocalClipboardManager: ProvidableCompositionLocal<ClipboardManager>' is deprecated. Use LocalClipboard instead which supports suspend functions.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/InteractiveActionSheets.kt:900:86 'val LocalClipboardManager: ProvidableCompositionLocal<ClipboardManager>' is deprecated. Use LocalClipboard instead which supports suspend functions.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/ManageJoinRequestsSheet.kt:111:78 'val LocalClipboardManager: ProvidableCompositionLocal<ClipboardManager>' is deprecated. Use LocalClipboard instead which supports suspend functions.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/ManageTeamRequestsSheet.kt:210:60 'val Icons.Rounded.Chat: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Chat.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/OperationsSheets.kt:617:136 'val Icons.Rounded.ViewList: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.ViewList.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/RatingAndMissionSheets.kt:28:98 'val Icons.Rounded.TrendingUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.TrendingUp.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/SendTeamChallengeSheet.kt:208:42 'val Icons.Rounded.Send: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Send.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/SendTeamChallengeSheet.kt:395:50 'val Icons.Rounded.Chat: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Chat.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/SubmitJoinRequestSheet.kt:181:38 'val Icons.Rounded.Send: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Send.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/TeamDetailSheet.kt:531:62 'val LocalClipboardManager: ProvidableCompositionLocal<ClipboardManager>' is deprecated. Use LocalClipboard instead which supports suspend functions.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/components/WalletAndPaymentSheet.kt:96:35 Condition is always 'true'.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/ChatHubScreen.kt:918:17 Condition is always 'true'.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/ChatHubScreen.kt:1332:106 'val Icons.Rounded.Reply: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Reply.
+w: file:///Users/md/Desktop/Matchora/composeApp/src/commonMain/kotlin/com/matchora/app/ui/screens/CommunityAndVenueScreen.kt:559:54 'val Icons.Rounded.ExitToApp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.ExitToApp.
+
+> Task :composeApp:compileDebugJavaWithJavac NO-SOURCE
+> Task :composeApp:processDebugJavaRes UP-TO-DATE
+> Task :composeApp:mergeDebugJavaResource UP-TO-DATE
+> Task :composeApp:dexBuilderDebug
+> Task :composeApp:bundleDebugClassesToCompileJar
+> Task :composeApp:bundleDebugClassesToRuntimeJar
+> Task :composeApp:compileDebugUnitTestKotlinAndroid UP-TO-DATE
+> Task :composeApp:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :composeApp:processDebugUnitTestJavaRes UP-TO-DATE
+> Task :composeApp:mergeProjectDexDebug
+> Task :composeApp:testDebugUnitTest
+> Task :composeApp:packageDebug
+> Task :composeApp:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :composeApp:assembleDebug
+
+[Incubating] Problems report is available at: file:///Users/md/Desktop/Matchora/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.3.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 30s
+49 actionable tasks: 8 executed, 41 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.3.0/userguide/configuration_cache_enabling.html

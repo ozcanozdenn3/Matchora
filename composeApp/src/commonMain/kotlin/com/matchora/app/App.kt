@@ -296,17 +296,28 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     }
     fun remotePhoto(memory: MatchMemoryPost, threadId: String? = null, publishMemory: Boolean = false): Boolean {
         if (!backend.enabled) return false
-        val key = backend.requestKey("photo")
-        var uploadId: String? = memory.remoteUploadId
         lateinit var execute: () -> Unit
         execute = { demoScope.launch {
             backendBusy++
             try {
-                if (uploadId == null) uploadId = memory.customBitmap?.let { backend.uploadPhoto(it) }
-                if (uploadId == null) throw BackendFailure("PHOTO_REQUIRED", "Bir fotoğraf seç.")
-                if (publishMemory || threadId == null) backend.command("memory.create", apiPayload("caption" to memory.caption, "sport" to memory.sport, "venue" to memory.venue, "area" to memory.area, "city" to memory.city, "uploadId" to uploadId, "shareThreadId" to threadId, "matchScoreTag" to memory.matchScoreTag, "sceneTheme" to memory.sceneTheme, "approximateLocation" to memory.approximateLocation?.let { mapOf("latitude" to it.latitude, "longitude" to it.longitude) }), key)
-                else backend.command("chat.send", apiPayload("threadId" to threadId, "text" to memory.caption, "uploadId" to uploadId, "forwardId" to memory.id.takeIf { memory.remoteUploadId != null }), key)
+                if (memory.remoteUploadId == null && memory.customBitmap == null) {
+                    throw BackendFailure("PHOTO_REQUIRED", "Bir fotoğraf seç.")
+                }
+                val operation = if (publishMemory || threadId == null) "memory.create" else "chat.send"
+                val payload = if (operation == "memory.create") apiPayload(
+                    "caption" to memory.caption, "sport" to memory.sport, "venue" to memory.venue,
+                    "area" to memory.area, "city" to memory.city, "uploadId" to memory.remoteUploadId,
+                    "shareThreadId" to threadId, "matchScoreTag" to memory.matchScoreTag,
+                    "sceneTheme" to memory.sceneTheme, "approximateLocation" to memory.approximateLocation?.let {
+                        mapOf("latitude" to it.latitude, "longitude" to it.longitude)
+                    }
+                ) else apiPayload(
+                    "threadId" to threadId, "text" to memory.caption, "uploadId" to memory.remoteUploadId,
+                    "forwardId" to memory.id.takeIf { memory.remoteUploadId != null }
+                )
+                backend.enqueueSend(operation, payload, memory.customBitmap.takeIf { memory.remoteUploadId == null })
                 backendError = null; backendRetry = null
+                demoScope.launch { backend.processPendingSends() }
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (error: Exception) { backendError = error.message ?: "Fotoğraf kaydedilemedi."; backendRetry = execute }
             finally { backendBusy-- }
@@ -578,7 +589,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     LaunchedEffect(authBackend, appActive, isLoggedIn) {
         if (authBackend !== backend && appActive && isLoggedIn) while (true) {
             delay(20000)
-            try { authBackend.reload() }
+            try { authBackend.poll() }
             catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
             catch (_: Exception) { /* Session invalidation clears auth state; temporary offline preserves a verified session. */ }
         }
@@ -635,6 +646,19 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             }
         }
     }
+    LaunchedEffect(backend, appActive, isLoggedIn, live?.userId) {
+        if (backend.enabled && appActive && isLoggedIn) backend.runRealtime()
+    }
+    LaunchedEffect(backend, appActive, isLoggedIn, live?.userId) {
+        if (backend.enabled && appActive && isLoggedIn) {
+            while (true) {
+                try { backend.processPendingSends() }
+                catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                catch (error: Exception) { backendError = error.message ?: "Bekleyen gönderimler okunamadı." }
+                kotlinx.coroutines.delay(5000L)
+            }
+        }
+    }
     LaunchedEffect(backend, appActive, activeChatThreadId) {
         if (backend.enabled && appActive) {
             try { backend.setActiveThread(activeChatThreadId) }
@@ -645,8 +669,8 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 }
             }
             while (true) {
-                kotlinx.coroutines.delay(if (activeChatThreadId != null) 3000L else 20000L)
-                try { backend.reload() }
+                kotlinx.coroutines.delay(if (activeChatThreadId != null && !backend.realtimeConnected.value) 3000L else 20000L)
+                try { backend.poll() }
                 catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
                 catch (_: Exception) { /* Existing snapshot remains available; explicit actions surface errors. */ }
             }
@@ -1164,6 +1188,8 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     challenges = challenges,
                     teamJoinRequests = teamJoinRequests,
                     onCreateTeam = { requireAccount { createTeam(it)  }},
+                    onCreatedTeam = { id -> competitionEntryTab = 2; competitionFocusId = id; showToast("Kulübün oluşturuldu.", "🛡️") },
+                    onCreatedTournament = { id -> competitionEntryTab = 1; competitionFocusId = id; showToast("Turnuvan yayınlandı.", "🏆") },
                     onOpenChallengeSheet = { source, target -> requireAccount { challengeSourceTeam = source; challengeTargetTeam = target }},
                     onAcceptChallenge = { requireAccount { acceptTeamChallenge(it)  }},
                     onDeclineChallenge = { requireAccount { declineTeamChallenge(it)  }},
@@ -1262,6 +1288,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                             showToast("Bildirim kaydın Hesap → Destek bölümünde", "🛡️")
                         }
                     },
+                    onPublishedCommunity = { id -> networkEntryTab = 0; networkTargetId = id; showToast("Topluluğun oluşturuldu.", "🤝") },
                     onCreateCommunity = { community -> if (!remote("community.create", apiPayload("name" to community.name, "type" to community.type, "access" to community.access, "city" to community.city, "area" to community.area, "description" to community.description, "sport" to community.sports.first(), "sports" to community.sports.map { it.name }))) requireAccount { previewCommunities = listOf(community) + previewCommunities; joinedCommunityIds = joinedCommunityIds + community.id } },
                     onOpenCommunityChat = { com -> if (!remote("community.chat", apiPayload("communityId" to com.id)) { res -> activeChatThreadId = res.s("id"); currentTab = 4 }) { requireAccount { showToast("${com.name} sohbet odası açıldı", "💬"); currentTab = 4 } } },
                     venues = if (backend.enabled) remoteVenues else DemoData.venues,
@@ -1447,6 +1474,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     reliabilityOverride = if (backend.enabled) live?.reliabilityHistory.orEmpty() else DemoData.reliabilityRecords,
                     badgesOverride = if (backend.enabled) live?.badges.orEmpty() else DemoData.badges,
                     missionsOverride = if (backend.enabled) live?.missions.orEmpty() else DemoData.missions,
+                    pendingMatchCount = if (backend.enabled) events.count { it.id in joinedEventIds && it.status in setOf(EventStatus.COMPLETED, EventStatus.DISPUTED) } else 0,
                     onOpenAuth = { showAuthSheet = true },
                     onOpenSettings = { showAccountSettings = true },
                     onOpenActivity = { showMyActivity = true },
@@ -1480,6 +1508,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
         MToastBanner(toast = currentToast)
     }
 
+    val uploadProgress by backend.uploadProgress.collectAsState()
     var showBusyPopup by remember { mutableStateOf(false) }
     LaunchedEffect(backendBusy) {
         if (backendBusy > 0) {
@@ -1494,7 +1523,12 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
         Surface(shape = RoundedCornerShape(14.dp), color = MColors.Ink900, modifier = Modifier.statusBarsPadding().padding(12.dp)) {
             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MColors.BrandLight)
-                Text("Güncelleniyor…", color = Color.White, style = MaterialTheme.typography.bodySmall)
+                Text(when (val progress = uploadProgress) {
+                    null -> "Güncelleniyor…"
+                    -1 -> "Fotoğraf hazırlanıyor…"
+                    100 -> "Fotoğraf işleniyor…"
+                    else -> "Fotoğraf yükleniyor · %$progress"
+                }, color = Color.White, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -1853,6 +1887,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
 
     // 2. Şimdi Oyna & İlan Verme (Play Now Wizard & Ad Post)
     if (showPlayNowSheet) {
+        val listingPublicationOwner = backend.userId
         PlayNowModalSheet(
             allEvents = events,
             tokenBalance = tokenBalance,
@@ -1921,6 +1956,16 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     showManageJoinRequestsForEvent = newEvent
                 }
              } },
+            draftOwnerKey = backend.userId ?: "preview",
+            onRecoveredPublication = { id, keptDraft ->
+                openEventById(id)
+                showToast(if (keptDraft) "İlanın yayınlandığı doğrulandı. Sonraki değişikliklerin taslakta saklandı." else "İlanının yayınlandığı doğrulandı.", "📢")
+            },
+            onPublishEvent = if (backend.enabled) { event, key ->
+                val result = backend.command("event.create", event.toApiPayload(), key, expectedOwner = listingPublicationOwner)
+                openEventById(result.s("id"))
+                showToast("İlan yayınlandı. ID’sini detaydan paylaşabilirsin.", "📢")
+            } else null,
             onRequestTokens = {
                 showTokenTopUpSheet = true
             }
@@ -2220,7 +2265,10 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             showPlayNowSheet = true
         },
         onDismiss = { showMyActivity = false })
-    resultEvent?.let { event -> MatchResultSheet(event, matchResults[event.id], players = (remotePlayers + selectedDetailPlayers).distinctBy { it.id },
+    resultEvent?.let { selectedEvent ->
+        val event = events.firstOrNull { it.id == selectedEvent.id } ?: selectedEvent
+        MatchResultSheet(event, matchResults[event.id], players = (remotePlayers + selectedDetailPlayers).distinctBy { it.id },
+        isCheckedIn = !backend.enabled || event.id in checkedInEventIds,
         canSubmit = (event.id in joinedEventIds || event.hostId == DemoData.ME) && (!backend.enabled || event.id in checkedInEventIds) && event.status in setOf(EventStatus.IN_PROGRESS, EventStatus.COMPLETED, EventStatus.VERIFIED, EventStatus.DISPUTED),
         onSubmit = { result -> if (!remote("result.submit", apiPayload("eventId" to event.id, "homeScore" to result.homeScore, "awayScore" to result.awayScore, "note" to result.note, "sides" to mapOf("home" to result.homeParticipantIds.map(backend::serverUserId), "away" to result.awayParticipantIds.map(backend::serverUserId))))) { matchResults = matchResults + (event.id to result); showToast("Sonuç kaydedildi · doğrulama bekleniyor", "✓") } },
         onDispute = { reason ->

@@ -64,21 +64,9 @@ internal actual fun rememberNativeGalleryPicker(onPhoto: (ImageBitmap) -> Unit, 
             }
         Unit
     }
-    val permissionName = if (android.os.Build.VERSION.SDK_INT >= 33) {
-        "android.permission.READ_MEDIA_IMAGES"
-    } else {
-        Manifest.permission.READ_EXTERNAL_STORAGE
-    }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) launchPicker() else error("Fotoğraf seçebilmek için galeri erişim izni gereklidir. İzni cihaz ayarlarından açabilirsin.")
-    }
-    return {
-        if (android.os.Build.VERSION.SDK_INT >= 33 || context.checkSelfPermission(permissionName) == PackageManager.PERMISSION_GRANTED) {
-            launchPicker()
-        } else {
-            permissionLauncher.launch(permissionName)
-        }
-    }
+    // PickVisualMedia falls back to the system document picker on older devices.
+    // Both grant access to the selected URI without broad library permissions.
+    return launchPicker
 }
 
 @Composable

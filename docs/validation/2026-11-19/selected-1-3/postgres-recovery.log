@@ -1,0 +1,20 @@
+✔ PostgreSQL engine applies migrations repeatedly, isolates mobile roles, and executes real domain commands (8313.845916ms)
+✔ chat.send: a photo left unattached for over 24h can be renewed with one committed send (202.578667ms)
+✔ memory.create: a photo left unattached for over 24h can be renewed with one committed send (85.463917ms)
+✔ a lost listing acknowledgement is recoverable after its time passes and free tokens fall to zero (91.82375ms)
+✔ receipt checks wait for the committing command and preserve its result after a conversation closes (79.805958ms)
+[API] POST /v1/command-receipts/resolve from 127.0.0.1
+[API] POST /v1/command-receipts/resolve from 127.0.0.1
+[API] POST /v1/command-receipts/resolve from 127.0.0.1
+[API] POST /v1/command-receipts/resolve from 127.0.0.1
+[API] POST /v1/command-receipts/resolve from 127.0.0.1
+[API] POST /v1/command-receipts/resolve from 127.0.0.1
+✔ HTTP receipt resolution requires the same account, exact payload and valid original key (355.158125ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8711.601916

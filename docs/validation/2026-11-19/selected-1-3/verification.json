@@ -1,0 +1,51 @@
+{
+  "date": "2026-11-19",
+  "scope": "Selected audit items 1, 2 and 3",
+  "backend": {
+    "tests": 257,
+    "passed": 257,
+    "failed": 0,
+    "syntaxCheck": true,
+    "evidence": "backend-tests.log"
+  },
+  "postgresAndRecoveryHttp": {
+    "tests": 6,
+    "passed": 6,
+    "failed": 0,
+    "evidence": "postgres-recovery.log"
+  },
+  "kmpAndroidJvm": {
+    "tests": 109,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "builds": {
+    "androidDebugApk": true,
+    "iosSimulatorArm64Framework": true,
+    "iosXcodeApp": true
+  },
+  "sql": {
+    "newMigrationRequired": false,
+    "existingSchemaVersion": 14
+  },
+  "preservation": {
+    "demoDataUnchanged": true,
+    "compassNotModifiedByThisChange": true
+  },
+  "runtime": {
+    "apiHealthStatus": 200,
+    "unauthenticatedReceiptRouteStatus": 401,
+    "simulator": "FFD364D8-C8F8-4886-A74A-DCB4792DD958",
+    "bundleId": "com.ozdentech.matchora",
+    "simulatorInstalled": true,
+    "simulatorLaunched": true,
+    "launchPid": 89268,
+    "launchScreenshot": "simulator-final.png",
+    "launchScreenVisuallyReviewed": true
+  },
+  "limits": [
+    "New flow windows were not manually exercised end to end on two physical devices.",
+    "Production HTTPS deployment, store/RevenueCat configuration and store validation remain separate release setup."
+  ]
+}

@@ -1,6 +1,8 @@
 package com.matchora.app.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -9,7 +11,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.matchora.app.data.*
 import com.matchora.app.state.*
 import com.matchora.app.ui.theme.MColors
@@ -18,7 +22,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
 @Composable
-fun BackendEventEditing(event: SportEvent) {
+fun BackendEventEditing(event: SportEvent, modifier: Modifier = Modifier) {
     val backend = LocalBackendRepository.current ?: return
     if (!backend.enabled) return
     if (event.hostId != DemoData.ME || event.isTeamEvent || (event.startsInMin ?: 1) <= 0) return
@@ -46,11 +50,12 @@ fun BackendEventEditing(event: SportEvent) {
     var date by remember(event.id) { mutableStateOf(start?.date ?: todayDate()) }
     var hour by remember(event.id) { mutableIntStateOf(start?.hour ?: 20) }
     var minute by remember(event.id) { mutableIntStateOf(start?.minute ?: 0) }
-    MPillActionButton(
-        text = "Maç planını düzenle",
-        icon = Icons.Rounded.Edit,
-        tone = MPillTone.BRAND,
-        compact = true,
+    OutlinedButton(
+        modifier = modifier.heightIn(min = 48.dp),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, MColors.Line),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MColors.Ink900),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
         onClick = {
             editingVersion = snapshot?.a("events")?.find { it.s("id") == event.id }?.i("version")
             title = event.title; venue = event.venue; description = event.description; capacity = event.capacity.toString()
@@ -66,7 +71,11 @@ fun BackendEventEditing(event: SportEvent) {
             }
             open = true
         }
-    )
+    ) {
+        Icon(Icons.Rounded.Edit, null, Modifier.size(18.dp), tint = MColors.BrandDeep)
+        Spacer(Modifier.width(6.dp))
+        Text("İlanı düzenle", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+    }
     if (open) AlertDialog(onDismissRequest = { open = false }, title = { Text("Maç planı") },
         text = { Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             MPremiumTextField(title, { title = it.take(100) }, label = "Başlık")

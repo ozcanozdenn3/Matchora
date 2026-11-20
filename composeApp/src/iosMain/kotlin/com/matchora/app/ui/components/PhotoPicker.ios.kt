@@ -35,7 +35,7 @@ private fun preparePhoto(image: UIImage): ImageBitmap {
         UIGraphicsGetImageFromCurrentImageContext()
     } finally { UIGraphicsEndImageContext() }
     val bytes = requireNotNull(UIImageJPEGRepresentation(resized ?: image, 0.85)).photoBytes()
-    return Image.makeFromEncoded(bytes).toComposeImageBitmap()
+    return Image.makeFromEncoded(bytes).toComposeImageBitmap().also { com.matchora.app.data.rememberPreparedPhoto(it, bytes) }
 }
 
 private fun topController(): UIViewController? {
@@ -69,12 +69,17 @@ internal actual fun rememberNativeGalleryPicker(onPhoto: (ImageBitmap) -> Unit, 
                 lifetime.controller = null
                 if (result == null || !lifetime.active) return
                 lifetime.loading = result.itemProvider.loadDataRepresentationForTypeIdentifier("public.image") { data, _ ->
+                    val prepared = runCatching {
+                        val source = requireNotNull(data)
+                        require(source.length <= 20uL * 1024uL * 1024uL)
+                        preparePhoto(requireNotNull(UIImage.imageWithData(source)))
+                    }
                     dispatch_async(dispatch_get_main_queue()) {
-                        if (lifetime.active) try {
-                            val source = requireNotNull(data)
-                            require(source.length <= 20uL * 1024uL * 1024uL)
-                            callback(preparePhoto(requireNotNull(UIImage.imageWithData(source))))
-                        } catch (_: Exception) { error("Seçilen fotoğraf okunamadı. Başka bir fotoğraf deneyebilirsin.") }
+                        if (lifetime.active) {
+                            prepared.onSuccess(callback).onFailure {
+                                error("Seçilen fotoğraf okunamadı. Başka bir fotoğraf deneyebilirsin.")
+                            }
+                        }
                     }
                 }
             }

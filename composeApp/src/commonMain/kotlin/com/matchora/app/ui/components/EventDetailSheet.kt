@@ -105,11 +105,42 @@ fun EventDetailSheet(
     val displayedFreeSpots = (event.capacity - displayedParticipantIds.size).coerceAtLeast(0)
 
     hostAction?.let { action ->
-        AlertDialog(onDismissRequest = { hostAction = null },
+        val actionIcon = when (action) {
+            "start" -> Icons.Rounded.PlayArrow
+            "complete" -> Icons.Rounded.CheckCircle
+            else -> Icons.Rounded.Cancel
+        }
+        val actionLabel = when (action) {
+            "start" -> "Maçı başlat"
+            "complete" -> "Maçı tamamla"
+            else -> "Maçı iptal et"
+        }
+        val actionColor = if (action == "cancel") MColors.Rose else MColors.BrandDeep
+        AlertDialog(
+            onDismissRequest = { hostAction = null },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MColors.Surface,
+            tonalElevation = 0.dp,
+            icon = { Icon(actionIcon, null, Modifier.size(28.dp), tint = actionColor) },
             title = { Text(when (action) { "start" -> "Maç başlatılsın mı?"; "complete" -> "Maç tamamlansın mı?"; else -> "Maç iptal edilsin mi?" }) },
-            text = { Text(when (action) { "start" -> "Katılımcı kadrosunu kontrol ederek maçı başlat."; "complete" -> "Tamamladıktan sonra sonucu ve fair play değerlendirmesini bildirebilirsin."; else -> "Karşılaşma iptal edilir ve kendi taahhüt kilidin varsa iade edilir." }) },
-            confirmButton = { TextButton(onClick = { hostAction = null; when (action) { "start" -> onStartEvent(); "complete" -> onCompleteEvent(); else -> onCancelEvent() } }) { Text(if (action == "cancel") "Maçı İptal Et" else "Onayla", color = if (action == "cancel") MColors.Rose else MColors.BrandDeep) } },
-            dismissButton = { TextButton(onClick = { hostAction = null }) { Text("Vazgeç") } })
+            text = { Text(when (action) { "start" -> "Katılımcı kadrosunu ve oyuncuların check-in kayıtlarını kontrol ederek maçı başlat."; "complete" -> "Maçın oynanması sona erer. Pasaport istatistikleri için skoru bildirmen, rakip onayı ve sonuç doğrulamasının tamamlanması gerekir."; else -> "Karşılaşma iptal edilir ve kendi taahhüt kilidin varsa iade edilir." }) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        hostAction = null
+                        when (action) { "start" -> onStartEvent(); "complete" -> onCompleteEvent(); else -> onCancelEvent() }
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = actionColor),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Icon(actionIcon, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(actionLabel, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = { TextButton(onClick = { hostAction = null }) { Text("Vazgeç", color = MColors.Ink600) } }
+        )
     }
     confirmMemberAction?.let { action ->
         AlertDialog(
@@ -202,62 +233,68 @@ fun EventDetailSheet(
             val isActiveHostEvent = isHost && event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING, EventStatus.FULL, EventStatus.IN_PROGRESS)
             if (isActiveHostEvent) {
                 item {
-                    MCard(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp) {
-                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MCard(Modifier.fillMaxWidth(), cornerRadius = 18.dp, elevation = 2.dp) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("👑", fontSize = 18.sp)
-                                    Column {
-                                        Text("Organizatör İşlemleri", style = MaterialTheme.typography.titleSmall, color = MColors.Ink900)
-                                        Text("Bu ilanın kaptanısın · Başvuruları yönet ve düzenle", fontSize = 11.sp, color = MColors.Ink500)
-                                    }
+                                Surface(shape = RoundedCornerShape(12.dp), color = MColors.BrandTint) {
+                                    Icon(Icons.Rounded.Tune, null, Modifier.padding(10.dp).size(20.dp), tint = MColors.BrandDeep)
                                 }
+                                Text("İlan yönetimi", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = MColors.Ink900)
                                 MBadge("Kaptan", MColors.BrandDeep, MColors.BrandTint)
+                            }
+                            if (event.status == EventStatus.IN_PROGRESS || !backendMode || event.startsAtEpochMillis?.let { now < it + event.durationMin * 60000 } == true) {
+                                MButton(
+                                    text = if (backendMode && isJoined && !isCheckedIn) "Önce saha check-in yap" else if (event.status == EventStatus.IN_PROGRESS) "Maçı tamamla" else "Maçı başlat",
+                                    icon = if (event.status == EventStatus.IN_PROGRESS) Icons.Rounded.CheckCircle else Icons.Rounded.PlayArrow,
+                                    height = 48.dp,
+                                    enabled = !backendMode || !isJoined || isCheckedIn || mayCheckIn,
+                                    onClick = {
+                                        if (backendMode && isJoined && !isCheckedIn) onCheckIn()
+                                        else hostAction = if (event.status == EventStatus.IN_PROGRESS) "complete" else "start"
+                                    }
+                                )
                             }
                             if (canManageRoster) {
                                 MButton(
-                                    text = "İlan Yönetim Paneli ($pendingRequestsCount Başvuru)",
+                                    text = "Kadro ve başvurular ($pendingRequestsCount)",
                                     onClick = onOpenManageRequests,
                                     icon = Icons.Rounded.ManageAccounts,
-                                    isPrimary = true,
-                                    height = 44.dp
+                                    isPrimary = false,
+                                    height = 48.dp
                                 )
                             }
-                            FlowRow(
+                            if (mayCheckIn || canManageRoster) Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                if (event.status == EventStatus.IN_PROGRESS || !backendMode || event.startsAtEpochMillis?.let { now < it + event.durationMin * 60000 } == true) {
-                                    MPillActionButton(
-                                        text = if (event.status == EventStatus.IN_PROGRESS) "Maçı tamamla" else "Maçı başlat",
-                                        icon = Icons.Rounded.CheckCircle,
-                                        tone = MPillTone.BRAND,
-                                        compact = true,
-                                        onClick = { hostAction = if (event.status == EventStatus.IN_PROGRESS) "complete" else "start" }
-                                    )
+                                if (mayCheckIn) OutlinedButton(
+                                    onClick = onCheckIn,
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    border = BorderStroke(1.dp, MColors.Line),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MColors.Ink900),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
+                                ) {
+                                    Icon(Icons.Rounded.QrCode, null, Modifier.size(18.dp), tint = MColors.BrandDeep)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Check-in kodu", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
-                                if (mayCheckIn) {
-                                    MPillActionButton(
-                                        text = "Saha check-in kodu",
-                                        icon = Icons.Rounded.QrCode,
-                                        tone = MPillTone.NEUTRAL,
-                                        compact = true,
-                                        onClick = onCheckIn
-                                    )
-                                }
-                                BackendEventEditing(event)
-                                MPillActionButton(
-                                    text = "Maçı iptal et",
-                                    icon = Icons.Rounded.Cancel,
-                                    tone = MPillTone.DANGER,
-                                    compact = true,
-                                    onClick = { hostAction = "cancel" }
-                                )
+                                BackendEventEditing(event, Modifier.weight(1f))
+                            }
+                            HorizontalDivider(color = MColors.LineSoft)
+                            TextButton(
+                                onClick = { hostAction = "cancel" },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.textButtonColors(contentColor = MColors.Rose)
+                            ) {
+                                Icon(Icons.Rounded.Cancel, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Maçı iptal et", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -278,7 +315,7 @@ fun EventDetailSheet(
                             Text("👑", fontSize = 18.sp)
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Bu İlanın Kaptanısın", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MColors.Brand)
-                                Text("Başvuruları inceleyebilir, onaylayıp reddedebilir veya mesaj atabilirsin.", fontSize = 11.sp, color = MColors.Ink600)
+                                Text("Maçın durumunu, sonucunu ve katılımcıları buradan takip edebilirsin.", fontSize = 11.sp, color = MColors.Ink600)
                             }
                         }
                     }
@@ -638,7 +675,8 @@ fun EventDetailSheet(
                     if (isHost) {
                         // KAPTAN GÖRÜNÜMÜ: Sohbet erişimi (diğer kontroller üst panelde)
                         MButton(
-                            text = "💬 Etkinlik Sohbetine Git",
+                            text = "Etkinlik sohbeti",
+                            icon = Icons.Rounded.Forum,
                             onClick = onOpenChat,
                             isPrimary = false
                         )
@@ -646,14 +684,16 @@ fun EventDetailSheet(
                         // KATILMIŞ KULLANICI GÖRÜNÜMÜ
                         if (!isCheckedIn && mayCheckIn) {
                             MButton(
-                                text = "📍 Check-in yap",
+                                text = "Check-in yap",
+                                icon = Icons.Rounded.LocationOn,
                                 onClick = onCheckIn,
                                 isPrimary = true
                             )
                         }
 
                         MButton(
-                            text = "💬 Etkinlik Sohbetine Git",
+                            text = "Etkinlik sohbeti",
+                            icon = Icons.Rounded.Forum,
                             onClick = onOpenChat,
                             isPrimary = false
                         )
@@ -750,38 +790,39 @@ fun EventDetailSheet(
                             border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Column {
-                                    Text("BENZERSİZ İLAN ID", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MColors.Ink400, letterSpacing = 0.5.sp)
-                                    Text(eventDisplayId(event.id), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = MColors.BrandDeep)
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("BENZERSİZ İLAN ID", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MColors.Ink500, letterSpacing = 0.5.sp)
+                                Text(eventDisplayId(event.id), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = MColors.BrandDeep)
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-                                    FilledTonalButton(
+                                    OutlinedButton(
                                         onClick = {
                                             clipboard.setText(androidx.compose.ui.text.AnnotatedString(event.id))
                                             copiedToast = true
                                         },
-                                        shape = RoundedCornerShape(10.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.dp, MColors.Line),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MColors.Ink900),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
                                     ) {
-                                        Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(13.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(if (copiedToast) "Kopyalandı" else "Kopyala", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(if (copiedToast) "Kopyalandı" else "Kopyala", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
                                     Button(
                                         onClick = onShare,
-                                        colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
-                                        shape = RoundedCornerShape(10.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MColors.BrandDeep),
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
                                     ) {
-                                        Icon(Icons.Rounded.Share, null, modifier = Modifier.size(13.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(if (backendMode) "Paylaş" else "Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Icon(Icons.Rounded.Share, null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(if (backendMode) "Paylaş" else "Paylaş (+2 TKN)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }

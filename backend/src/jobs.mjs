@@ -1,4 +1,6 @@
 import { scheduleEngagement } from './engagement.mjs';
+import { queueIdentityDeletion,processIdentityDeletions } from './identity-deletion.mjs';
+import { finalizeCompletedTournaments } from './competition.mjs';
 import { settleResult } from './rating.mjs';
 import { cleanMedia,queueStorageDeletion } from './storage.mjs';
 import { nativePushConfigured,sendApns,sendFcm } from './push.mjs';
@@ -35,6 +37,7 @@ export async function expireRecords(ctx){
 export async function processDeletions(ctx){const objects=[];
  for(const request of await ctx.db.all("SELECT * FROM deletion_requests WHERE status='pending' AND execute_after<=?",[ctx.now])){
   const user=await row(ctx,'users','id',request.user_id);
+  await queueIdentityDeletion(ctx,user);
   for(const booking of await ctx.db.all("SELECT b.id,s.venue_id FROM bookings b JOIN venue_slots s ON s.id=b.slot_id JOIN venue_payments p ON p.booking_id=b.id WHERE b.user_id=? AND b.status IN ('pending','confirmed') AND s.starts_at>? AND p.status='pending'",[user.id,ctx.now])){
    await ctx.db.run("UPDATE bookings SET status='cancelled' WHERE id=?",[booking.id]);await ctx.db.run("UPDATE venue_payments SET status='cancelled' WHERE booking_id=?",[booking.id]);
    const venue=await row(ctx,'venues','id',booking.venue_id);await notify(ctx,venue.owner_id,'matches','Rezervasyon iptal edildi','Hesap silindiği için tahsilat yapılmamış gelecek rezervasyon iptal edildi.','VENUES',booking.venue_id,`account-booking-cancel:${booking.id}`);
@@ -135,9 +138,10 @@ async function finishPush(service,job,status,{nextAt=service.clock(),attempt=fal
   [status,nextAt,attempt?1:0,status==='delivered'?service.clock():null,job.id,job.claimToken]));
 }
 export async function runJobs(service){
- const objects=await service.store.transaction(async db=>{const ctx={db,actor:null,now:service.clock(),config:service.config};await expireRecords(ctx);await scheduleReminders(ctx);await grantSubscriptionMonths(ctx);await finalizeResults(ctx);return processDeletions(ctx);});
+ const objects=await service.store.transaction(async db=>{const ctx={db,actor:null,now:service.clock(),config:service.config};await expireRecords(ctx);await scheduleReminders(ctx);await grantSubscriptionMonths(ctx);await finalizeResults(ctx);await finalizeCompletedTournaments(ctx);return processDeletions(ctx);});
  await service.store.transaction(db=>scheduleEngagement({db,actor:null,now:service.clock(),config:service.config}));
  await cleanMedia(service);
+ await processIdentityDeletions(service,service.identityRequest ?? fetch);
  if(!service.config.pushUrl&&!nativePushConfigured(service.config))return;
  for(let index=0;index<50;index++){
   const job=await claimPush(service);if(!job)break;

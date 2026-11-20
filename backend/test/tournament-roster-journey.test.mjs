@@ -50,6 +50,13 @@ test('knockout completion persists its champion and notifies the registered rost
  await f.cmd(f.host,'result.submit',{eventId:matchFixture.event_id,homeScore:2,awayScore:1});
  await f.cmd(f.guest,'result.confirm',{eventId:matchFixture.event_id});f.advance(25*3600000);await runJobs(f.service);
  assert.equal((await f.store.get('SELECT status FROM results WHERE event_id=?',[matchFixture.event_id])).status,'verified');
+ const automatic = await f.service.bootstrap(f.host);
+ assert.equal(automatic.tournaments.find(t=>t.id===id).championTeamId,matchFixture.home_team);
+ assert.equal(automatic.tournaments.find(t=>t.id===id).status,'completed');
+ const winner = matchFixture.home_team===home ? f.host : f.guest;
+ assert.equal((await f.service.bootstrap(winner)).progression.badges.find(b=>b.id==='b5').earned,true);
+ await runJobs(f.service);
+
  const result=await f.cmd(f.host,'tournament.schedule',{tournamentId:id,startsAtEpochMillis:f.clock()+7200000,venue:'Final sahası'},'finish-cup-replay');
  assert.equal(result.result.champion,matchFixture.home_team);assert.equal(result.snapshot.tournaments.find(t=>t.id===id).championTeamId,matchFixture.home_team);
  await f.cmd(f.host,'tournament.schedule',{tournamentId:id,startsAtEpochMillis:f.clock()+7200000,venue:'Final sahası'},'finish-cup-replay');

@@ -8,7 +8,7 @@ export async function sendChatMessage(ctx,p) {
   const thread=await assertThread(ctx,p.threadId,true),body=text(p.text??'','Mesaj',0,4000);
   ensure(body||p.uploadId,400,'EMPTY_MESSAGE','Bir mesaj veya fotoğraf ekle.');
   if(p.replyTo){const reply=await visibleMessage(ctx,p.replyTo);ensure(reply.thread_id===thread.id&&!reply.deleted_at,400,'INVALID_REPLY','Bu mesaja yanıt verilemiyor.');}
-  if(p.uploadId){const upload=await row(ctx,'uploads','id',p.uploadId);ensure(upload.status==='ready',403,'FORBIDDEN','Fotoğraf kullanılamıyor.');
+  if(p.uploadId){const upload=await row(ctx,'uploads','id',p.uploadId);if(upload.status!=='ready'){ensure(upload.owner_id===ctx.actor.id,403,'FORBIDDEN','Fotoğraf kullanılamıyor.');ensure(false,409,'UPLOAD_EXPIRED','Fotoğrafın yükleme süresi doldu. Yeniden yüklenmeli.');}
     if(upload.owner_id!==ctx.actor.id){
       const memory=p.forwardId?await ctx.db.get("SELECT * FROM memories WHERE id=? AND upload_id=? AND status='approved'",[p.forwardId,p.uploadId]):null;
       if(memory)ensure(!await ctx.db.get('SELECT user_id FROM blocks WHERE (user_id=? AND target_id=?) OR (user_id=? AND target_id=?)',[ctx.actor.id,memory.author_id,memory.author_id,ctx.actor.id]),403,'BLOCKED','Fotoğraf iletilemiyor.');

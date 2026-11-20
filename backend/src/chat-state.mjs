@@ -34,16 +34,16 @@ export async function visibleMessage(ctx, messageId) {
   return {...message,...metadata,id:message.id};
 }
 
-export async function chatMessageRows(ctx,threadId,{before=null,limit=100}={}) {
-  const state=await chatMemberState(ctx,threadId);
+export async function chatMessageRows(ctx,threadId,{before=null,limit=100,memberState=null}={}) {
+  const state=memberState ?? await chatMemberState(ctx,threadId);
   let sql='SELECT m.*,x.sequence,x.version,x.edited_at,x.deleted_at,x.reply_to FROM messages m JOIN message_metadata x ON x.message_id=m.id WHERE m.thread_id=? AND x.sequence>? AND NOT EXISTS(SELECT 1 FROM message_hides h WHERE h.message_id=m.id AND h.user_id=?)',params=[threadId,Number(state.clear_sequence),ctx.actor.id];
   if(before?.length===3){sql+=' AND x.sequence<?';params.push(before[2]);}else if(before){sql+=' AND (m.created_at<? OR (m.created_at=? AND m.id<?))';params.push(before[0],before[0],before[1]);}
   sql+=' ORDER BY x.sequence DESC LIMIT ?';params.push(limit);
   return ctx.db.all(sql,params);
 }
 
-export async function chatUnread(ctx,threadId) {
-  const state=await chatMemberState(ctx,threadId);
+export async function chatUnread(ctx,threadId,memberState=null) {
+  const state=memberState ?? await chatMemberState(ctx,threadId);
   return Number((await ctx.db.get('SELECT COUNT(*) AS n FROM messages m JOIN message_metadata x ON x.message_id=m.id WHERE m.thread_id=? AND x.sequence>? AND x.deleted_at IS NULL AND m.sender_id<>? AND NOT EXISTS(SELECT 1 FROM message_hides h WHERE h.message_id=m.id AND h.user_id=?)',[threadId,Math.max(Number(state.clear_sequence),Number(state.read_sequence)),ctx.actor.id,ctx.actor.id])).n);
 }
 
@@ -61,12 +61,20 @@ export async function messageContent(ctx,message) {
   if(metadata?.reply_to){
     try {const target=await visibleMessage(ctx,metadata.reply_to);reply={id:target.id,senderId:target.sender_id,text:target.deleted_at?'Silinen mesaj':target.body.slice(0,160),deleted:!!target.deleted_at};}catch{reply={id:metadata.reply_to,text:'Önceki mesaj',unavailable:true};}
   }
-  ctx.chatReaders??=new Map();if(!ctx.chatReaders.has(message.thread_id))ctx.chatReaders.set(message.thread_id,await ctx.db.all('SELECT s.user_id,s.read_sequence FROM thread_member_state s JOIN thread_members m ON m.thread_id=s.thread_id AND m.user_id=s.user_id WHERE s.thread_id=?',[message.thread_id]));
-  const readBy=ctx.chatReaders.get(message.thread_id).filter(r=>r.user_id!==message.sender_id&&Number(r.read_sequence)>=Number(metadata?.sequence??0)).length;
+  ctx.chatReaders ??= new Map();
+  if (!ctx.chatReaders.has(message.thread_id)) {
+    // messageView runs concurrently across a page. Share the in-flight read.
+    ctx.chatReaders.set(message.thread_id, ctx.db.all(
+      'SELECT s.user_id,s.read_sequence FROM thread_member_state s JOIN thread_members m ON m.thread_id=s.thread_id AND m.user_id=s.user_id WHERE s.thread_id=?',
+      [message.thread_id]));
+  }
+  const readers = await ctx.chatReaders.get(message.thread_id);
+  const readBy = readers.filter(r => r.user_id !== message.sender_id && Number(r.read_sequence) >= Number(metadata?.sequence ?? 0)).length;
   const uploadId=metadata?.deleted_at?null:message.upload_id;
   let memoryMeta=null;
   if(uploadId){
-    const mem=await ctx.db.get("SELECT id,status,payload FROM memories WHERE upload_id=? AND status<>'deleted' ORDER BY created_at DESC LIMIT 1",[uploadId]);
+    let mem=ctx.memoryMetaByUploadId?.has(uploadId)?ctx.memoryMetaByUploadId.get(uploadId):undefined;
+    if(mem===undefined)mem=await ctx.db.get("SELECT id,status,payload FROM memories WHERE upload_id=? AND status<>'deleted' ORDER BY created_at DESC LIMIT 1",[uploadId]);
     if(mem){try{const mp=JSON.parse(mem.payload);memoryMeta={id:mem.id,sport:mp.sport??'FOOTBALL',venue:mp.venue??'',area:mp.area??'',city:mp.city??'',matchScoreTag:mp.matchScoreTag??null,sceneTheme:mp.sceneTheme??'NIGHT_TURF',isShowcase:true};}catch{}}
   }
   return {readBy,text:metadata?.deleted_at?'Bu mesaj silindi.':message.body,uploadId,memoryMeta,

@@ -66,7 +66,8 @@ fun RatingStatusCard(eventId: String) {
                 } else {
                     Text("Rakip onayı ${rating.i("confirmed")}/${rating.i("required", 1)} · ${if (rating.s("status") == "disputed") "operatör incelemesi" else "24 saatlik itiraz süresi"}", style = MaterialTheme.typography.bodySmall)
                 }
-            } else Text("MMR doğrulanmış rekabetçi sonuçtan oluşur.", style = MaterialTheme.typography.bodySmall)
+            } else Text("Pasaport için saha check-in, skor ve sonuç doğrulaması gerekir. MMR rekabetçi maçlarda hesaplanır.", style = MaterialTheme.typography.bodySmall)
+            if (rating?.s("status") != "verified") Text("Skor bildiriminden başlayan 24 saatlik itiraz süresi dolduğunda, rakip onayı tamamlanmış sonuç maç, seri ve görevlerini günceller.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
             RatingPolicyButton()
         }
     }

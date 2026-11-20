@@ -12,7 +12,7 @@ import { runJobs } from '../src/jobs.mjs';
 test('PostgreSQL engine applies migrations repeatedly, isolates mobile roles, and executes real domain commands',async t=>{
  const pg=new PGlite();t.after(()=>pg.close());
  await pg.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
- for(let n=0;n<2;n++)for(const name of ['001_core.sql','003_integrations.sql','005_product_workflows.sql','006_push_delivery.sql','007_social_completion.sql','008_venue_applications.sql','009_multi_court_slots.sql','010_private_event_locations.sql','011_indexes_and_sync.sql','002_postgres_security.sql'])await pg.exec(await readFile(new URL(`../migrations/${name}`,import.meta.url),'utf8'));
+ for(let n=0;n<2;n++)for(const name of ['001_core.sql','003_integrations.sql','005_product_workflows.sql','006_push_delivery.sql','007_social_completion.sql','008_venue_applications.sql','009_multi_court_slots.sql','010_private_event_locations.sql','011_indexes_and_sync.sql','012_discovery_history.sql','013_upload_receipts.sql','014_identity_cleanup_history.sql','002_postgres_security.sql'])await pg.exec(await readFile(new URL(`../migrations/${name}`,import.meta.url),'utf8'));
  const pool={query:async(sql,params)=>{const result=await pg.query(sql,params);return{rows:result.rows,rowCount:result.affectedRows};},connect:async()=>({query:async(sql,params)=>{const result=await pg.query(sql,params);return{rows:result.rows,rowCount:result.affectedRows};},release(){}})};
  const store=new PostgresStore(pool),config=configFromEnv({DEV_AUTH_ENABLED:'true',CHECKIN_SECRET:'x'.repeat(32)}),auth=new Auth(store,config),service=new MatchoraService(store,config,null);
  const session=await auth.devLogin({identity:'postgres-user'}),actor=await auth.actor(session.accessToken);
@@ -20,6 +20,10 @@ test('PostgreSQL engine applies migrations repeatedly, isolates mobile roles, an
  await service.command(actor,'profile.save',passport,'postgres-profile-1');
  const point={latitude:41.1234567,longitude:29.7654321};
  const create=await service.command(actor,'event.create',{title:'Postgres tenis maçı',sport:'TENNIS',venue:'Kort 1',city:'İstanbul',area:'Kadıköy',capacity:2,startsAtEpochMillis:Date.now()+3600000,durationMin:60,mode:'SOCIAL',approximateLocation:point},'postgres-event-1');
+ const receiptPayload={title:'Postgres tenis maçı',sport:'TENNIS',venue:'Kort 1',city:'İstanbul',area:'Kadıköy',capacity:2,startsAtEpochMillis:create.snapshot.events[0].startsAtEpochMillis,durationMin:60,mode:'SOCIAL',approximateLocation:point};
+ assert.deepEqual(await service.commandReceipt(actor,{operation:'event.create',payload:receiptPayload,requestKey:'postgres-event-1'}),{found:true,result:create.result});
+ assert.deepEqual(await service.commandReceipt(actor,{operation:'event.create',payload:receiptPayload,requestKey:'postgres-missing-receipt'}),{found:false});
+ await assert.rejects(service.commandReceipt(actor,{operation:'event.create',payload:{...receiptPayload,title:'Farklı ilan'},requestKey:'postgres-event-1'}),error=>error.code==='IDEMPOTENCY_CONFLICT');
  assert.ok(create.result.id);assert.equal(create.snapshot.events.length,1);
  assert.equal((await service.bootstrap(actor)).wallet.balance,10);
  const secondSession=await auth.devLogin({identity:'postgres-peer'}),peer=await auth.actor(secondSession.accessToken);

@@ -21,9 +21,12 @@ export function normalizePhone(value) {
   return `+${digits}`;
 }
 export async function rateLimit(db, bucket, now, max = 60, window = 60000) {
-  const row = await db.get('SELECT * FROM rate_limits WHERE bucket=?', [bucket]);
-  if (!row || Number(row.resets_at) <= now) await db.run('INSERT INTO rate_limits(bucket,count,resets_at) VALUES(?,?,?) ON CONFLICT(bucket) DO UPDATE SET count=1,resets_at=?', [bucket, 1, now + window, now + window]);
-  else { ensure(row.count < max, 429, 'RATE_LIMITED', 'Çok fazla deneme. Biraz sonra tekrar dene.'); await db.run('UPDATE rate_limits SET count=count+1 WHERE bucket=?', [bucket]); }
+  const result = await db.run(`INSERT INTO rate_limits(bucket,count,resets_at) VALUES(?,1,?)
+    ON CONFLICT(bucket) DO UPDATE SET
+      count=CASE WHEN rate_limits.resets_at<=? THEN 1 ELSE rate_limits.count+1 END,
+      resets_at=CASE WHEN rate_limits.resets_at<=? THEN excluded.resets_at ELSE rate_limits.resets_at END
+    WHERE rate_limits.resets_at<=? OR rate_limits.count<?`, [bucket,now+window,now,now,now,max]);
+  ensure(result.changes === 1, 429, 'RATE_LIMITED', 'Çok fazla deneme. Biraz sonra tekrar dene.');
 }
 export class Auth {
   constructor(store, config, clock = Date.now, request = fetch) { this.store = store; this.config = config; this.clock = clock; this.request = request; }
@@ -40,6 +43,7 @@ export class Auth {
     return { accessToken: token, refreshToken: refresh, expiresAt: now + 15 * 60000, userId };
   }
   async upsertIdentity(db, subject, phone = null, email = null) {
+    if(subject.startsWith('provider:'))ensure(!await db.get("SELECT user_id FROM identity_deletions WHERE provider_user_id=? AND status<>'completed'",[subject.slice('provider:'.length)]),403,'ACCOUNT_DELETION_PENDING','Önceki hesabının silme işlemi tamamlanıyor. Daha sonra tekrar dene.');
     let user = await db.get('SELECT * FROM users WHERE subject=?', [subject]);
     if (!user) {
       if(phone)ensure(!await db.get('SELECT id FROM users WHERE phone=?',[phone]),409,'PHONE_ALREADY_LINKED','Bu telefon başka bir Matchora hesabında. Telefonla giriş yapabilir veya destekle iletişime geçebilirsin.');

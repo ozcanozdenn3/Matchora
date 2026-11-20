@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.matchora.app.PendingSendTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-11-18T21:15:10.187Z" hostname="MDs-MacBook-Pro.local" time="0.087">
+  <properties/>
+  <testcase name="accountSwitchCannotDisplayOrEraseThePreviousAccountsOutbox" classname="com.matchora.app.PendingSendTest" time="0.006"/>
+  <testcase name="lostServerReplyRetriesTheSameCommandAfterAppRestartAndRemovesOnlyAfterReceipt" classname="com.matchora.app.PendingSendTest" time="0.003"/>
+  <testcase name="expiredPhotoUsesItsRetainedBytesAndANewUploadKeyWithoutChangingTheSendKey" classname="com.matchora.app.PendingSendTest" time="0.007"/>
+  <testcase name="inFlightPhotoSurvivesRestartWithItsOriginalKeyAndUploadedReceipt" classname="com.matchora.app.PendingSendTest" time="0.001"/>
+  <testcase name="deletingAccountClearsItsDurableQueueWhileOtherAccountsFilesRemain" classname="com.matchora.app.PendingSendTest" time="0.001"/>
+  <testcase name="replacingPhotoCannotBypassQueueStorageLimitOrDamageExistingOutbox" classname="com.matchora.app.PendingSendTest" time="0.043"/>
+  <testcase name="expiredUploadReceiptAfterLostUploadReplyRenewsTheUploadBeforeSending" classname="com.matchora.app.PendingSendTest" time="0.003"/>
+  <testcase name="legacyExpiredPhotoCanBeFoundGloballyAfterConversationAccessIsLost" classname="com.matchora.app.PendingSendTest" time="0.002"/>
+  <testcase name="failedPersistencePreservesExistingItemsAndDoesNotInventAnEnqueue" classname="com.matchora.app.PendingSendTest" time="0.005"/>
+  <testcase name="uploadedPhotoIsNotUploadedAgainWhenMessageAcknowledgementIsLost" classname="com.matchora.app.PendingSendTest" time="0.004"/>
+  <testcase name="permanentRejectionRemainsVisibleAndNeverFallsBackToMockSuccess" classname="com.matchora.app.PendingSendTest" time="0.003"/>
+  <testcase name="deletingConversationDuringPhotoUploadCannotResurrectItWithAPendingMessage" classname="com.matchora.app.PendingSendTest" time="0.003"/>
+  <testcase name="legacyPhotoReselectionReusesTheSendAndChecksForAnAlreadyCommittedMessage" classname="com.matchora.app.PendingSendTest" time="0.003"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

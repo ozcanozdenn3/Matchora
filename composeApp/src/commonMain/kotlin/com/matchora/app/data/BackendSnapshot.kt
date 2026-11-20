@@ -80,7 +80,18 @@ class BackendSnapshot(val wire: JsonObject) {
     val notifications = wire.a("notifications").map { n -> AppNotification(n.s("id"), enumValue(n.s("priority"), NotifPriority.P2), n.s("emoji", "🔔"), n.s("title"), n.s("body"), n.s("timeAgo"), n.b("read"), if (n.s("destination") == "EVENT") n.s("targetId") else null, destination = enumValue(n.s("destination"), NotificationDestination.PASSPORT), targetId = n.s("targetId"), category = n.s("category").ifBlank { null }) }
     val support = wire.a("supportRequests").map { SupportRequest(it.s("id"), it.s("subject"), it.s("message"), it.s("category"), it.s("status", "open"), it.s("response").ifBlank { null }) }
     val reports = wire.a("reports").map { ModerationReport(it.s("id"), it.s("target"), it.s("reason"), it.s("details"), it.s("status", "open")) }
-    val results = wire.a("results").associate { r -> val p = r.payload(); r.s("event_id") to MatchResultDraft(r.s("event_id"), p.i("homeScore"), p.i("awayScore"), p.s("note"), 5, r.s("status") == "disputed", status = r.s("status"), submittedBy = alias(r.s("submitted_by")), disputeUntil = r.l("dispute_until")) }
+    val results = wire.a("results").associate { r ->
+        val payload = r.payload()
+        val event = events.firstOrNull { it.id == r.s("event_id") }
+        val sides = payload.o("sides")
+        r.s("event_id") to MatchResultDraft(
+            r.s("event_id"), payload.i("homeScore"), payload.i("awayScore"), payload.s("note"), 5,
+            r.s("status") == "disputed", status = r.s("status"), submittedBy = alias(r.s("submitted_by")),
+            disputeUntil = r.l("dispute_until").takeIf { it > 0 },
+            homeParticipantIds = if ("home" in sides) sides.ss("home").map(::alias) else event?.homeParticipantIds.orEmpty(),
+            awayParticipantIds = if ("away" in sides) sides.ss("away").map(::alias) else event?.awayParticipantIds.orEmpty()
+        )
+    }
     val badges = wire.o("progression").a("badges").map { BadgeInfo(it.s("id"), it.s("title"), it.s("emoji"), it.s("description"), it.b("earned"), it.f("progress")) }
     val missions = wire.o("progression").a("missions").map { Mission(it.s("id"), it.s("title"), it.s("description"), it.i("progress"), it.i("goal"), it.i("rewardTokens"), it.s("emoji"), it.b("claimed")) }
     val history = if (wire.containsKey("matchHistory")) wire.a("matchHistory").map { m -> MatchHistoryItem(m.s("id"), enumValue(m.s("sport"), Sport.FOOTBALL), m.s("title"), m.s("date"), m.s("score"), (m["won"] as? JsonPrimitive)?.booleanOrNull, m.i("mmrDelta"), m.b("verified"), enumValue(m.s("mode"), PlayMode.SOCIAL)) } else wire.a("results").filter { it.s("status") == "verified" }.mapNotNull { r ->

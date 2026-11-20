@@ -44,52 +44,70 @@ fun CreateTournamentSheet(
     onRequestTokens: () -> Unit = {},
     currentCity: String = "İstanbul", currentArea: String = "Kadıköy",
     venues: List<VenueInfo> = emptyList(),
-    primarySport: Sport = Sport.FOOTBALL
+    primarySport: Sport = Sport.FOOTBALL,
+    onPublished: (String) -> Unit = {}
 ) {
+    val form = rememberCreationForm("tournament")
+    val draft = form.restored
     val backend = LocalBackendRepository.current
     val liveMode = backend?.enabled == true
     val config = backend?.configurations?.collectAsState()?.value
     val lockAmount = if (liveMode) config?.o("fees")?.i("tournament", 20) ?: 20 else 20
-    var formatCode by remember { mutableStateOf("KNOCKOUT") }
-    var liveCapacity by remember { mutableIntStateOf(16) }
-    var minRating by remember { mutableIntStateOf(0) }
-    var verifiedOnly by remember { mutableStateOf(false) }
-    var tournamentCategory by remember { mutableStateOf(primarySport.category) }
-    var selectedSport by remember { mutableStateOf(primarySport) }
-    var rosterSize by remember(selectedSport) { mutableIntStateOf(when (selectedSport) { Sport.FOOTBALL, Sport.BASKETBALL -> 5; Sport.VOLLEYBALL -> 6; Sport.PADEL -> 2; else -> 1 }) }
-    var customSportName by remember { mutableStateOf("") }
-    var customIsGaming by remember { mutableStateOf(false) }
-    var title by remember { mutableStateOf("") }
-    var dates by remember { mutableStateOf("") }
-    var organizer by remember { mutableStateOf(organizerName) }
-    var prizeToken by remember { mutableStateOf("") }
-    var prizeCash by remember { mutableStateOf("") }
-    var requirement by remember { mutableStateOf("") }
-    var tournamentCity by remember { mutableStateOf(currentCity) }
-    var tournamentArea by remember { mutableStateOf(currentArea) }
-    var tournamentVenue by remember { mutableStateOf("") }
-    var tournamentNetworkScope by remember { mutableStateOf(EventNetworkScope.CITY) }
+    var formatCode by remember(form) { mutableStateOf(draft.s("formatCode", "KNOCKOUT")) }
+    var liveCapacity by remember(form) { mutableIntStateOf(draft.i("liveCapacity", 16)) }
+    var minRating by remember(form) { mutableIntStateOf(draft.i("minRating", 0)) }
+    var verifiedOnly by remember(form) { mutableStateOf(draft.b("verifiedOnly")) }
+    var tournamentCategory by remember(form) { mutableStateOf(draft.formEnum("category", primarySport.category)) }
+    var selectedSport by remember(form) { mutableStateOf(draft.formEnum("sport", primarySport)) }
+    var rosterSize by remember(form, selectedSport) {
+        val defaultSize = when (selectedSport) { Sport.FOOTBALL, Sport.BASKETBALL -> 5; Sport.VOLLEYBALL -> 6; Sport.PADEL -> 2; else -> 1 }
+        mutableIntStateOf(if (selectedSport.name == draft.s("sport", primarySport.name)) draft.i("rosterSize", defaultSize) else defaultSize)
+    }
+    var customSportName by remember(form) { mutableStateOf(draft.s("customSportName", "")) }
+    var customIsGaming by remember(form) { mutableStateOf(draft.b("customIsGaming")) }
+    var title by remember(form) { mutableStateOf(draft.s("title", "")) }
+    var dates by remember(form) { mutableStateOf(draft.s("dates", "")) }
+    var organizer by remember(form) { mutableStateOf(draft.s("organizer", organizerName)) }
+    var prizeToken by remember(form) { mutableStateOf(draft.s("prizeToken", "")) }
+    var prizeCash by remember(form) { mutableStateOf(draft.s("prizeCash", "")) }
+    var requirement by remember(form) { mutableStateOf(draft.s("requirement", "")) }
+    var tournamentCity by remember(form) { mutableStateOf(draft.s("tournamentCity", currentCity)) }
+    var tournamentArea by remember(form) { mutableStateOf(draft.s("tournamentArea", currentArea)) }
+    var tournamentVenue by remember(form) { mutableStateOf(draft.s("tournamentVenue", "")) }
+    var tournamentNetworkScope by remember(form) { mutableStateOf(draft.formEnum("scope", EventNetworkScope.CITY)) }
     var showRegion by remember { mutableStateOf(false) }
     var formError by remember { mutableStateOf<String?>(null) }
 
     // E-Spor / Gaming Özellikleri
-    var platform by remember { mutableStateOf("PS5 & PC Crossplay") }
-    var format by remember { mutableStateOf("16 Takım · Tek Eleme") }
-    var formatStyle by remember { mutableStateOf("Tek Eleme") }
-    var serverRegion by remember { mutableStateOf("TR Sunucusu · Discord Lobi") }
+    var platform by remember(form) { mutableStateOf(draft.s("platform", "PS5 & PC Crossplay")) }
+    var format by remember(form) { mutableStateOf(draft.s("format", "16 Takım · Tek Eleme")) }
+    var formatStyle by remember(form) { mutableStateOf(draft.s("formatStyle", "Tek Eleme")) }
+    var serverRegion by remember(form) { mutableStateOf(draft.s("serverRegion", "TR Sunucusu · Discord Lobi")) }
 
     val isGaming = (selectedSport.isESport || selectedSport == Sport.CHESS) || (selectedSport == Sport.CUSTOM && customIsGaming)
+
+    CreationDraftEffect(form) { apiPayload(
+        "formatCode" to formatCode, "customSportName" to customSportName, "title" to title,
+        "dates" to dates, "organizer" to organizer, "prizeToken" to prizeToken,
+        "prizeCash" to prizeCash, "requirement" to requirement, "tournamentCity" to tournamentCity,
+        "tournamentArea" to tournamentArea, "tournamentVenue" to tournamentVenue, "platform" to platform,
+        "format" to format, "formatStyle" to formatStyle, "serverRegion" to serverRegion,
+        "liveCapacity" to liveCapacity, "minRating" to minRating, "verifiedOnly" to verifiedOnly,
+        "customIsGaming" to customIsGaming, "rosterSize" to rosterSize, "category" to tournamentCategory,
+        "sport" to selectedSport, "scope" to tournamentNetworkScope
+    ) }
 
     ModalBottomSheet(
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         tonalElevation = 0.dp,
         scrimColor = Color(0xFF0B1220).copy(alpha = .48f),
-        onDismissRequest = onDismiss,
+        onDismissRequest = { form.requestDismiss(onDismiss) },
         modifier = Modifier.statusBarsPadding().padding(top = 12.dp),
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = { it != SheetValue.Hidden || form.confirmDismiss(onDismiss) }),
         containerColor = Color(0xFFF8FAFC),
         dragHandle = { MPremiumSheetHandle() }
     ) {
+        CreationFormBody(form) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
@@ -98,7 +116,7 @@ fun CreateTournamentSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                MSheetHeading("Turnuva oluştur", "Rekabeti bir üst seviyeye taşı.", Icons.Rounded.EmojiEvents, onDismiss)
+                MSheetHeading("Turnuva oluştur", "Rekabeti bir üst seviyeye taşı.", Icons.Rounded.EmojiEvents, { form.requestDismiss(onDismiss) })
             }
 
             // Bölüm 1: Turnuva Kimliği & Branş
@@ -406,6 +424,7 @@ fun CreateTournamentSheet(
 
             // Turnuvayı Başlat Butonu
             item {
+                CreationFormNotice(form)
                 formError?.let { error ->
                     Text(
                         text = error,
@@ -416,7 +435,7 @@ fun CreateTournamentSheet(
                     )
                 }
                 MButton(
-                    text = if (tokenBalance < lockAmount) "Token yükle · $lockAmount TKN gerekli" else "Turnuvayı yayınla · $lockAmount TKN kilitle",
+                    text = if (form.busy) "Turnuvan yayınlanıyor…" else if (tokenBalance < lockAmount && !form.hasAttempt) "Token yükle · $lockAmount TKN gerekli" else "Turnuvayı yayınla · $lockAmount TKN kilitle",
                     onClick = {
                         val validationError = when {
                             title.isBlank() -> "Turnuva adını gir."
@@ -431,7 +450,7 @@ fun CreateTournamentSheet(
                             return@MButton
                         }
                         formError = null
-                        if (tokenBalance < lockAmount) {
+                        if (tokenBalance < lockAmount && !form.hasAttempt) {
                             onRequestTokens()
                             return@MButton
                         }
@@ -462,16 +481,17 @@ fun CreateTournamentSheet(
                             gamePlatform = if (isGaming) platform.trim() else "",
                             serverRegion = if (isGaming) serverRegion.trim() else ""
                         )
-                        onCreateTournament(newTournament)
-                        onDismiss()
+                        form.submit("tournament.create", newTournament.toApiPayload(), { onCreateTournament(newTournament) }, onPublished, onDismiss)
                     },
                     modifier = Modifier.fillMaxWidth(),
                     icon = Icons.Rounded.EmojiEvents,
-                    enabled = true
+                    enabled = !form.busy
                 )
             }
         }
     }
+    }
+    CreationFormDialogs(form, onDismiss)
     if (showRegion) CityAndLocationSelectorSheet(tournamentCity, tournamentArea, false, { showRegion = false }, { city, area, _ -> tournamentCity = city; tournamentArea = area })
 }
 

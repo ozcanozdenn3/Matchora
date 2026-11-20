@@ -1,0 +1,36 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { fixture } from './helpers.mjs';
+import { runJobs } from '../src/jobs.mjs';
+
+test('participant host must check in before closing; confirmation updates every passport statistic once',async t=>{
+ const f = await fixture(t);
+ const eventId = (await f.cmd(f.host,'event.create',f.event({startsAtEpochMillis:f.clock()+600000}))).result.id;
+ await f.cmd(f.guest,'event.join',{eventId});
+ let event = await f.service.event(f.host,eventId);
+ await f.cmd(f.host,'event.transition',{eventId,status:'IN_PROGRESS',expectedVersion:event.version});
+ event = await f.service.event(f.host,eventId);
+ await assert.rejects(f.cmd(f.host,'event.transition',{eventId,status:'COMPLETED',expectedVersion:event.version}),e=>e.code==='CHECKIN_REQUIRED');
+ assert.equal((await f.service.event(f.host,eventId)).status,'IN_PROGRESS');
+ const code=(await f.cmd(f.host,'event.checkin.code',{eventId})).result.code;
+ for(const actor of [f.host,f.guest]) await f.cmd(actor,'event.checkin',{eventId,code});
+ await f.cmd(f.host,'event.transition',{eventId,status:'COMPLETED',expectedVersion:event.version});
+ await f.cmd(f.host,'result.submit',{eventId,homeScore:2,awayScore:1,sides:{home:[f.host.id],away:[f.guest.id]}});
+ await f.cmd(f.guest,'result.confirm',{eventId});
+ assert.equal((await f.service.bootstrap(f.host)).profile.verifiedMatches,0);
+ f.advance(25*3600000);
+ await runJobs(f.service);
+ const own=await f.service.bootstrap(f.host);
+ assert.equal(own.profile.verifiedMatches,1);
+ assert.equal(own.profile.streakWeeks,1);
+ assert.equal(own.profile.skills[0].verifiedMatches,1);
+ assert.equal(own.profile.skills[0].wonMatches,1);
+ assert.equal(own.profile.skills[0].rating,1012);
+ assert.equal(own.matchHistory[0].id,eventId);
+ assert.equal(own.matchHistory[0].mmrDelta,12);
+ assert.equal(own.progression.missions.find(m=>m.id==='checkin').progress,1);
+ assert.equal(own.progression.badges.find(b=>b.id==='b4').progress,0.01);
+ assert.equal(own.reliabilityHistory.length,1);
+ await runJobs(f.service);
+ assert.equal((await f.service.bootstrap(f.host)).profile.verifiedMatches,1);
+});

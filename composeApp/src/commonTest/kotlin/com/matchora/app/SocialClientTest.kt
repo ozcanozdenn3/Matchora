@@ -87,24 +87,63 @@ class SocialClientTest {
         assertEquals("8 Kas", snapshot.reliabilityHistory.single().time)
     }
 
-    @Test fun liveGuestPassportNeverLeaksDemoIdentityOrRecords() {
+    @Test fun guestPassportShowsAnExplicitSampleEvenWithTheLiveBackendEnabled() {
         val guest = UserProfile("Misafir Sporcu", "Ankara", "Çankaya", "", 2000, "", "", emptyList(), emptySet(), 100, 0f, 0, 0, null, null, "", emptyList())
         val state = resolvePassportDisplayState(
-            user = guest,
-            isLoggedIn = false,
-            liveMode = true,
-            historyOverride = emptyList(),
-            reliabilityOverride = emptyList(),
-            badgesOverride = emptyList(),
-            missionsOverride = emptyList()
+            user = guest, isLoggedIn = false, liveMode = true,
+            historyOverride = emptyList(), reliabilityOverride = emptyList(), badgesOverride = emptyList(), missionsOverride = emptyList()
         )
-        assertEquals("Misafir Sporcu", state.effectiveUser.name)
+        assertEquals("Deniz Yılmaz", state.effectiveUser.name)
         assertEquals("Ankara", state.effectiveUser.city)
         assertEquals("Çankaya", state.effectiveUser.area)
+        assertEquals("Sol ayak · Sağ el", state.effectiveUser.dominantSide)
+        assertTrue(state.effectiveUser.bio.isNotBlank())
+        assertTrue(state.effectiveUser.availability.isNotEmpty())
+        assertEquals(DemoData.me.skills, state.effectiveUser.skills)
+        assertEquals(DemoData.history, state.history)
+        assertEquals(DemoData.reliabilityRecords, state.reliabilityRecords)
+        assertEquals(DemoData.badges, state.badges)
+        assertEquals(DemoData.missions, state.allMissions)
+        assertTrue(guest.skills.isEmpty())
+        assertEquals(0, guest.verifiedMatches)
+    }
+
+    @Test fun guestPreviewNeverDisplaysThePreviousAccountsIdentityOrContactDetails() {
+        val previousUser = DemoData.me.copy(name = "Özel Hesap", phone = "+905551112233", email = "private@example.test", bio = "Özel açıklama")
+        for (liveMode in listOf(true, false)) {
+            val state = resolvePassportDisplayState(previousUser, false, liveMode, null, null, null, null)
+            assertEquals("Deniz Yılmaz", state.effectiveUser.name)
+            assertEquals("", state.effectiveUser.phone)
+            assertEquals("", state.effectiveUser.email)
+            assertNull(state.effectiveUser.avatar)
+            assertNotEquals(previousUser.bio, state.effectiveUser.bio)
+            assertEquals("Özel Hesap", previousUser.name)
+        }
+    }
+
+    @Test fun signedInPassportKeepsRealProfileAndEmptyBackendResultsInsteadOfTheGuestSample() {
+        val actual = DemoData.me.copy(name = "Gerçek Sporcu", dominantSide = "Sağ ayak · Sol el", bio = "Benim açıklamam")
+        val state = resolvePassportDisplayState(actual, true, true, emptyList(), emptyList(), emptyList(), emptyList())
+        assertSame(actual, state.effectiveUser)
         assertTrue(state.history.isEmpty())
+        assertTrue(state.badges.isEmpty())
+        assertTrue(state.allMissions.isEmpty())
         assertTrue(state.reliabilityRecords.isEmpty())
-        assertTrue(state.badges.none { it.earned })
-        assertTrue(state.allMissions.all { it.progress == 0 })
+        val unloaded = resolvePassportDisplayState(actual, true, true, null, null, null, null)
+        assertTrue(unloaded.history.isEmpty())
+        assertTrue(unloaded.badges.isEmpty())
+        assertTrue(unloaded.allMissions.isEmpty())
+    }
+
+    @Test fun duplicateNamesInGroupChatsResolveOnlyTheClickedSenderIdentity() {
+        val first = DemoData.players.first().copy(id = "first", name = "Aynı İsim")
+        val second = first.copy(id = "second", rating = 1700)
+        val selected = resolveChatParticipantPlayer("Aynı İsim", null, true, listOf(first, second), "second", "")
+        assertEquals("second", selected.id)
+        assertEquals(1700, selected.rating)
+        val uncached = resolveChatParticipantPlayer("Aynı İsim", null, true, listOf(first), "not-cached", "")
+        assertEquals("not-cached", uncached.id)
+        assertFalse(uncached.profileAvailable)
     }
 
     @Test fun liveChatParticipantResolutionAvoidsStaticDemoStatsAndUsesRealIds() {

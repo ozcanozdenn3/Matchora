@@ -76,8 +76,11 @@ internal fun resolveChatParticipantPlayer(
         if (found != null) return found
     }
     val livePool = if (backendMode) livePlayers else emptyList()
-    val matched = (directOtherUserId?.let { id -> livePool.firstOrNull { it.id == id } }
-        ?: livePool.firstOrNull { it.name.equals(name, ignoreCase = true) })
+    val matched = if (directOtherUserId != null) {
+        livePool.firstOrNull { it.id == directOtherUserId }
+    } else {
+        livePool.firstOrNull { it.name.equals(name, ignoreCase = true) }
+    }
     if (matched != null) return matched
     val fallbackId = directOtherUserId ?: "u_${name.lowercase().replace(" ", "_")}"
     return Player(
@@ -102,6 +105,7 @@ internal fun resolveChatParticipantPlayer(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatHubScreen(
     paddingValues: PaddingValues,
@@ -170,6 +174,18 @@ fun ChatHubScreen(
     var activeSection by remember { mutableStateOf(ChatHubSection.MESSAGES) }
     var input by remember(activeId) { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
+    var showAthleteSearch by remember(backend?.userId) { mutableStateOf(false) }
+    var composingBusy by remember { mutableStateOf(false) }
+    var sendError by remember { mutableStateOf<String?>(null) }
+    val queuedSends = backend?.pendingSends?.collectAsState()?.value.orEmpty()
+    val typingEvents = backend?.typing?.collectAsState()?.value.orEmpty()
+    var typingClock by remember { mutableLongStateOf(kotlinx.datetime.Clock.System.now().toEpochMilliseconds()) }
+    LaunchedEffect(typingEvents) {
+        while (typingEvents.isNotEmpty()) {
+            typingClock = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+            kotlinx.coroutines.delay(1000)
+        }
+    }
     var filter by remember { mutableIntStateOf(0) }
     var showInfo by remember { mutableStateOf(false) }
 
@@ -181,8 +197,8 @@ fun ChatHubScreen(
     var preselectedChatIdForMemory by remember { mutableStateOf<String?>(null) }
     var inspectedPlayer by remember { mutableStateOf<Player?>(null) }
 
-    fun resolvePlayerForName(name: String, threadId: String? = null): Player {
-        val otherId = if (threadId != null && backend != null) {
+    fun resolvePlayerForName(name: String, threadId: String? = null, participantId: String? = null): Player {
+        val otherId = participantId ?: if (threadId != null && backend != null) {
             inboxSnapshot?.let { BackendSnapshot(it).otherUserForThread(threadId) }
         } else null
         val livePool = if (backend != null) {
@@ -199,6 +215,24 @@ fun ChatHubScreen(
     }
 
     val active = threads.firstOrNull { it.id == activeId }
+    var lastTypingAt by remember(activeId) { mutableLongStateOf(0L) }
+    LaunchedEffect(backend, activeId, input, appForeground) {
+        val threadId = activeId
+        if (backend != null && threadId != null && appForeground) {
+            try {
+                if (input.isNotBlank()) {
+                    val now = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+                    if (now - lastTypingAt >= 2000) {
+                        backend.sendTyping(threadId, true)
+                        lastTypingAt = now
+                    }
+                    kotlinx.coroutines.delay(3500)
+                }
+                backend.sendTyping(threadId, false)
+            } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+            catch (_: Exception) { /* Typing expires on the server after five seconds. */ }
+        }
+    }
     LaunchedEffect(activeId) { replyTarget = null; editingMessage = null; messageMenu = null; clearChatConfirmation = null }
     fun open(id: String?) {
         activeId = id
@@ -358,6 +392,8 @@ fun ChatHubScreen(
                 }
             }
 
+            if (backend != null && queuedSends.isNotEmpty()) item { PendingOutboxButton(backend) }
+
             if (activeSection == ChatHubSection.MESSAGES) {
                 // 3B. SOHBET FİLTRESİ & ARAMA (Derli Toplu Yüzen Kutu)
                 item {
@@ -389,7 +425,7 @@ fun ChatHubScreen(
                                     value = query,
                                     onValueChange = { requireAccount { query = it } },
                                     readOnly = featuresLocked,
-                                    placeholder = { Text("Sohbet veya oyuncu ara…") },
+                                    placeholder = { Text("Sohbet ara…") },
                                     leadingIcon = { Icon(Icons.Rounded.Search, null, tint = MColors.Ink500) },
                                     trailingIcon = if (query.isNotEmpty()) {
                                         {
@@ -415,6 +451,13 @@ fun ChatHubScreen(
                     }
                 }
 
+                item {
+                    TextButton(onClick = { requireAccount { showAthleteSearch = true } }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Rounded.PersonSearch, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Tüm sporcularda ara")
+                    }
+                }
                 if (filteredThreads.isEmpty()) item {
                     MCard(Modifier.fillMaxWidth(), onClick = { requireAccount {} }) { Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(if (query.isBlank()) "Henüz sohbet yok" else "Sohbet bulunamadı", style = MaterialTheme.typography.titleMedium)
@@ -517,6 +560,7 @@ fun ChatHubScreen(
                 // ═══════════════════════════════════════════════════════════════
                 // 4. INSTAGRAM KEŞFET TARZI SAHA ANILARI VİTRİNİ (KONUM & RANDOM AKIŞ)
                 // ═══════════════════════════════════════════════════════════════
+                if (backend != null && queuedSends.any { it.operation == "memory.create" }) item(key = "pending_memories") { PendingSendsPanel(backend) }
                 if (backend != null && showcaseMode == ShowcaseFeedMode.NEARBY_LOCATION) item {
                     Surface(
                         shape = RoundedCornerShape(14.dp),
@@ -893,8 +937,14 @@ fun ChatHubScreen(
                 input = ""
             }
         }
-        LaunchedEffect(active.id, active.messages.lastOrNull()?.id) {
-            if (active.messages.isNotEmpty()) listState.animateScrollToItem(active.messages.size)
+        val activePending = queuedSends.filter { it.threadId == active.id }
+        LaunchedEffect(active.id, active.messages.lastOrNull()?.id, activePending.size) {
+            if (active.messages.isNotEmpty() || activePending.isNotEmpty()) {
+                listState.animateScrollToItem(active.messages.size + if (activePending.isNotEmpty()) 1 else 0)
+            }
+        }
+        val activeTyping = typingEvents.filter {
+            it.s("threadId") == active.id && it.b("typing") && it.l("expiresAt") > typingClock
         }
         Column(Modifier.fillMaxSize().background(MColors.Canvas).imePadding()) {
             Surface(color = Color.White, shadowElevation = 4.dp) {
@@ -936,7 +986,7 @@ fun ChatHubScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = if (active.type == ThreadType.DIRECT) "Sporcu Pasaportu için tıkla 🪪" else "${active.memberCount} kişi · ${active.type.label}",
+                            text = if (activeTyping.isNotEmpty()) "Yazıyor…" else if (active.type == ThreadType.DIRECT) "Sporcu Pasaportu için tıkla 🪪" else "${active.memberCount} kişi · ${active.type.label}",
                             style = MaterialTheme.typography.bodySmall,
                             color = if (active.type == ThreadType.DIRECT) MColors.BrandDeep else MColors.Ink500
                         )
@@ -990,7 +1040,7 @@ fun ChatHubScreen(
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier.clickable {
-                                                inspectedPlayer = resolvePlayerForName(message.senderName, message.senderId)
+                                                inspectedPlayer = resolvePlayerForName(message.senderName, participantId = message.senderId)
                                             }
                                         ) {
                                             UserAvatar(
@@ -1055,6 +1105,7 @@ fun ChatHubScreen(
                         }
                     }
                 }
+                if (backend != null && activePending.isNotEmpty()) item(key = "pending_sends") { PendingSendsPanel(backend, active.id) }
             }
 
             Surface(color = Color.White, shadowElevation = 8.dp) {
@@ -1093,7 +1144,7 @@ fun ChatHubScreen(
                             OutlinedTextField(
                                 textStyle = MaterialTheme.typography.bodyMedium,
                                 value = input,
-                                onValueChange = { input = it },
+                                onValueChange = { input = it.take(4000) },
                                 placeholder = { Text("Mesaj yaz…") },
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(22.dp),
@@ -1109,11 +1160,27 @@ fun ChatHubScreen(
                                 onClick = {
                                     val text = input.trim()
                                     if (text.isNotEmpty()) {
-                                        if (replyTarget != null) onSendReply(active.id, text, replyTarget?.id) else onSendMessage(active.id, text)
-                                        input = ""; replyTarget = null
+                                        if (backend == null) {
+                                            if (replyTarget != null) onSendReply(active.id, text, replyTarget?.id) else onSendMessage(active.id, text)
+                                            input = ""; replyTarget = null
+                                        } else {
+                                            val replyId = replyTarget?.id
+                                            composingBusy = true
+                                            feedScope.launch {
+                                                val originalInput = input
+                                                try {
+                                                    backend.enqueueSend("chat.send", apiPayload("threadId" to active.id, "text" to text, "replyTo" to replyId))
+                                                    if (input == originalInput) input = ""
+                                                    replyTarget = null
+                                                    feedScope.launch { backend.processPendingSends() }
+                                                } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                                                catch (error: Exception) { sendError = error.message ?: "Mesaj kaydedilemedi." }
+                                                finally { composingBusy = false }
+                                            }
+                                        }
                                     }
                                 },
-                                enabled = input.isNotBlank(),
+                                enabled = input.isNotBlank() && !composingBusy,
                                 modifier = Modifier.size(44.dp),
                                 colors = IconButtonDefaults.filledIconButtonColors(containerColor = MColors.BrandDeep)
                             ) {
@@ -1132,15 +1199,43 @@ fun ChatHubScreen(
                 containerColor = Color(0xFFFAFBFC),
                 tonalElevation = 0.dp,
                 onDismissRequest = { showInfo = false },
-                icon = { ChatAvatar(active, directUserId = infoDirectOtherId) },
-                title = { Text(active.title) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ChatAvatar(active, compact = true, directUserId = infoDirectOtherId)
+                        Text(active.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    }
+                },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = if (active.locked) "Bu sohbet yalnızca katılımcılara açık." else "${active.type.label} · ${active.memberCount} kişi",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MColors.Ink500
-                        )
+                    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = if (active.locked) "Bu sohbet yalnızca katılımcılara açık." else "${active.type.label} · ${active.memberCount} kişi",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MColors.Ink500,
+                                modifier = Modifier.weight(1f)
+                            )
+                            BackendChatMuteAction(active, iconOnly = true)
+                            TooltipBox(
+                                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                                tooltip = { PlainTooltip { Text("Sohbeti sil") } },
+                                state = rememberTooltipState()
+                            ) {
+                                OutlinedIconButton(
+                                    onClick = { showInfo = false; deleteAndBlock = false; clearChatConfirmation = true },
+                                    modifier = Modifier.size(48.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFFECDD3)),
+                                    colors = IconButtonDefaults.outlinedIconButtonColors(
+                                        containerColor = Color(0xFFFFF1F2), contentColor = MColors.Rose
+                                    )
+                                ) { Icon(Icons.Rounded.DeleteOutline, "Sohbeti sil", Modifier.size(21.dp)) }
+                            }
+                        }
                         if (active.relatedEventId != null && onOpenRelatedEvent != null) {
                             MPremiumMenuRow("Maç / Etkinlik Detayı", Icons.Rounded.Sports, {
                                 showInfo = false
@@ -1159,9 +1254,7 @@ fun ChatHubScreen(
                                 inspectedPlayer = resolvePlayerForName(active.title, active.id)
                             })
                         }
-                        BackendChatMuteAction(active)
                         MPremiumMenuRow("Geçmişi temizle", Icons.Rounded.CleaningServices, { showInfo = false; clearChatConfirmation = false })
-                        MPremiumMenuRow("Sohbeti sil", Icons.Rounded.DeleteOutline, { showInfo = false; deleteAndBlock = false; clearChatConfirmation = true }, destructive = true)
                         MPremiumMenuRow("Sohbeti bildir", Icons.Rounded.Flag, { showInfo = false; onReportThread(active) }, destructive = true)
                         if (active.type == ThreadType.DIRECT) {
                             MPremiumMenuRow(
@@ -1255,6 +1348,15 @@ fun ChatHubScreen(
     }, confirmButton = { TextButton(onClick = { if (remove) { onDeleteChat(thread, deleteAndBlock); open(null) } else onClearChat(thread); clearChatConfirmation = null }) { Text(if (remove) "Sohbeti sil" else "Geçmişi temizle", color = MColors.Rose) } }, dismissButton = { TextButton(onClick = { clearChatConfirmation = null }) { Text("Vazgeç") } }) } }
     editingMemory?.let { post -> CreateMemoryPostSheet(currentUser, post.city, post.area, threads.filter { !it.locked }, null, { editingMemory = null }, { updated, _ -> onUpdateMemory(updated); editingMemory = null }, initialPost = post) }
 
+    if (showAthleteSearch) AthleteSearchSheet(
+        onDismiss = { showAthleteSearch = false },
+        onSelect = { player -> showAthleteSearch = false; inspectedPlayer = player },
+        initialQuery = query
+    )
+    sendError?.let { message -> AlertDialog(
+        onDismissRequest = { sendError = null }, title = { Text("Gönderim kaydedilemedi") }, text = { Text(message) },
+        confirmButton = { TextButton(onClick = { sendError = null }) { Text("Tamam") } }
+    ) }
     inspectedPlayer?.let { player ->
         PlayerProfileSheet(
             name = player.name,
@@ -1269,7 +1371,11 @@ fun ChatHubScreen(
             onDirectMessage = {
                 val target = player
                 inspectedPlayer = null
-                val existingThread = threads.firstOrNull { it.type == ThreadType.DIRECT && it.title.equals(target.name, ignoreCase = true) }
+                val existingThread = threads.firstOrNull { thread ->
+                    thread.type == ThreadType.DIRECT && if (backend != null) {
+                        inboxSnapshot?.let { BackendSnapshot(it).otherUserForThread(thread.id) } == target.id
+                    } else thread.title.equals(target.name, ignoreCase = true)
+                }
                 if (existingThread != null) {
                     open(existingThread.id)
                 } else {

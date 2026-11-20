@@ -272,12 +272,14 @@ fun <T> MSegmentPillBar(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     pillHeightDp: Int = 35,
-    fontSizeSp: Float = 11.5f
+    fontSizeSp: Float = 11.5f,
+    containerColor: Color = Color(0xFFF1F5F9),
+    borderColor: Color = Color(0xFFE2E8F0)
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = Color(0xFFF1F5F9),
-        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        color = containerColor,
+        border = BorderStroke(1.dp, borderColor),
         modifier = modifier.fillMaxWidth()
     ) {
         Row(

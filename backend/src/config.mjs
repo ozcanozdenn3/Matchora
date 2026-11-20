@@ -8,6 +8,7 @@ export function configFromEnv(env = process.env) {
     supabaseUrl:env.SUPABASE_URL,storageServiceKey:env.SUPABASE_SERVICE_ROLE_KEY,storageBucket:env.SUPABASE_STORAGE_BUCKET??'matchora-private',
     storagePath: env.STORAGE_PATH ?? './var/uploads', publicUrl: env.PUBLIC_API_URL,
     userInfoUrl: env.AUTH_USERINFO_URL, authPublicKey: env.AUTH_PUBLIC_KEY,
+    authAdminKey: env.SUPABASE_AUTH_ADMIN_KEY || env.SUPABASE_SERVICE_ROLE_KEY,
     twilioAccountSid:env.TWILIO_ACCOUNT_SID,twilioAuthToken:env.TWILIO_AUTH_TOKEN,twilioFrom:env.TWILIO_FROM,twilioMessagingServiceSid:env.TWILIO_MESSAGING_SERVICE_SID,
     smsUrl: env.SMS_GATEWAY_URL, smsToken: env.SMS_GATEWAY_TOKEN,
     pushUrl: env.PUSH_GATEWAY_URL, pushToken: env.PUSH_GATEWAY_TOKEN,

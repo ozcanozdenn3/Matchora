@@ -30,7 +30,15 @@ actual suspend fun executeApiRequest(request: ApiHttpRequest): ApiHttpResponse =
         connection.requestMethod = request.method
         connection.connectTimeout = 15000; connection.readTimeout = 35000; connection.instanceFollowRedirects = false
         request.headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
-        request.body?.let { bytes -> connection.doOutput = true; connection.setFixedLengthStreamingMode(bytes.size); connection.outputStream.use { it.write(bytes) } }
+        request.body?.let { bytes -> connection.doOutput = true; connection.setFixedLengthStreamingMode(bytes.size); connection.outputStream.use { output ->
+            var offset = 0
+            while (offset < bytes.size) {
+                val length = minOf(65536,bytes.size-offset)
+                output.write(bytes,offset,length)
+                offset += length
+                request.onUploadProgress?.invoke(offset.toLong(),bytes.size.toLong())
+            }
+        } }
         val status = connection.responseCode
         val bytes = (if (status in 200..299) connection.inputStream else connection.errorStream)?.use { stream ->
             val output = ByteArrayOutputStream(); val buffer = ByteArray(8192); var total = 0

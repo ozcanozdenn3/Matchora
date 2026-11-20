@@ -86,7 +86,9 @@ fun CompetitionScreen(
     onCreateTournament: (TournamentInfo) -> Unit = {},
     onTournamentRegistered: (TournamentInfo) -> Unit = {},
     onWithdrawTournamentRegistration: (TournamentInfo) -> Unit = {},
-    onCancelTournament: (TournamentInfo) -> Unit = {}
+    onCancelTournament: (TournamentInfo) -> Unit = {},
+    onCreatedTeam: (String) -> Unit = {},
+    onCreatedTournament: (String) -> Unit = {}
 ) {
     var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) } // 0: Sıralama, 1: Turnuva & Lig, 2: Takım & Meydan Oku
     var selectedSport by remember { mutableStateOf(Sport.FOOTBALL) }
@@ -735,6 +737,7 @@ fun CompetitionScreen(
             organizerName = user.name,
             newTournamentId = newTournamentId,
             onRequestTokens = onRequestTokens,
+            onPublished = onCreatedTournament,
             onCreateTournament = { newTourney ->
                 onCreateTournament(newTourney)
                 if (!backendMode) selectedTournamentForDetail = newTourney
@@ -748,6 +751,7 @@ fun CompetitionScreen(
             currentCity = user.city,
             currentArea = user.area,
             onDismiss = { showCreateTeamSheet = false },
+            onPublished = onCreatedTeam,
             onCreateTeam = { newTeam ->
                 onCreateTeam(newTeam)
                 if (!backendMode) selectedTeamForDetail = newTeam

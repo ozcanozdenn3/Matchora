@@ -11,6 +11,7 @@ catch(error){add('production-config',false,error.message);}
 const config=configFromEnv({...env,MATCHORA_ENV:'development'});
 add('sms',smsConfigured(config),'Twilio Messaging Service veya SMS köprüsünün kimlik bilgileri gerekiyor.');
 add('oauth',oauthConfigured(config),'Supabase Auth /auth/v1/user ve public auth anahtarı gerekiyor.');
+add('auth-account-deletion',!!config.authAdminKey,'Supabase Auth hesabının sunucudan silinmesi için admin/service-role anahtarı gerekiyor.');
 add('private-storage',!!(config.supabaseUrl&&config.storageServiceKey),'Özel Supabase Storage URL ve yalnız sunucuda tutulan service-role anahtarı gerekiyor.');
 const store=storeConfiguration(config);
 add('store-sdk-keys',!!(store.keys.ios&&store.keys.android),'Apple ve Android RevenueCat public SDK anahtarları gerekiyor.');

@@ -1,4 +1,4 @@
-@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class, kotlin.experimental.ExperimentalNativeApi::class, kotlinx.cinterop.BetaInteropApi::class)
 package com.matchora.app.data
 
 import androidx.compose.ui.graphics.ImageBitmap
@@ -15,12 +15,16 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import platform.posix.memcpy
 
-actual suspend fun executeApiRequest(request: ApiHttpRequest): ApiHttpResponse = suspendCancellableCoroutine { continuation ->
-    val native = NSMutableURLRequest.requestWithURL(requireNotNull(NSURL.URLWithString(request.url))).apply {
+private fun nativeHttpRequest(request: ApiHttpRequest): NSMutableURLRequest = NSMutableURLRequest.requestWithURL(requireNotNull(NSURL.URLWithString(request.url))).apply {
         setHTTPMethod(request.method); setTimeoutInterval(35.0)
         request.headers.forEach { (key, value) -> setValue(value, forHTTPHeaderField = key) }
         request.body?.let { bytes -> HTTPBody = bytes.usePinned { NSData.create(bytes = it.addressOf(0), length = bytes.size.toULong()) } }
     }
+
+actual suspend fun executeApiRequest(request: ApiHttpRequest): ApiHttpResponse {
+    if (request.onUploadProgress != null && request.body != null) return executeProgressUpload(request)
+    return suspendCancellableCoroutine { continuation ->
+    val native = nativeHttpRequest(request)
     val task = NSURLSession.sharedSession.dataTaskWithRequest(native) { data, response, error ->
         if (continuation.isActive) {
             if (error != null) continuation.resumeWithException(IllegalStateException("Ağa bağlanılamadı."))
@@ -32,6 +36,45 @@ actual suspend fun executeApiRequest(request: ApiHttpRequest): ApiHttpResponse =
     }
     continuation.invokeOnCancellation { task.cancel() }; task.resume()
 }
+}
+private suspend fun executeProgressUpload(request: ApiHttpRequest): ApiHttpResponse = suspendCancellableCoroutine { continuation ->
+    val chunks = mutableListOf<ByteArray>()
+    var total = 0
+    var activeSession: NSURLSession? = null
+    val delegate = object : platform.darwin.NSObject(), NSURLSessionDataDelegateProtocol {
+        override fun URLSession(session: NSURLSession, dataTask: NSURLSessionDataTask, didReceiveData: NSData) {
+            total += didReceiveData.length.toInt()
+            if (total > 8 * 1024 * 1024) {
+                dataTask.cancel()
+                if (continuation.isActive) continuation.resumeWithException(IllegalStateException("Sunucu yanıtı çok büyük."))
+                return
+            }
+            chunks += didReceiveData.bytes!!.readBytes(didReceiveData.length.toInt())
+        }
+        override fun URLSession(session: NSURLSession, task: NSURLSessionTask, didSendBodyData: Long, totalBytesSent: Long, totalBytesExpectedToSend: Long) {
+            request.onUploadProgress?.invoke(totalBytesSent,totalBytesExpectedToSend)
+        }
+        override fun URLSession(session: NSURLSession, task: NSURLSessionTask, didCompleteWithError: NSError?) {
+            if (continuation.isActive) {
+                if (didCompleteWithError != null) continuation.resumeWithException(IllegalStateException("Ağa bağlanılamadı."))
+                else {
+                    val result = ByteArray(total)
+                    var offset = 0
+                    for (chunk in chunks) { chunk.copyInto(result,offset); offset += chunk.size }
+                    continuation.resume(ApiHttpResponse((task.response as? NSHTTPURLResponse)?.statusCode?.toInt() ?: 0,result))
+                }
+            }
+            activeSession?.finishTasksAndInvalidate()
+            activeSession = null
+        }
+    }
+    val session = NSURLSession.sessionWithConfiguration(NSURLSessionConfiguration.defaultSessionConfiguration,delegate,null)
+    activeSession = session
+    val task = session.dataTaskWithRequest(nativeHttpRequest(request))
+    continuation.invokeOnCancellation { task.cancel(); session.invalidateAndCancel() }
+    task.resume()
+}
+
 actual object SessionVault {
     private fun <T> query(block: (CFMutableDictionaryRef?) -> T): T {
         val dictionary = CFDictionaryCreateMutable(null, 0, null, null)
@@ -62,5 +105,21 @@ actual object SessionVault {
         }
     }
 }
-actual fun encodeUploadPhoto(bitmap: ImageBitmap): ByteArray = requireNotNull(Image.makeFromBitmap(bitmap.asSkiaBitmap()).encodeToData(EncodedImageFormat.JPEG, 85)).bytes
+// Keep only the most recently picked JPEG so publishing a preview can reuse its bytes.
+private val preparedPhotoLock = NSLock()
+private var preparedPhoto: Pair<kotlin.native.ref.WeakReference<ImageBitmap>, ByteArray>? = null
+
+internal fun rememberPreparedPhoto(bitmap: ImageBitmap, jpeg: ByteArray) {
+    preparedPhotoLock.lock()
+    try { preparedPhoto = kotlin.native.ref.WeakReference(bitmap) to jpeg }
+    finally { preparedPhotoLock.unlock() }
+}
+
+actual fun encodeUploadPhoto(bitmap: ImageBitmap): ByteArray {
+    preparedPhotoLock.lock()
+    try {
+        preparedPhoto?.let { (ref, bytes) -> if (ref.get() === bitmap) return bytes }
+    } finally { preparedPhotoLock.unlock() }
+    return requireNotNull(Image.makeFromBitmap(bitmap.asSkiaBitmap()).encodeToData(EncodedImageFormat.JPEG, 85)).bytes
+}
 actual fun decodeApiPhoto(bytes: ByteArray): ImageBitmap = Image.makeFromEncoded(bytes).toComposeImageBitmap()

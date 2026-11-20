@@ -1,0 +1,240 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -xctestrun /private/tmp/matchora-passport-capture/build/Build/Products/Capture_iphonesimulator26.5-arm64-x86_64.xctestrun -destination "platform=iOS Simulator,id=FFD364D8-C8F8-4886-A74A-DCB4792DD958" -resultBundlePath /private/tmp/matchora-passport-capture/passport-final.xcresult -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1
+
+2026-11-19 11:25:19.809 xcodebuild[10886:31233928] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+Writing result bundle at path:
+	/private/tmp/matchora-passport-capture/passport-final.xcresult
+
+2026-11-19 11:25:19.815 xcodebuild[10886:31233928] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+2026-11-19 11:25:21.127 xcodebuild[10886:31233928] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+2026-11-19 11:25:22.677982+0300 Capture-Runner[10918:31234124] [Default] Running tests...
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'All tests' started at 2026-11-19 11:25:23.907.
+Test Suite 'Capture.xctest' started at 2026-11-19 11:25:23.907.
+Test Suite 'Capture' started at 2026-11-19 11:25:23.907.
+Test Case '-[Capture.Capture testPassportPreview]' started.
+    t =     0.01s Start Test at 2026-11-19 11:25:23.914
+    t =     0.07s Set Up
+    t =     0.08s Open com.ozdentech.matchora
+    t =     0.08s     Activate com.ozdentech.matchora
+    t =     0.09s         Wait for com.ozdentech.matchora to idle
+    t =     0.19s Wait for com.ozdentech.matchora to become Running Foreground
+    t =     0.19s Waiting 5.0s for Button (First Match) to exist
+objc[10918]: Class UIAccessibilityLoaderWebShared is implemented in both /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x10be28310) and /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x10a65c398). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+    t =     1.26s     Checking `Expect predicate `existsNoRetry == 1` for object Button (First Match)`
+    t =     1.26s         Checking existence of `Button (First Match)`
+    t =     1.34s Tap Button (First Match)
+    t =     1.34s     Wait for com.ozdentech.matchora to idle
+    t =     1.35s     Find the Button (First Match)
+    t =     1.37s     Check for interrupting elements affecting "Pasaport" Button
+    t =     1.43s     Synthesize event
+    t =     1.74s     Wait for com.ozdentech.matchora to idle
+    t =     1.77s Waiting 10.0s for "SPORCU PASAPORTU" StaticText to exist
+    t =     2.84s     Checking `Expect predicate `existsNoRetry == 1` for object "SPORCU PASAPORTU" StaticText`
+    t =     2.84s         Checking existence of `"SPORCU PASAPORTU" StaticText`
+    t =     2.88s Waiting 5.0s for "Acıbadem" StaticText to exist
+    t =     3.94s     Checking `Expect predicate `existsNoRetry == 1` for object "Acıbadem" StaticText`
+    t =     3.94s         Checking existence of `"Acıbadem" StaticText`
+    t =     3.98s Checking existence of `"Sol ayak" StaticText`
+    t =     4.01s Checking existence of `"Sağ el" StaticText`
+    t =     4.05s Find the Application 'com.ozdentech.matchora'
+    t =     4.20s Added attachment named 'passport-top'
+    t =     4.20s Press Application 'com.ozdentech.matchora'[0.50, 0.80] for 0.1 seconds, then drag to Application 'com.ozdentech.matchora'[0.50, 0.47] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =     4.20s     Wait for com.ozdentech.matchora to idle
+    t =     4.20s     Find the Application 'com.ozdentech.matchora'
+    t =     4.23s     Check for interrupting elements affecting "Matchora" Application
+    t =     4.26s     Synthesize event
+    t =     4.27s         Find the Application 'com.ozdentech.matchora'
+    t =     4.29s         Find the Application 'com.ozdentech.matchora'
+    t =     4.32s         Find the Application 'com.ozdentech.matchora'
+    t =     4.35s         Find the Application 'com.ozdentech.matchora'
+    t =     4.39s         Find the Application 'com.ozdentech.matchora'
+    t =     5.29s     Wait for com.ozdentech.matchora to idle
+    t =     5.29s Find the Application 'com.ozdentech.matchora'
+    t =     5.43s Added attachment named 'passport-highlights'
+    t =     5.43s Press Application 'com.ozdentech.matchora'[0.50, 0.79] for 0.1 seconds, then drag to Application 'com.ozdentech.matchora'[0.50, 0.47] with velocity of 500.00 pixels per second, and then hold for 0.0 seconds 
+    t =     5.43s     Wait for com.ozdentech.matchora to idle
+    t =     5.46s     Find the Application 'com.ozdentech.matchora'
+    t =     5.49s     Check for interrupting elements affecting "Matchora" Application
+    t =     5.53s     Synthesize event
+    t =     5.54s         Find the Application 'com.ozdentech.matchora'
+    t =     5.56s         Find the Application 'com.ozdentech.matchora'
+    t =     5.62s         Find the Application 'com.ozdentech.matchora'
+    t =     5.65s         Find the Application 'com.ozdentech.matchora'
+    t =     5.69s         Find the Application 'com.ozdentech.matchora'
+    t =     6.57s     Wait for com.ozdentech.matchora to idle
+    t =     6.60s Find the Application 'com.ozdentech.matchora'
+    t =     6.75s Added attachment named 'passport-highlights-lower'
+    t =     6.75s Checking existence of `Button (First Match)`
+    t =     6.76s Tap Button (First Match)
+    t =     6.76s     Wait for com.ozdentech.matchora to idle
+    t =     6.77s     Find the Button (First Match)
+    t =     6.79s     Check for interrupting elements affecting "Pasaport" Button
+    t =     6.82s     Synthesize event
+    t =     7.13s     Wait for com.ozdentech.matchora to idle
+    t =     7.14s Waiting 5.0s for "Deniz Yılmaz" StaticText to exist
+    t =     8.21s     Checking `Expect predicate `existsNoRetry == 1` for object "Deniz Yılmaz" StaticText`
+    t =     8.21s         Checking existence of `"Deniz Yılmaz" StaticText`
+    t =     8.25s Find the Application 'com.ozdentech.matchora'
+    t =     8.39s Added attachment named 'passport-final-top'
+    t =     8.39s Requesting snapshot of accessibility hierarchy for app with pid 10795
+    t =     8.62s Requesting snapshot of accessibility hierarchy for app with pid 10795
+PASSPORT_ACCESSIBILITY_BEGIN
+Attributes: Application, 0x10b229f40, pid: 10795, label: 'Matchora'
+Element subtree:
+ →Application, 0x10b229f40, pid: 10795, label: 'Matchora'
+    Window (Main), 0x10b22a440, {{0.0, 0.0}, {402.0, 874.0}}
+      Other, 0x10b22a580, {{0.0, 0.0}, {402.0, 874.0}}
+        Other, 0x10b22a6c0, {{0.0, 0.0}, {402.0, 874.0}}
+          Other, 0x10b22a800, {{0.0, 0.0}, {402.0, 874.0}}
+            Other, 0x10b22a940, {{0.0, 0.0}, {402.0, 874.0}}
+              Other, 0x10b22aa80, {{0.0, 0.0}, {402.0, 874.0}}
+                Other, 0x10b22abc0, {{0.0, 0.0}, {402.0, 874.0}}
+                Other, 0x10b22ad00, {{0.0, 0.0}, {402.0, 874.0}}
+                Other, 0x10b22ae40, {{0.0, 0.0}, {402.0, 874.0}}
+                  Other, 0x10b22af80, {{0.0, 0.0}, {402.0, 874.0}}
+                    Other, 0x10b22be80, {{0.0, 0.0}, {402.0, 874.0}}
+                      Other, 0x107a6f200, {{16.0, 68.0}, {370.0, 68.0}}
+                      Button, 0x107a6f340, {{25.0, 78.0}, {48.0, 48.0}}, label: 'Matchora pusulası'
+                      Image, 0x107a6f480, {{36.7, 89.7}, {25.0, 25.0}}, label: 'Matchora pusulası'
+                      Button, 0x107a6f5c0, {{80.0, 68.0}, {89.7, 48.0}}, label: 'MATCHORA'
+                      Button, 0x107a6f700, {{224.7, 78.0}, {71.3, 48.0}}, label: 'Giriş'
+                      StaticText, 0x107a6f840, {{258.7, 94.7}, {29.3, 15.0}}, label: 'Giriş'
+                      Button, 0x107a6f980, {{296.0, 78.0}, {40.0, 48.0}}, label: 'Menü'
+                      Image, 0x107a6fac0, {{309.0, 88.7}, {22.0, 22.0}}, label: 'Menü'
+                      Button, 0x107a6fc00, {{336.0, 78.0}, {48.0, 48.0}}, label: 'Bildirimler'
+                      Image, 0x107a6fd40, {{348.7, 90.7}, {23.0, 23.0}}, label: 'Bildirimler'
+                      Button, 0x107a6fe80, {{80.0, 90.0}, {60.7, 48.0}}, label: 'Kadıköy'
+                      StaticText, 0x10b2dc000, {{80.0, 107.0}, {44.7, 14.3}}, label: 'Kadıköy'
+                      Other, 0x10b2dc140, {{0.0, 0.0}, {402.0, 874.0}}
+                      Other, 0x10b2dc280, {{16.0, 142.0}, {370.0, 732.0}}
+                        Other, 0x10b2dc3c0, {{16.0, 142.0}, {370.0, 732.0}}
+                        Other, 0x10b2dc500, {{16.0, 152.0}, {370.0, 321.0}}
+                        StaticText, 0x10b2dc640, {{30.0, 163.0}, {144.0, 24.0}}, label: 'SPORCU PASAPORTU'
+                        StaticText, 0x10b2dc780, {{182.0, 168.7}, {40.0, 13.0}}, label: 'ÖRNEK'
+                        Button, 0x10b2dc8c0, {{230.0, 151.0}, {72.3, 48.0}}, label: 'Cüzdan'
+                        StaticText, 0x10b2dca00, {{254.0, 166.0}, {42.3, 18.0}}, label: 'Cüzdan'
+                        Button, 0x10b2dcb40, {{302.3, 151.0}, {69.7, 41.0}}, label: 'Giriş Yap'
+                        StaticText, 0x10b2dcc80, {{322.3, 166.0}, {45.7, 18.0}}, label: 'Giriş Yap'
+                        StaticText, 0x10b2dcdc0, {{39.3, 204.0}, {21.3, 24.0}}, label: 'DY'
+                        StaticText, 0x10b2dcf00, {{80.0, 194.0}, {106.7, 19.0}}, label: 'Deniz Yılmaz'
+                        Button, 0x10b2dd040, {{287.0, 192.0}, {44.0, 48.0}}, label: 'Dijital kart'
+                        Image, 0x10b2dd180, {{302.7, 207.7}, {17.0, 17.0}}, label: 'Dijital kart'
+                        Button, 0x10b2dd2c0, {{331.0, 192.0}, {48.0, 48.0}}, label: 'Profili düzenle'
+                        Image, 0x10b2dd400, {{347.0, 208.0}, {16.0, 16.0}}, label: 'Profili düzenle'
+                        StaticText, 0x10b2dd540, {{80.0, 214.0}, {91.3, 24.0}}, label: 'İstanbul · Kadıköy'
+                        StaticText, 0x10b2dd680, {{30.0, 244.0}, {342.0, 32.0}}, label: 'Sol ayağım oyunda, aklım takımda. Akşamları saha, hafta sonu tenis.'
+                        Button, 0x10b2dd7c0, {{30.0, 275.0}, {102.7, 48.0}}, label: 'İletişim onaylı'
+                        StaticText, 0x10b2dd900, {{55.0, 287.0}, {69.7, 24.0}}, label: 'İletişim onaylı'
+                        Button, 0x10b2dda40, {{140.7, 275.0}, {109.0, 48.0}}, label: 'Fotoğraf onaylı'
+                        StaticText, 0x10b2ddb80, {{165.7, 287.0}, {76.0, 24.0}}, label: 'Fotoğraf onaylı'
+                        Other, 0x10b2ddcc0, {{30.0, 322.0}, {74.3, 34.0}}
+                        StaticText, 0x10b2dde00, {{55.0, 327.0}, {41.3, 24.0}}, label: 'Sol ayak'
+                        Other, 0x10b2ddf40, {{110.3, 322.0}, {63.7, 34.0}}
+                        StaticText, 0x10b2de080, {{135.3, 327.0}, {30.7, 24.0}}, label: 'Sağ el'
+                        Other, 0x10b2de1c0, {{180.0, 322.0}, {50.3, 34.0}}
+                        StaticText, 0x10b2de300, {{205.0, 327.0}, {17.3, 24.0}}, label: 'İTÜ'
+                        Other, 0x10b2de440, {{236.3, 322.0}, {82.3, 34.0}}
+                        StaticText, 0x10b2de580, {{261.3, 327.0}, {49.3, 24.0}}, label: 'Acıbadem'
+                        StaticText, 0x10b2de6c0, {{47.0, 362.0}, {244.7, 14.0}}, label: 'Hafta içi 19:00–23:00 · Cumartesi 09:00–13:00'
+                        StaticText, 0x10b2de800, {{50.7, 406.0}, {38.0, 24.0}}, label: '%94'
+                        StaticText, 0x10b2de940, {{146.7, 406.0}, {21.0, 24.0}}, label: '59'
+                        StaticText, 0x10b2dea80, {{223.7, 406.0}, {42.0, 24.0}}, label: '4.8/5'
+                        StaticText, 0x10b2debc0, {{316.7, 406.0}, {31.0, 24.0}}, label: '8 hf'
+                        StaticText, 0x10b2ded00, {{54.3, 432.0}, {31.0, 24.0}}, label: 'GÜVEN'
+                        StaticText, 0x10b2dee40, {{129.7, 432.0}, {55.0, 24.0}}, label: 'ONAYLI MAÇ'
+                        StaticText, 0x10b2def80, {{222.3, 432.0}, {44.3, 24.0}}, label: 'FAIR PLAY'
+                        StaticText, 0x10b2df0c0, {{322.3, 432.0}, {19.7, 24.0}}, label: 'SERİ'
+                        Other, 0x10b2df200, {{16.0, 483.0}, {370.0, 391.0}}
+                        StaticText, 0x10b2df340, {{72.0, 505.0}, {294.0, 24.0}}, label: 'MATCHORA AYRICALIKLARI'
+                        StaticText, 0x10b2df480, {{36.0, 549.0}, {186.0, 64.0}}, label: 'Oyununu bul.
+İzini bırak.'
+                        StaticText, 0x10b2df5c0, {{36.0, 620.0}, {217.3, 36.0}}, label: 'Maçtan takıma, gelişiminden rekabete.
+Spor hayatın tek bir yerde.'
+                        Other, 0x10b2df700, {{36.0, 674.0}, {330.0, 86.0}}
+                        StaticText, 0x10b2df840, {{101.0, 688.0}, {187.7, 18.0}}, label: 'Doğru oyuncu. Doğru maç.'
+                        StaticText, 0x10b2df980, {{101.0, 710.0}, {251.0, 32.0}}, label: 'Sana uyan oyunu keşfet, eksik kadronu tamamla.'
+                        Other, 0x10b2dfac0, {{50.0, 754.0}, {84.3, 6.0}}
+                        StaticText, 0x10b2dfc00, {{58.0, 759.0}, {68.3, 1.0}}, label: 'Seviyene göre'
+                        Other, 0x10b2dfd40, {{140.3, 754.0}, {24.7, 6.0}}
+                        StaticText, 0x10b2dfe80, {{148.3, 759.0}, {16.7, 1.0}}, label: 'Mevkine göre'
+                        Other, 0x10b2f4000, {{237.0, 754.0}, {53.0, 6.0}}
+                        StaticText, 0x10b2f4140, {{237.0, 759.0}, {45.0, 1.0}}, label: 'Yakınında'
+                        StaticText, 0x10b2f4280, {{78.0, 832.0}, {168.7, 5.0}}, label: 'Performansın pasaportunda.'
+                        StaticText, 0x10b2f43c0, {{78.0, 841.0}, {288.0, 33.0}}, label: 'Branş MMR’ı, sıralamalar, doğrulanmış maçlar ve fair play geçmişin.'
+                        StaticText, 0x10b2f4500, {{78.0, 904.0}, {170.0, 17.0}}, label: 'Takımını kur. Rekabeti büyüt.'
+                        StaticText, 0x10b2f4640, {{78.0, 925.0}, {288.0, 34.0}}, label: 'Meydan okumalar, turnuvalar ve fikstürlerle oyunu birlikte sürdür.'
+                        StaticText, 0x10b2f4780, {{55.0, 977.0}, {197.3, 15.0}}, label: 'Sahada · kampüste · şirkette · seyahatte'
+                        Button, 0x10b2f48c0, {{36.0, 1003.0}, {330.0, 46.0}}, label: 'Sporcu pasaportunu oluştur'
+                        Button, 0x10b2f4a00, {{16.0, 1079.0}, {180.0, 48.0}}, label: 'Oyun takvimim'
+                        Button, 0x10b2f4b40, {{206.0, 1079.0}, {180.0, 48.0}}, label: 'Hesap ayarları'
+                        StaticText, 0x10b2f4c80, {{29.0, 1153.0}, {244.3, 24.0}}, label: 'Branş dereceleri'
+                        StaticText, 0x10b2f4dc0, {{289.3, 1153.0}, {75.7, 24.0}}, label: '10 branş · MMR'
+                        Button, 0x10b2f4f00, {{29.0, 1195.0}, {197.7, 40.0}}, label: 'MMR gelişim geçmişi'
+                        Button, 0x10b2f5040, {{29.0, 1239.0}, {344.0, 40.0}}, label: 'Branş ekle'
+                        Button, 0x10b2f5180, {{31.0, 1290.0}, {340.0, 68.0}}, label: '⚽
+Futbol
+Gold · 38 maç
+1482 MMR
+#12 · Kadıköy'
+                        Button, 0x10b2f52c0, {{328.0, 1308.0}, {32.0, 32.0}}, label: 'Futbol profilini düzenle'
+                        Button, 0x10b2f5400, {{31.0, 1368.0}, {340.0, 68.0}}, label: '🎾
+Tenis
+Silver · 17 maç
+1236 MMR
+#8 · Kadıköy'
+                        Button, 0x10b2f5540, {{328.0, 1386.0}, {32.0, 32.0}}, label: 'Tenis profilini düzenle'
+                        Button, 0x10b2f5680, {{31.0, 1446.0}, {340.0, 68.0}}, label: '🏓
+Padel
+Bronze · 4 maç
+1060 MMR
+Yerel sıra —'
+                        Button, 0x10b2f57c0, {{328.0, 1464.0}, {32.0, 32.0}}, label: 'Padel profilini düzenle'
+                        Button, 0x10b2f5900, {{31.0, 1527.0}, {340.0, 46.0}}, label: 'Diğer 7 branşı göster'
+                        StaticText, 0x10b2f5a40, {{29.0, 1613.0}, {251.7, 24.0}}, label: 'Rozetler'
+                        StaticText, 0x10b2f5b80, {{296.7, 1613.0}, {68.3, 24.0}}, label: '4 / 8 kazanıldı'
+                      Other, 0x10b2f5cc0, {{20.0, 760.0}, {362.0, 72.0}}
+                      Button, 0x10b2f5e00, {{28.0, 769.0}, {65.3, 54.0}}, label: 'Akış'
+                      Image, 0x10b2f5f40, {{49.7, 776.3}, {22.0, 22.0}}, label: 'Akış'
+                      Button, 0x10b2f6080, {{93.3, 769.0}, {65.3, 54.0}}, label: 'Harita'
+                      Image, 0x10b2f61c0, {{115.0, 776.3}, {22.0, 22.0}}, label: 'Harita'
+                      Button, 0x10b2f6300, {{165.0, 740.0}, {72.0, 72.0}}, label: 'Şimdi Oyna'
+                      Image, 0x10b2f6440, {{187.7, 762.7}, {27.0, 27.0}}, label: 'Şimdi Oyna'
+                      Button, 0x10b2f6580, {{242.7, 769.0}, {65.7, 54.0}}, label: 'Sohbet'
+                      Image, 0x10b2f66c0, {{264.7, 776.3}, {22.0, 22.0}}, label: 'Sohbet'
+                      Button, 0x10b2f6800, {{308.3, 769.0}, {65.7, 54.0}}, label: 'Pasaport', Selected
+                      Image, 0x10b2f6940, {{329.0, 775.0}, {24.7, 23.3}}, label: 'Pasaport'
+                      StaticText, 0x10b2f6a80, {{49.0, 798.3}, {23.3, 13.0}}, label: 'Akış'
+                      StaticText, 0x10b2f6bc0, {{109.7, 798.3}, {33.0, 13.0}}, label: 'Harita'
+                      StaticText, 0x10b2f6d00, {{256.3, 798.3}, {38.7, 13.0}}, label: 'Sohbet'
+                      StaticText, 0x10b2f6e40, {{316.0, 798.3}, {50.7, 13.0}}, label: 'Pasaport'
+    Window, 0x10b2f6f80, {{0.0, 0.0}, {402.0, 874.0}}
+      Other, 0x10b2f70c0, {{0.0, 0.0}, {402.0, 874.0}}
+        Other, 0x10b2f7200, {{0.0, 0.0}, {402.0, 874.0}}
+Path to element:
+ →Application, 0x10b229f40, pid: 10795, label: 'Matchora'
+Query chain:
+ →Find: Application 'com.ozdentech.matchora'
+  Output: {
+    Application, 0x10b2f7340, pid: 10795, label: 'Matchora'
+  }
+
+PASSPORT_ACCESSIBILITY_END
+    t =     8.67s Tear Down
+Test Case '-[Capture.Capture testPassportPreview]' passed (8.698 seconds).
+Test Suite 'Capture' passed at 2026-11-19 11:25:32.613.
+	 Executed 1 test, with 0 failures (0 unexpected) in 8.698 (8.705) seconds
+Test Suite 'Capture.xctest' passed at 2026-11-19 11:25:32.613.
+	 Executed 1 test, with 0 failures (0 unexpected) in 8.698 (8.706) seconds
+Test Suite 'All tests' passed at 2026-11-19 11:25:32.614.
+	 Executed 1 test, with 0 failures (0 unexpected) in 8.698 (8.707) seconds
+2026-11-19 11:25:32.924 xcodebuild[10886:31233928] [MT] IDETestOperationsObserverDebug: 11.795 elapsed -- Testing started completed.
+2026-11-19 11:25:32.924 xcodebuild[10886:31233928] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-19 11:25:32.924 xcodebuild[10886:31233928] [MT] IDETestOperationsObserverDebug: 11.795 sec, +11.795 sec -- end
+
+Test session results, code coverage, and logs:
+	/tmp/matchora-passport-capture/passport-final.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started

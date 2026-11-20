@@ -334,6 +334,7 @@ fun TokenWalletSheet(
                 }
 
                 item { MSectionHeader("Cüzdan hareketleri") }
+                item { PersonalHistoryButton("wallet", "Tüm cüzdan geçmişi") }
                 item { MSegmentedControl(listOf("Tümü", "Yükleme", "Kilitler"), historyFilter, { historyFilter = it }) }
                 val purchases = ledger.filter { when (historyFilter) { 1 -> it.type in setOf(LedgerType.PURCHASE, LedgerType.BONUS); 2 -> it.type in setOf(LedgerType.HOLD, LedgerType.RELEASE); else -> true } }
                 if (purchases.isEmpty()) {

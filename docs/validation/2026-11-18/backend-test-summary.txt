@@ -1,0 +1,9 @@
+✔ venue review screen exposes only the current customer completed paid reservations for writing (151.3315ms)
+ℹ tests 246
+ℹ suites 0
+ℹ pass 246
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10936.227833

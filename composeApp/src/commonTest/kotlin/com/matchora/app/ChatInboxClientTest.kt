@@ -39,4 +39,40 @@ class ChatInboxClientTest {
         repository.setActiveThread(null); repository.reload()
         assertTrue(repository.snapshots.value!!.a("threads").isEmpty())
     }
+    @Test fun liveChangeRefreshesTheOtherConversationAndGlobalBadgesWithoutResettingPaging() = runBlocking<Unit> {
+        val active = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        val urls = mutableListOf<String>()
+        val repository = BackendRepository("https://api.example.invalid", "local", transport = { request ->
+            urls += request.url
+            if (request.url.endsWith("/v1/threads/$id")) response(apiPayload(
+                "item" to mapOf("id" to id, "activityAt" to 2, "unread" to 3, "messages" to listOf(mapOf("id" to "new-message"))),
+                "unreadThreadCount" to 1, "unreadNotificationCount" to 4))
+            else response(apiPayload("userId" to "own", "threads" to listOf(thread(active)), "nextThreadCursor" to "older"))
+        }, persistence = Storage())
+        repository.start()
+        repository.setActiveThread(active)
+        urls.clear()
+        repository.refreshRealtime(changedThreadIds = setOf(id))
+        assertEquals(listOf("https://api.example.invalid/v1/threads/$id"), urls)
+        val updated = requireNotNull(repository.snapshots.value)
+        assertEquals(3, updated.a("threads").first { it.s("id") == id }.i("unread"))
+        assertEquals(1, updated.i("unreadThreadCount"))
+        assertEquals(4, updated.i("unreadNotificationCount"))
+        assertEquals("older", updated.s("nextThreadCursor"))
+        assertTrue(updated.a("threads").any { it.s("id") == active })
+    }
+
+    @Test fun lostMembershipOnLiveUpdateReconcilesAndRemovesTheInaccessibleThread() = runBlocking<Unit> {
+        var removed = false
+        val repository = BackendRepository("https://api.example.invalid", "local", transport = { request ->
+            if (request.url.endsWith("/v1/threads/$id")) {
+                ApiHttpResponse(404, apiPayload("error" to mapOf("code" to "NOT_FOUND", "message" to "Sohbet kapandı")).toString().encodeToByteArray())
+            } else response(apiPayload("userId" to "own", "threads" to if (removed) emptyList() else listOf(thread(id)), "unreadThreadCount" to 0))
+        }, persistence = Storage())
+        repository.start()
+        removed = true
+        repository.refreshRealtime(changedThreadIds = setOf(id))
+        assertTrue(requireNotNull(repository.snapshots.value).a("threads").isEmpty())
+    }
+
 }

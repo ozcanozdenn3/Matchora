@@ -85,7 +85,7 @@ fun ModerationSheet(onDismiss: () -> Unit) {
     var legalVersion by remember { mutableStateOf("2026.2") }
     var legalUrl by remember { mutableStateOf("") }
     val sections = listOf("venueApplications" to "Tesis başvuruları", "support" to "Destek", "reports" to "Şikayetler", "memories" to "Anılar", "photos" to "Fotoğraf doğrulama",
-        "results" to "Maç sonuçları", "reviews" to "Tesis yorumları", "outboxFailures" to "Bildirim hataları", "users" to "Kullanıcı yönetimi", "announcements" to "Duyurular", "flags" to "Özellikler", "legal" to "Sözleşmeler")
+        "results" to "Maç sonuçları", "reviews" to "Tesis yorumları", "outboxFailures" to "Bildirim hataları", "identityDeletions" to "Hesap temizliği", "users" to "Kullanıcı yönetimi", "announcements" to "Duyurular", "flags" to "Özellikler", "legal" to "Sözleşmeler")
     LaunchedEffect(wire, refresh) {
         loading = true; error = null
         try { data = backend.adminInbox() }
@@ -193,6 +193,21 @@ fun ModerationSheet(onDismiss: () -> Unit) {
                         "reviews" -> {
                             Text("${item.i("rating")}/5 · ${item.s("comment")}")
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(true to "Yayınla", false to "Reddet").forEach { (approved, title) -> TextButton(onClick = { action = OperatorAction(title, "admin.venue.review", apiPayload("reviewId" to item.s("id"), "approved" to approved), destructive = !approved) }) { Text(title, color = if (!approved) MColors.Rose else MColors.BrandDeep) } } }
+                        }
+                        "identityDeletions" -> {
+                            Text("Silinen hesabın giriş kaydı", style = MaterialTheme.typography.titleSmall)
+                            Text(when (item.s("last_error")) {
+                                "AUTH_ADMIN_NOT_CONFIGURED" -> "Sunucu silme yetkisi yapılandırılmalı."
+                                "AUTH_PROJECT_MISMATCH" -> "Giriş servisi ve Supabase proje ayarları kontrol edilmeli."
+                                "AUTH_ID_UNSUPPORTED" -> "Bu eski giriş kaydı elle incelenmeli."
+                                "" -> if (item.s("status") == "processing") "Silme işlemi sürüyor." else "İşlem sırada."
+                                else -> "Giriş servisine erişilemedi; otomatik tekrar denenecek."
+                            }, style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
+                            Text("${item.i("attempts")} deneme", style = MaterialTheme.typography.labelSmall)
+                            if (item.s("status") == "pending") TextButton(onClick = {
+                                action = OperatorAction("Giriş kaydını yeniden temizle", "admin.identity.cleanup.retry", apiPayload("userId" to item.s("id")),
+                                    field = null, message = "Hesap sahibinin önceki silme talebi yeniden işlenecek.")
+                            }) { Text("Yeniden sıraya al") }
                         }
                         "outboxFailures" -> {
                             Text("Bildirim · ${item.i("attempts")} deneme")

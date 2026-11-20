@@ -9,23 +9,31 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.matchora.app.data.*
 import com.matchora.app.domain.Sport
 import com.matchora.app.state.*
 import com.matchora.app.ui.theme.MColors
 import kotlinx.datetime.Clock
 
 @Composable
-fun CreateCommunitySheet(city: String, district: String, onDismiss: () -> Unit, onCreate: (CommunityInfo) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf(CommunityType.CLUB) }
-    var access by remember { mutableStateOf(CommunityAccess.OPEN) }
-    var sport by remember { mutableStateOf(Sport.FOOTBALL) }
-    var sports by remember { mutableStateOf(listOf(Sport.FOOTBALL)) }
-    var selectedCity by remember { mutableStateOf(city) }
-    var selectedDistrict by remember { mutableStateOf(district) }
+fun CreateCommunitySheet(city: String, district: String, onDismiss: () -> Unit, onCreate: (CommunityInfo) -> Unit, onPublished: (String) -> Unit = {}) {
+    val form = rememberCreationForm("community")
+    val draft = form.restored
+    var name by remember(form) { mutableStateOf(draft.s("name", "")) }
+    var description by remember(form) { mutableStateOf(draft.s("description", "")) }
+    var type by remember(form) { mutableStateOf(draft.formEnum("type", CommunityType.CLUB)) }
+    var access by remember(form) { mutableStateOf(draft.formEnum("access", CommunityAccess.OPEN)) }
+    var sport by remember(form) { mutableStateOf(draft.formEnum("sport", Sport.FOOTBALL)) }
+    var sports by remember(form) { mutableStateOf(draft.ss("sports").mapNotNull { runCatching { Sport.valueOf(it) }.getOrNull() }.ifEmpty { listOf(sport) }) }
+    var selectedCity by remember(form) { mutableStateOf(draft.s("city", city)) }
+    var selectedDistrict by remember(form) { mutableStateOf(draft.s("district", district)) }
     var location by remember { mutableStateOf(false) }
-    ActivitySheet("Topluluğunu oluştur", "Spor çevreni bir araya getir", onDismiss, Icons.Rounded.Hub) {
+    CreationDraftEffect(form) { apiPayload("name" to name, "description" to description, "type" to type,
+        "access" to access, "sport" to sport, "sports" to sports, "city" to selectedCity, "district" to selectedDistrict) }
+    ActivitySheet("Topluluğunu oluştur", "Spor çevreni bir araya getir", { form.requestDismiss(onDismiss) }, Icons.Rounded.Hub,
+        confirmDismiss = { form.confirmDismiss(onDismiss) }) {
+        CreationFormBody(form) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         MFloatingInputBox(
             label = "Topluluk Adı",
             value = name,
@@ -80,11 +88,15 @@ fun CreateCommunitySheet(city: String, district: String, onDismiss: () -> Unit, 
             style = MaterialTheme.typography.bodySmall,
             color = MColors.Ink600
         )
-        MButton("Topluluğu oluştur", {
-            onCreate(CommunityInfo("community_${Clock.System.now().toEpochMilliseconds()}", name.trim(), type, selectedDistrict, 1,
-                access, type.emoji, 0, description.trim(), sports, selectedCity))
-            onDismiss()
-        }, enabled = name.trim().length >= 3)
+        CreationFormNotice(form)
+        MButton(if (form.busy) "Topluluğun kaydediliyor…" else "Topluluğu oluştur", {
+            val community = CommunityInfo("community_${Clock.System.now().toEpochMilliseconds()}", name.trim(), type, selectedDistrict, 1,
+                access, type.emoji, 0, description.trim(), sports, selectedCity)
+            form.submit("community.create", community.toApiPayload(), { onCreate(community) }, onPublished, onDismiss)
+        }, enabled = !form.busy && name.trim().length >= 3)
+        }
+        }
     }
+    CreationFormDialogs(form, onDismiss)
     if (location) CityAndLocationSelectorSheet(selectedCity, selectedDistrict, false, { location = false }, { c, d, _ -> selectedCity = c; selectedDistrict = d })
 }

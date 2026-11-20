@@ -7,10 +7,47 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class BackendClientTest {
+    @Test fun resultSidesKeepIdentityForOpponentConfirmationAndLegacyEvents() {
+        val event = mapOf("id" to "event", "homeParticipantIds" to listOf("user-test"), "awayParticipantIds" to listOf("opponent"))
+        val result = mapOf("event_id" to "event", "submitted_by" to "user-test", "status" to "pending", "dispute_until" to 1000,
+            "payload" to apiPayload("homeScore" to 2, "awayScore" to 1, "sides" to mapOf("home" to listOf("user-test"), "away" to listOf("opponent"))).toString())
+        val mapped = BackendSnapshot(apiPayload("userId" to "user-test", "events" to listOf(event), "results" to listOf(result))).results.getValue("event")
+        assertEquals(listOf(DemoData.ME), mapped.homeParticipantIds)
+        assertEquals(listOf("opponent"), mapped.awayParticipantIds)
+        assertEquals(DemoData.ME, mapped.submittedBy)
+        val legacy = result + ("payload" to apiPayload("homeScore" to 2, "awayScore" to 1).toString())
+        val restored = BackendSnapshot(apiPayload("userId" to "user-test", "events" to listOf(event), "results" to listOf(legacy))).results.getValue("event")
+        assertEquals(mapped.homeParticipantIds, restored.homeParticipantIds)
+        assertEquals(mapped.awayParticipantIds, restored.awayParticipantIds)
+    }
+
     private class MemorySession : SessionPersistence { var value: String? = null; override fun read() = value; override fun write(value: String?) { this.value = value } }
     private fun response(status: Int, data: JsonObject) = ApiHttpResponse(status, data.toString().encodeToByteArray())
     private val session = apiPayload("accessToken" to "access-test", "refreshToken" to "refresh-test", "userId" to "user-test", "expiresAt" to 9999999999)
 
+    @Test fun compactEventResponseUpdatesMembershipAndPreservesUnrelatedLists() = runBlocking {
+        val initial = apiPayload("userId" to "user-test", "teams" to listOf(mapOf("id" to "team")),
+            "events" to listOf(mapOf("id" to "older")), "joinedEventIds" to listOf("older"))
+        val repository = BackendRepository("https://api.example.invalid", "local", transport = { request ->
+            when {
+                request.url.endsWith("/auth/dev") -> response(200, session)
+                request.url.endsWith("/bootstrap") -> response(200, initial)
+                else -> {
+                    assertEquals("return=changes", request.headers["Prefer"])
+                    response(200, apiPayload("result" to mapOf("id" to "new"),
+                        "changes" to mapOf("userId" to "user-test", "event" to mapOf("id" to "new"),
+                            "fields" to mapOf("wallet" to mapOf("balance" to 10)))))
+                }
+            }
+        }, persistence = MemorySession())
+        repository.developmentLogin()
+        repository.command("event.create",apiPayload(),"create-key")
+        val updated = requireNotNull(repository.snapshots.value)
+        assertEquals(setOf("older","new"), updated.ss("joinedEventIds").toSet())
+        assertEquals(setOf("older","new"), updated.a("events").map { it.s("id") }.toSet())
+        assertEquals(initial["teams"], updated["teams"])
+        assertEquals(10, updated.o("wallet").i("balance"))
+    }
     @Test fun jsonPayloadEscapesUserTextWithoutChangingItsMeaning() {
         val input = "Satır\n\"alıntı\" \\ Türkçe: ıüğ"
         assertEquals(input, Json.parseToJsonElement(apiPayload("text" to input).toString()).jsonObject.getValue("text").jsonPrimitive.content)
