@@ -3,6 +3,8 @@ package com.matchora.app
 import com.matchora.app.data.*
 import com.matchora.app.state.*
 import com.matchora.app.ui.components.*
+import com.matchora.app.ui.screens.formatPassportAvailability
+import com.matchora.app.ui.screens.passportTraitItems
 import com.matchora.app.ui.screens.resolveChatParticipantPlayer
 import com.matchora.app.ui.screens.resolvePassportDisplayState
 import kotlinx.coroutines.runBlocking
@@ -194,5 +196,31 @@ class SocialClientTest {
         repository.loadMoreMemories()
         assertEquals(30, repository.memoryFeed.value!!.a("items").size)
         assertEquals("", repository.memoryFeed.value!!.s("nextCursor"))
+    }
+
+    @Test fun signedInPassportTraitsAndAvailabilityMatchThePreviewStyling() {
+        val profile = DemoData.me.copy(
+            dominantSide = "Sol ayak · Sağ el",
+            campus = "İTÜ",
+            company = "Acıbadem",
+            jerseyNumber = null,
+            availability = listOf(
+                "Pzt 19:00–23:00",
+                "Sal 19:00–23:00",
+                "Çar 19:00–23:00",
+                "Per 19:00–23:00",
+                "Cum 19:00–23:00",
+                "Cmt 09:00–13:00"
+            )
+        )
+        val traits = passportTraitItems(profile)
+        assertEquals(listOf("Sol ayak", "Sağ el", "İTÜ", "Acıbadem"), traits.map { it.second })
+        assertNotEquals(traits[0].first, traits[1].first)
+        assertEquals("PassportFoot", traits[0].first.name)
+        assertTrue(traits[1].first.name.contains("BackHand"))
+        assertEquals("Hafta içi 19:00–23:00 · Cumartesi 09:00–13:00", formatPassportAvailability(profile.availability))
+        assertEquals("Her gün 19:00–23:00", formatPassportAvailability(passportDays.map { "$it 19:00–23:00" }))
+        assertEquals("Hafta sonu 10:00–14:00", formatPassportAvailability(listOf("Cmt 10:00–14:00", "Paz 10:00–14:00")))
+        assertEquals("Pazartesi 20:00–22:00 · Sal, Çar 19:00–21:00", formatPassportAvailability(listOf("Pzt 20:00–22:00", "Sal 19:00–21:00", "Çar 19:00–21:00")))
     }
 }

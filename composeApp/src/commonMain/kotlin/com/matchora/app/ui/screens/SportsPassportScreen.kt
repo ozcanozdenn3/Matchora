@@ -30,8 +30,13 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,6 +61,123 @@ internal data class PassportDisplayState(
     val allMissions: List<Mission>,
     val reliabilityRecords: List<ReliabilityRecord>
 )
+
+private val passportDayOrder = listOf("Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz")
+private val passportWeekdayOrder = listOf("Pzt", "Sal", "Çar", "Per", "Cum")
+private val passportDayFullNames = mapOf(
+    "Pzt" to "Pazartesi",
+    "Sal" to "Salı",
+    "Çar" to "Çarşamba",
+    "Per" to "Perşembe",
+    "Cum" to "Cuma",
+    "Cmt" to "Cumartesi",
+    "Paz" to "Pazar"
+)
+private val dayPrefixedAvailabilityRegex = Regex("""^(Pzt|Sal|Çar|Per|Cum|Cmt|Paz)\s+(.+)$""")
+
+private val PassportFootIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "PassportFoot",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).apply {
+        fun addToe(cx: Float, cy: Float, r: Float) {
+            path(
+                fill = SolidColor(Color.Black),
+                pathFillType = PathFillType.NonZero
+            ) {
+                moveTo(cx - r, cy)
+                arcTo(r, r, 0f, isMoreThanHalf = true, isPositiveArc = true, cx + r, cy)
+                arcTo(r, r, 0f, isMoreThanHalf = true, isPositiveArc = true, cx - r, cy)
+                close()
+            }
+        }
+        addToe(7.8f, 5.2f, 1.55f)
+        addToe(11.0f, 4.4f, 1.25f)
+        addToe(13.7f, 5.4f, 1.1f)
+        addToe(15.8f, 7.1f, 0.95f)
+        addToe(17.0f, 9.2f, 0.85f)
+        path(
+            fill = SolidColor(Color.Black),
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+            pathFillType = PathFillType.NonZero
+        ) {
+            moveTo(10.4f, 8.2f)
+            curveTo(13.4f, 8.2f, 15.6f, 10.2f, 15.2f, 12.8f)
+            curveTo(14.9f, 14.5f, 13.8f, 15.6f, 13.5f, 17.2f)
+            curveTo(13.2f, 19.6f, 11.9f, 21.5f, 10.0f, 21.5f)
+            curveTo(8.0f, 21.5f, 7.0f, 19.8f, 7.4f, 17.6f)
+            curveTo(7.7f, 15.8f, 8.7f, 15.0f, 8.0f, 13.4f)
+            curveTo(7.2f, 11.6f, 7.6f, 8.2f, 10.4f, 8.2f)
+            close()
+        }
+    }.build()
+}
+
+private val PassportHandIcon: ImageVector get() = Icons.Rounded.BackHand
+
+internal fun passportTraitItems(user: UserProfile): List<Pair<ImageVector, String>> = buildList {
+    user.dominantSide.split('·', '/', ',', ';').map { it.trim() }.filter { it.isNotBlank() }.forEach { part ->
+        val icon = when {
+            part.contains("ayak", ignoreCase = true) -> PassportFootIcon
+            part.contains("el", ignoreCase = true) -> PassportHandIcon
+            else -> Icons.Rounded.Sports
+        }
+        add(icon to part)
+    }
+    user.campus?.trim()?.takeIf { it.isNotBlank() }?.let { add(Icons.Rounded.School to it) }
+    user.company?.trim()?.takeIf { it.isNotBlank() }?.let { add(Icons.Rounded.Business to it) }
+    user.jerseyNumber?.let { add(Icons.Rounded.Tag to "#$it") }
+}
+
+internal fun formatPassportAvailability(availability: List<String>): String {
+    val buckets = linkedMapOf<String, LinkedHashSet<String>>()
+    val tokens = mutableListOf<Pair<Boolean, String>>()
+    availability.map { it.trim() }.filter { it.isNotBlank() }.forEach { item ->
+        val match = dayPrefixedAvailabilityRegex.matchEntire(item)
+        if (match == null) {
+            tokens += false to item
+        } else {
+            val day = match.groupValues[1]
+            val window = match.groupValues[2].trim()
+            val existingBucket = buckets[window]
+            if (existingBucket == null) {
+                buckets[window] = linkedSetOf(day)
+                tokens += true to window
+            } else {
+                existingBucket.add(day)
+            }
+        }
+    }
+    val formatted = mutableListOf<String>()
+    tokens.forEach { (isBucket, value) ->
+        if (!isBucket) {
+            formatted += value
+        } else {
+            val days = buckets.getValue(value).sortedBy { passportDayOrder.indexOf(it) }
+            when {
+                days.size == 7 -> formatted += "Her gün $value"
+                passportWeekdayOrder.all { it in days } -> {
+                    formatted += "Hafta içi $value"
+                    val hasSat = "Cmt" in days
+                    val hasSun = "Paz" in days
+                    when {
+                        hasSat && hasSun -> formatted += "Hafta sonu $value"
+                        hasSat -> formatted += "Cumartesi $value"
+                        hasSun -> formatted += "Pazar $value"
+                    }
+                }
+                days.size == 2 && "Cmt" in days && "Paz" in days -> formatted += "Hafta sonu $value"
+                days.size == 1 -> formatted += "${passportDayFullNames.getValue(days.single())} $value"
+                else -> formatted += "${days.joinToString(", ")} $value"
+            }
+        }
+    }
+    return formatted.distinct().joinToString(" · ")
+}
 
 internal fun resolvePassportDisplayState(
     user: UserProfile,
@@ -242,7 +364,7 @@ fun SportsPassportScreen(
                                 }
                             }
                         }
-                        if (effectiveUser.bio.isNotBlank()) Text(effectiveUser.bio, fontSize = 11.5.sp, lineHeight = 16.sp, color = Color(0xFFD0DADF), maxLines = if (isLoggedIn) 1 else 2, overflow = TextOverflow.Ellipsis)
+                        if (effectiveUser.bio.isNotBlank()) Text(effectiveUser.bio, fontSize = 11.5.sp, lineHeight = 16.sp, color = Color(0xFFD0DADF), maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             VerificationChip(
                                 label = if (VerificationLevel.BASIC in effectiveUser.verifications) "İletişim onaylı" else "İletişimi doğrula",
@@ -253,21 +375,17 @@ fun SportsPassportScreen(
                                 verified = VerificationLevel.PHOTO in effectiveUser.verifications,
                                 onClick = if (!isLoggedIn) onOpenAuth else (if (VerificationLevel.PHOTO in effectiveUser.verifications) null else onVerifyPhoto))
                         }
-                        if (!isLoggedIn) {
+                        val traits = passportTraitItems(effectiveUser)
+                        if (traits.isNotEmpty()) {
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                GuestPassportTrait(Icons.Rounded.SportsSoccer, "Sol ayak")
-                                GuestPassportTrait(Icons.Rounded.SportsTennis, "Sağ el")
-                                GuestPassportTrait(Icons.Rounded.School, effectiveUser.campus.orEmpty())
-                                GuestPassportTrait(Icons.Rounded.Business, effectiveUser.company.orEmpty())
+                                traits.forEach { (icon, label) -> GuestPassportTrait(icon, label) }
                             }
-                        } else {
-                            val profileContext = listOfNotNull(effectiveUser.dominantSide.takeIf { it.isNotBlank() }, effectiveUser.campus, effectiveUser.company).joinToString(" · ")
-                            if (profileContext.isNotBlank()) Text(profileContext, fontSize = 11.sp, color = Color(0xFF9EAFBB), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        if (effectiveUser.availability.isNotEmpty()) {
+                        val availabilityLabel = formatPassportAvailability(effectiveUser.availability)
+                        if (availabilityLabel.isNotBlank()) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Icon(Icons.Rounded.Schedule, null, Modifier.size(12.dp), tint = Color(0xFF9EAFBB))
-                                Text(effectiveUser.availability.joinToString(" · "), fontSize = 11.sp, lineHeight = 14.sp, color = Color(0xFFB8C7CE), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(availabilityLabel, fontSize = 11.sp, lineHeight = 15.sp, color = Color(0xFFB8C7CE), maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
                         }
                         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -900,7 +1018,7 @@ private fun SkillProfileEditorSheet(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun ProfileEditorSheet(
     user: UserProfile,
@@ -1027,6 +1145,33 @@ private fun ProfileEditorSheet(
                                 Text("Doğru ekiple aynı sahada buluş.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
                             }
                         }
+                        val sideParts = dominantSide.split('·', '/', ',', ';').map { it.trim() }.filter { it.isNotBlank() }
+                        val selectedFoot = sideParts.firstOrNull { it.contains("ayak", ignoreCase = true) }.orEmpty()
+                        val selectedHand = sideParts.firstOrNull { it.contains("el", ignoreCase = true) }.orEmpty()
+                        fun updateSide(foot: String, hand: String) {
+                            val extras = sideParts.filterNot { it.contains("ayak", ignoreCase = true) || it.contains("el", ignoreCase = true) }
+                            dominantSide = listOfNotNull(foot.takeIf { it.isNotBlank() }, hand.takeIf { it.isNotBlank() }, *extras.toTypedArray()).joinToString(" · ")
+                        }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("Sol ayak", "Sağ ayak").forEach { foot ->
+                                FilterChip(
+                                    selected = selectedFoot.equals(foot, ignoreCase = true),
+                                    onClick = { updateSide(if (selectedFoot.equals(foot, ignoreCase = true)) "" else foot, selectedHand) },
+                                    leadingIcon = { Icon(PassportFootIcon, null, Modifier.size(14.dp)) },
+                                    label = { Text(foot) },
+                                    colors = premiumChoiceChipColors()
+                                )
+                            }
+                            listOf("Sağ el", "Sol el").forEach { hand ->
+                                FilterChip(
+                                    selected = selectedHand.equals(hand, ignoreCase = true),
+                                    onClick = { updateSide(selectedFoot, if (selectedHand.equals(hand, ignoreCase = true)) "" else hand) },
+                                    leadingIcon = { Icon(PassportHandIcon, null, Modifier.size(14.dp)) },
+                                    label = { Text(hand) },
+                                    colors = premiumChoiceChipColors()
+                                )
+                            }
+                        }
                         ProfileEditField("Baskın taraf / pozisyon", dominantSide, { dominantSide = it })
                         Surface(shape = RoundedCornerShape(20.dp), color = Color(0xFFEDF4F0)) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1034,8 +1179,23 @@ private fun ProfileEditorSheet(
                                     Icon(Icons.Rounded.Schedule, null, tint = MColors.Ink600, modifier = Modifier.size(19.dp))
                                     Text("Oyun takvimin", fontWeight = FontWeight.Bold, color = MColors.Ink900)
                                 }
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    val existing = availability.split(',').map { it.trim() }.filter { it.isNotBlank() }
+                                    listOf("Hafta içi 19:00–23:00", "Cumartesi 09:00–13:00", "Hafta sonu 10:00–14:00").forEach { preset ->
+                                        val active = existing.any { it.equals(preset, ignoreCase = true) }
+                                        FilterChip(
+                                            selected = active,
+                                            onClick = {
+                                                val next = if (active) existing.filterNot { it.equals(preset, ignoreCase = true) } else existing + preset
+                                                availability = next.joinToString(", ")
+                                            },
+                                            label = { Text(preset) },
+                                            colors = premiumChoiceChipColors()
+                                        )
+                                    }
+                                }
                                 ProfileEditField("Müsaitlik saatleri", availability, { availability = it }, singleLine = false, minLines = 3, maxLines = 5)
-                                Text("Örnek: Hafta içi 19.00 sonrası, Pazar sabahı", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+                                Text("Örnek: Hafta içi 19:00–23:00, Cumartesi 09:00–13:00", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
                             }
                         }
                     }
