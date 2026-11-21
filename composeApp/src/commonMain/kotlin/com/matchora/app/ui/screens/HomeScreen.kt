@@ -1175,8 +1175,7 @@ private fun LiveMiniRadarView(
     val regionCenter = rememberRegionCenter(currentCity, currentDistrict)
     val deviceLocation by DeviceLocationState.current.collectAsState()
     val selectedRegionLocation = deviceLocation?.takeIf {
-        matchesTurkishPlace(it.city, currentCity) &&
-            (currentDistrict.isBlank() || matchesTurkishPlace(it.district, currentDistrict))
+        it.city.isNullOrBlank() || matchesTurkishPlace(it.city, currentCity)
     }
     val previewPins = remember(events, backendMode) {
         events.filterNot { it.area.contains("online", ignoreCase = true) }
@@ -1216,7 +1215,8 @@ private fun LiveMiniRadarView(
             modifier = Modifier.fillMaxSize(),
             latitude = selectedCenter?.latitude ?: if (matchesTurkishPlace(currentCity, "İstanbul")) mapCenter?.latitude ?: fallbackCityCenter.latitude else fallbackCityCenter.latitude,
             longitude = selectedCenter?.longitude ?: if (matchesTurkishPlace(currentCity, "İstanbul")) mapCenter?.longitude ?: fallbackCityCenter.longitude else fallbackCityCenter.longitude,
-            zoomMeters = if (selectedCenter == null && !matchesTurkishPlace(currentCity, "İstanbul")) 24000.0
+            zoomMeters = if (selectedCenter != null) 4200.0
+                else if (!matchesTurkishPlace(currentCity, "İstanbul")) 24000.0
                 else if (currentDistrict.isBlank() || currentDistrict == "Merkez") 60000.0 else 4200.0,
             pins = previewPins,
             selectedPinId = null,

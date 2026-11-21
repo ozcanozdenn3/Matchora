@@ -233,15 +233,10 @@ fun SportsPassportScreen(
     onUpdateProfile: (UserProfile) -> Unit
 ) {
     var showReliabilityDetail by remember { mutableStateOf(false) }
-    var selectedSkillForDetail by remember { mutableStateOf<SportSkill?>(null) }
-    var selectedSkillForEdit by remember { mutableStateOf<SportSkill?>(null) }
     var selectedBadgeForDetail by remember { mutableStateOf<BadgeInfo?>(null) }
     var showQrPassSheet by remember { mutableStateOf(false) }
-    var showAddSport by remember { mutableStateOf(false) }
     var showProfileEditor by remember { mutableStateOf(false) }
-    var showAllSkills by remember { mutableStateOf(false) }
     var showAllMatches by remember { mutableStateOf(false) }
-    var showMissions by remember { mutableStateOf(false) }
 
     val liveMode = LocalBackendRepository.current != null
     val passportDisplay = resolvePassportDisplayState(
@@ -256,8 +251,6 @@ fun SportsPassportScreen(
     val effectiveUser = passportDisplay.effectiveUser
     val history = passportDisplay.history
     val badges = passportDisplay.badges
-    val allMissions = passportDisplay.allMissions
-    val weeklyMission = allMissions.firstOrNull()
     val earnedBadges = badges.count { it.earned }
     val listState = rememberLazyListState()
     val scrollToTopTrigger = LocalScrollToTopTrigger.current
@@ -419,106 +412,6 @@ fun SportsPassportScreen(
 
             item {
                 PassportSectionCard(
-                    title = "Branş dereceleri",
-                    detail = "${effectiveUser.skills.size} branş · MMR"
-                ) {
-                    PersonalHistoryButton("ratings", "MMR gelişim geçmişi")
-                    MButton("Branş ekle", { if (!isLoggedIn) onOpenAuth() else showAddSport = true }, icon = Icons.Rounded.Add, isPrimary = false, height = 40.dp)
-                    Spacer(Modifier.height(10.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        effectiveUser.skills.take(if (showAllSkills) Int.MAX_VALUE else 3).forEach { skill ->
-                            Surface(
-                                onClick = { if (!isLoggedIn) onOpenAuth() else selectedSkillForDetail = skill },
-                                shape = RoundedCornerShape(15.dp),
-                                color = Color.White,
-                                shadowElevation = 1.dp,
-                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 2.dp, vertical = 1.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFFAFBFD))))
-                                        .padding(vertical = 9.dp, horizontal = 11.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(RoundedCornerShape(11.dp))
-                                            .background(Color(0xFFFFF7ED))
-                                            .border(0.8.dp, Color(0xFFFDE6C8), RoundedCornerShape(11.dp)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(skill.sport.emoji, fontSize = 18.sp)
-                                    }
-                                    Spacer(Modifier.width(10.dp))
-                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text(
-                                            skill.sport.label,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MColors.Ink900,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            "${skill.tier.label} · ${skill.verifiedMatches} maç",
-                                            fontSize = 11.5.sp,
-                                            color = MColors.Ink500,
-                                            maxLines = 1
-                                        )
-                                    }
-                                    Column(
-                                        modifier = Modifier.padding(start = 6.dp),
-                                        horizontalAlignment = Alignment.End,
-                                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                                    ) {
-                                        Text("${skill.rating} MMR", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = MColors.Brand, maxLines = 1)
-                                        Text(
-                                            skill.localRank?.let { "#$it · ${effectiveUser.area}" } ?: "Yerel sıra —",
-                                            fontSize = 11.sp,
-                                            color = MColors.Ink500,
-                                            maxLines = 1
-                                        )
-                                    }
-                                    Spacer(Modifier.width(10.dp))
-                                    Surface(
-                                        onClick = { if (!isLoggedIn) onOpenAuth() else selectedSkillForEdit = skill },
-                                        shape = RoundedCornerShape(9.dp),
-                                        color = Color(0xFFF8FAFC),
-                                        shadowElevation = 1.dp,
-                                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                Icons.Rounded.Edit,
-                                                contentDescription = "${skill.sport.label} profilini düzenle",
-                                                tint = MColors.Brand,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (effectiveUser.skills.size > 3) {
-                        Spacer(Modifier.height(10.dp))
-                        ExpandPassportRows(
-                            expanded = showAllSkills,
-                            label = if (showAllSkills) "Daha az göster" else "Diğer ${effectiveUser.skills.size - 3} branşı göster",
-                            onClick = { showAllSkills = !showAllSkills }
-                        )
-                    }
-                }
-            }
-
-            item {
-                PassportSectionCard(
                     title = "Rozetler",
                     detail = "$earnedBadges / ${badges.size} kazanıldı"
                 ) {
@@ -584,103 +477,6 @@ fun SportsPassportScreen(
                     }
                 }
             }
-
-            if (weeklyMission != null) {
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = Color(0xFFF6F0E5),
-                        border = BorderStroke(1.dp, MColors.Brand.copy(alpha = 0.18f)),
-                        shadowElevation = 2.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Surface(
-                                        shape = RoundedCornerShape(11.dp),
-                                        color = Color.White,
-                                        shadowElevation = 4.dp,
-                                        border = BorderStroke(0.8.dp, Color(0xFFEDE2D3)),
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .shadow(5.dp, RoundedCornerShape(11.dp), ambientColor = Color(0x260B1220), spotColor = Color(0x360B1220))
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(weeklyMission.emoji, fontSize = 18.sp)
-                                        }
-                                    }
-                                    Spacer(Modifier.width(10.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text("Haftalık görev", fontSize = 11.5.sp, color = MColors.Ink500, fontWeight = FontWeight.SemiBold)
-                                        Text(weeklyMission.title, fontSize = 14.sp, color = MColors.Ink900, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                                Surface(
-                                    color = Color.White,
-                                    shape = RoundedCornerShape(10.dp),
-                                    shadowElevation = 4.dp,
-                                    border = BorderStroke(0.8.dp, Color(0xFFEDE2D3)),
-                                    modifier = Modifier.shadow(6.dp, RoundedCornerShape(10.dp), ambientColor = Color(0x280B1220), spotColor = Color(0x380B1220))
-                                ) {
-                                    Text(
-                                        "+${weeklyMission.rewardPoints} TKN",
-                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                        fontSize = 12.sp,
-                                        color = MColors.Brand,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(13.dp),
-                                color = Color.White,
-                                shadowElevation = 4.dp,
-                                border = BorderStroke(0.8.dp, Color(0xFFEDE2D3)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .shadow(6.dp, RoundedCornerShape(13.dp), ambientColor = Color(0x240B1220), spotColor = Color(0x340B1220))
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 9.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    LinearProgressIndicator(
-                                        progress = {
-                                            if (weeklyMission.target <= 0) 0f
-                                            else (weeklyMission.progress.toFloat() / weeklyMission.target).coerceIn(0f, 1f)
-                                        },
-                                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
-                                        color = MColors.Brand,
-                                        trackColor = Color(0xFFEDE7E2)
-                                    )
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(weeklyMission.description, modifier = Modifier.weight(1f).padding(end = 10.dp), fontSize = 11.5.sp, color = MColors.Ink600)
-                                        Text(
-                                            "${weeklyMission.progress.coerceAtMost(weeklyMission.target)}/${weeklyMission.target}",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MColors.Ink800
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (allMissions.isNotEmpty()) item { TextButton(onClick = { if (!isLoggedIn) onOpenAuth() else showMissions = true }) { Text("Tüm haftalık görevler (${allMissions.size})") } }
 
             item {
                 PassportSectionCard(title = "Güvenilirlik geçmişi", detail = "%${effectiveUser.reliability}") {
@@ -861,41 +657,6 @@ fun SportsPassportScreen(
             }
         }
 
-        if (showAddSport) {
-            SportPickerSheet(
-                selectedSport = null,
-                sports = Sport.entries.filter { sport -> user.skills.none { it.sport == sport } },
-                allowAll = false,
-                onDismiss = { showAddSport = false },
-                onSelect = { sport ->
-                    if (sport != null) {
-                        selectedSkillForEdit = SportSkill(sport, SkillLevel.BEGINNER, 1000, 0, 0, null, null)
-                        showAddSport = false
-                    }
-                }
-            )
-        }
-        selectedSkillForDetail?.let { skill ->
-            SkillBreakdownDialog(skill = skill, area = user.area, onDismiss = { selectedSkillForDetail = null })
-        }
-        selectedSkillForEdit?.let { skill ->
-            val canRemove = user.skills.size > 1 && user.skills.any { it.sport == skill.sport }
-            SkillProfileEditorSheet(
-                skill = skill,
-                onDismiss = { selectedSkillForEdit = null },
-                onSave = { updatedSkill ->
-                    val updated = if (user.skills.any { it.sport == updatedSkill.sport }) {
-                        user.skills.map { current -> if (current.sport == updatedSkill.sport) updatedSkill else current }
-                    } else user.skills + updatedSkill
-                    onUpdateProfile(user.copy(skills = updated))
-                    selectedSkillForEdit = null
-                },
-                onRemove = if (canRemove) ({
-                    onUpdateProfile(user.copy(skills = user.skills.filterNot { it.sport == skill.sport }))
-                    selectedSkillForEdit = null
-                }) else null
-            )
-        }
         selectedBadgeForDetail?.let { badge ->
             BadgeDetailDialog(
                 emoji = badge.emoji,
@@ -906,8 +667,6 @@ fun SportsPassportScreen(
                 onDismiss = { selectedBadgeForDetail = null }
             )
         }
-        if (showMissions) MissionsSheet(allMissions) { showMissions = false }
-
         if (showQrPassSheet) {
             AthleteQrPassSheet(user = user, onDismiss = { showQrPassSheet = false })
         }

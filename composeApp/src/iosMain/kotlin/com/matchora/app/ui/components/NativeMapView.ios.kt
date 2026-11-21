@@ -88,7 +88,7 @@ actual fun NativeMapView(
                 val center = CLLocationCoordinate2DMake(safeLatitude, safeLongitude)
                 val region = MKCoordinateRegionMakeWithDistance(center, safeSpan, safeSpan)
                 setRegion(region, animated = false)
-                showsUserLocation = false
+                showsUserLocation = true
                 overrideUserInterfaceStyle = UIUserInterfaceStyle.UIUserInterfaceStyleLight
                 userInteractionEnabled = interactive
                 scrollEnabled = interactive
@@ -106,6 +106,7 @@ actual fun NativeMapView(
         },
         update = { mapView ->
             mapView.overrideUserInterfaceStyle = UIUserInterfaceStyle.UIUserInterfaceStyleLight
+            mapView.showsUserLocation = true
             coordinator.pins = pins
             mapView.delegate = coordinator
             mapView.userInteractionEnabled = interactive

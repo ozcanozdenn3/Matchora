@@ -138,8 +138,7 @@ fun DiscoverMapScreen(
     val selectedEvent = filteredEvents.firstOrNull { it.id == selectedEventId }
     val selectedPoint = selectedEvent?.takeUnless { it.area.contains("online", ignoreCase = true) }?.approximateLocation
     val selectedRegionLocation = deviceLocation?.takeIf {
-        com.matchora.app.state.matchesTurkishPlace(it.city, currentCity) &&
-            (currentDistrict.isBlank() || com.matchora.app.state.matchesTurkishPlace(it.district, currentDistrict))
+        isGpsActive || it.city.isNullOrBlank() || com.matchora.app.state.matchesTurkishPlace(it.city, currentCity)
     }
     val liveRegionCenter = selectedRegionLocation ?: regionCenter
     val mapCenter = run {
@@ -180,7 +179,8 @@ fun DiscoverMapScreen(
                 modifier = Modifier.fillMaxSize(),
                 latitude = mapCenter.first,
                 longitude = mapCenter.second,
-                zoomMeters = if (selectedEvent == null && liveRegionCenter == null && currentCity != "İstanbul") 1600000.0
+                zoomMeters = if (selectedEvent == null && selectedRegionLocation != null) 3800.0
+                    else if (selectedEvent == null && liveRegionCenter == null && currentCity != "İstanbul") 1600000.0
                     else if (selectedEvent == null && (currentDistrict.isBlank() || currentDistrict == "Merkez")) 60000.0 else 3800.0,
                 pins = mapPinDataList,
                 selectedPinId = selectedEventId,

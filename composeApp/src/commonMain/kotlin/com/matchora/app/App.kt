@@ -96,11 +96,6 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     var remoteVenues by remember { mutableStateOf(emptyList<VenueInfo>()) }
     val clipboardManager = LocalClipboardManager.current
     val demoScope = rememberCoroutineScope()
-    val requestNotifications = rememberNotificationPermissionRequester { }
-    LaunchedEffect(Unit) {
-        requestNotifications()
-    }
-    // ═══════════════ STATE MANAGEMENT ═══════════════
     var currentTab by remember { mutableIntStateOf(0) }
     var scrollToTopTrigger by remember { mutableIntStateOf(0) }
     var competitionEntryTab by remember { mutableIntStateOf(0) }
@@ -110,11 +105,58 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     var currentCity by remember { mutableStateOf("İstanbul") }
     var currentDistrict by remember { mutableStateOf("Kadıköy") }
     var browseRegionSelected by remember(live?.userId) { mutableStateOf(false) }
+    var manualNonGpsRegion by remember { mutableStateOf(false) }
     var initialListingScope by remember { mutableStateOf(EventNetworkScope.CITY) }
     var isGpsLocationActive by remember { mutableStateOf(false) }
-    LaunchedEffect(currentDeviceLocation) {
-        if (backend.enabled && currentDeviceLocation == null) isGpsLocationActive = false
+    val requestNotifications = rememberNotificationPermissionRequester { }
+    val requestAutoLocation = rememberLocationRequester(requestPermission = true) { result ->
+        if (result is LocationOutcome.Located) {
+            DeviceLocationState.current.value = result.value
+            if (!manualNonGpsRegion) {
+                isGpsLocationActive = true
+                browseRegionSelected = true
+                val foundCity = result.value.city?.trim()?.takeIf { it.isNotBlank() }
+                if (foundCity != null) {
+                    val matchedCity = turkeyCities.firstOrNull { matchesTurkishPlace(it, foundCity) } ?: foundCity
+                    currentCity = matchedCity
+                    val foundDistrict = result.value.district?.trim()?.takeIf { it.isNotBlank() }
+                    if (foundDistrict != null) {
+                        currentDistrict = foundDistrict
+                    } else if (!matchesTurkishPlace(currentCity, "İstanbul")) {
+                        currentDistrict = "Merkez"
+                    }
+                }
+            }
+        }
     }
+    LaunchedEffect(Unit) {
+        requestNotifications()
+        requestAutoLocation()
+    }
+    LaunchedEffect(currentDeviceLocation) {
+        val loc = currentDeviceLocation
+        if (loc != null) {
+            if (!manualNonGpsRegion) {
+                isGpsLocationActive = true
+                if (!browseRegionSelected) {
+                    browseRegionSelected = true
+                    loc.city?.trim()?.takeIf { it.isNotBlank() }?.let { foundCity ->
+                        val matchedCity = turkeyCities.firstOrNull { matchesTurkishPlace(it, foundCity) } ?: foundCity
+                        currentCity = matchedCity
+                        val foundDistrict = loc.district?.trim()?.takeIf { it.isNotBlank() }
+                        if (foundDistrict != null) {
+                            currentDistrict = foundDistrict
+                        } else if (!matchesTurkishPlace(currentCity, "İstanbul")) {
+                            currentDistrict = "Merkez"
+                        }
+                    }
+                }
+            }
+        } else if (backend.enabled) {
+            isGpsLocationActive = false
+        }
+    }
+    // ═══════════════ STATE MANAGEMENT ═══════════════
     var tokenBalance by remember { mutableIntStateOf(if (backend.enabled) 0 else 120) }
     var lockedTokens by remember { mutableIntStateOf(if (backend.enabled) 0 else 20) }
     var eventTokenHolds by remember { mutableStateOf(mapOf("e5" to 10, "e7" to 10)) }
@@ -594,6 +636,9 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             catch (_: Exception) { /* Session invalidation clears auth state; temporary offline preserves a verified session. */ }
         }
     }
+    LaunchedEffect(isLoggedIn) {
+        if (isLoggedIn) requestAutoLocation()
+    }
     rememberForegroundLocationRefresh(appActive && backend.enabled && isLoggedIn && hasCompletedPassport)
     LaunchedEffect(backend, live?.userId, isLoggedIn, currentDeviceLocation, appActive) {
         if (backend.enabled && isLoggedIn && appActive) {
@@ -601,6 +646,17 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             try { backend.command("discovery.location", apiPayload("latitude" to point?.latitude, "longitude" to point?.longitude), backend.requestKey("location")) }
             catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
             catch (_: Exception) { /* A location refresh never blocks navigation; the previous server fix expires. */ }
+        }
+    }
+    LaunchedEffect(backend, isLoggedIn, hasCompletedPassport, isGpsLocationActive, currentCity, currentDistrict) {
+        if (backend.enabled && isLoggedIn && hasCompletedPassport && isGpsLocationActive && currentDeviceLocation != null) {
+            try {
+                backend.command("discovery.save", apiPayload("city" to currentCity, "district" to currentDistrict, "travelMode" to false), backend.requestKey("gps-discovery"))
+            } catch (cancel: kotlinx.coroutines.CancellationException) {
+                throw cancel
+            } catch (_: Exception) {
+                /* Silent sync: manual location selector or next discovery save will retry if needed. */
+            }
         }
     }
     val pushDevice by DeviceEventBridge.devices.collectAsState()
@@ -2169,6 +2225,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             onDismiss = { showCityLocationSheet = false },
             onSelectLocation = { newCity, newDistrict, isGps ->
                 browseRegionSelected = true
+                manualNonGpsRegion = !isGps
                 currentCity = newCity
                 currentDistrict = newDistrict
                 isGpsLocationActive = isGps
