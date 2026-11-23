@@ -55,6 +55,7 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
     var confirmLogout by remember { mutableStateOf(false) }
     var deletionRequested by remember { mutableStateOf(false) }
     val repository = LocalBackendRepository.current
+    val toastNotifier = LocalToastNotifier.current
     val snapshot by (repository?.snapshots ?: kotlinx.coroutines.flow.MutableStateFlow<kotlinx.serialization.json.JsonObject?>(null)).collectAsState()
     val blockedPeople = remember(snapshot) { snapshot?.let(::blockedPlayerEntries).orEmpty() }
     val command = rememberBackendAction()
@@ -161,9 +162,16 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
                     onClick = {
                         deletionScope.launch {
                             exporting = true
-                            try { shareAccountExport(repository.exportAccount().toString()) }
+                            try {
+                                shareAccountExport(repository.exportAccount().toString())
+                                toastNotifier?.invoke("Veri dışa aktarıldı", "✓")
+                            }
                             catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-                            catch (error: Exception) { deletionError = (error as? BackendFailure)?.message ?: "Verilerin dışa aktarılamadı." }
+                            catch (error: Exception) {
+                                val msg = (error as? BackendFailure)?.message ?: "Verilerin dışa aktarılamadı."
+                                deletionError = msg
+                                toastNotifier?.invoke(msg, "⚠️")
+                            }
                             finally { exporting = false }
                         }
                     }
@@ -176,7 +184,13 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
                     modifier = Modifier.weight(1f),
                     onClick = {
                         deletionScope.launch {
-                            runCatching { repository.activeSessions().a("items") }.onSuccess { sessions = it }.onFailure { deletionError = (it as? BackendFailure)?.message ?: "Oturumlar yüklenemedi." }
+                            runCatching { repository.activeSessions().a("items") }
+                                .onSuccess { sessions = it }
+                                .onFailure {
+                                    val msg = (it as? BackendFailure)?.message ?: "Oturumlar yüklenemedi."
+                                    deletionError = msg
+                                    toastNotifier?.invoke(msg, "⚠️")
+                                }
                         }
                     }
                 )
@@ -185,7 +199,12 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
         TextButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth(), enabled = if (repository?.enabled == true) !pendingDeletion else !deletionRequested) { Text(if (pendingDeletion || deletionRequested) "Hesap silme talebi kaydedildi" else "Hesabımı silmek istiyorum", color = MColors.Rose) }
         if (pendingDeletion) TextButton(onClick = { deletionScope.launch {
             runCatching { repository?.command("account.delete.cancel", com.matchora.app.data.apiPayload(), repository.requestKey("cancel-deletion")) }
-                .onFailure { deletionError = (it as? BackendFailure)?.message ?: "Silme talebi geri çekilemedi." }
+                .onSuccess { toastNotifier?.invoke("Hesap silme talebi geri çekildi", "↩️") }
+                .onFailure {
+                    val msg = (it as? BackendFailure)?.message ?: "Silme talebi geri çekilemedi."
+                    deletionError = msg
+                    toastNotifier?.invoke(msg, "⚠️")
+                }
         } }) { Text("Silme talebini geri çek") }
     }
     if (showModeration) ModerationSheet { showModeration = false }
@@ -207,7 +226,14 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
             Text(if (session.b("current")) "Bu cihaz" else "Diğer oturum", Modifier.weight(1f))
             if (!session.b("current")) TextButton(onClick = { deletionScope.launch {
                 runCatching { repository?.command("account.session.revoke", apiPayload("sessionId" to session.s("id")), repository.requestKey("revoke")) }
-                    .onSuccess { sessions = items.filter { it.s("id") != session.s("id") } }.onFailure { deletionError = (it as? BackendFailure)?.message ?: "Oturum kapatılamadı." }
+                    .onSuccess {
+                        sessions = items.filter { it.s("id") != session.s("id") }
+                        toastNotifier?.invoke("Oturum kapatıldı", "✓")
+                    }.onFailure {
+                        val msg = (it as? BackendFailure)?.message ?: "Oturum kapatılamadı."
+                        deletionError = msg
+                        toastNotifier?.invoke(msg, "⚠️")
+                    }
             } }) { Text("Kapat", color = MColors.Rose) }
         } } } }, confirmButton = { TextButton(onClick = { sessions = null }) { Text("Tamam") } }) }
 }

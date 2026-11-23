@@ -188,6 +188,7 @@ fun PlayNowModalSheet(
     onRecoveredPublication: (String, Boolean) -> Unit = { _, _ -> }
 ) {
     val backend = LocalBackendRepository.current
+    val notifyToast = LocalToastNotifier.current
     val draftStore = remember(draftOwnerKey) { ListingDraftStore(draftOwnerKey) }
     val restored = remember(draftOwnerKey) { draftStore.restore() ?: apiPayload() }
     val scope = rememberCoroutineScope()
@@ -1330,7 +1331,11 @@ fun PlayNowModalSheet(
                                     draftFinished = true
                                     onDismiss()
                                 } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                                catch (error: Exception) { adFormError = error.message ?: "İlan yayınlanamadı. Bilgilerin taslakta duruyor; tekrar deneyebilirsin." }
+                                catch (error: Exception) {
+                                    val msg = error.message ?: "İlan yayınlanamadı. Bilgilerin taslakta duruyor; tekrar deneyebilirsin."
+                                    adFormError = msg
+                                    notifyToast?.invoke(msg, "⚠️")
+                                }
                                 finally { publishing = false }
                             }
                         },

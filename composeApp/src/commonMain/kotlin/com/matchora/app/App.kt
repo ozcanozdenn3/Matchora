@@ -293,21 +293,73 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
         currentToast = Toast(message, emoji, ++nextIdCounter)
     }
 
-    fun remote(operation: String, payload: JsonObject, after: (JsonObject) -> Unit = {}): Boolean {
-        if (sessionLeaving || !isLoggedIn || !hasCompletedPassport || authWire?.b("legalAcceptanceRequired") == true) { pendingAccountAction = { remote(operation, payload, after) }; showAuthSheet = true; return true }
+    fun defaultOperationToast(operation: String, payload: JsonObject): Pair<String, String>? = when (operation) {
+        "discovery.save", "discovery.location", "notification.read", "chat.read", "device.register", "device.remove" -> null
+        "event.join" -> "Kadroya katıldın" to "⚽"
+        "event.leave" -> "Kadrodan ayrıldın" to "↩️"
+        "event.waitlist" -> if (payload.s("action") == "leave") "Bekleme listesinden ayrıldın" to "↩️" else "Bekleme listesine eklendin" to "⏳"
+        "event.request" -> "Katılım başvurun iletildi" to "⏳"
+        "event.request.review" -> if (payload.b("approve")) "Başvuru onaylandı" to "✓" else "Başvuru reddedildi" to "✕"
+        "event.request.cancel" -> "Başvurun geri çekildi" to "↩️"
+        "event.transition" -> "Maç durumu güncellendi" to "⚡"
+        "event.member.remove" -> "Oyuncu kadrodan çıkarıldı" to "↩️"
+        "event.member.restore" -> "Oyuncu yeniden kadroya alındı" to "✓"
+        "event.checkin" -> "Saha check-in tamamlandı" to "📍"
+        "event.checkin.code" -> "Check-in kodu oluşturuldu" to "📍"
+        "event.create" -> "İlan yayınlandı" to "🎉"
+        "team.create" -> "Takım oluşturuldu" to "🛡️"
+        "team.invite" -> "Takım daveti gönderildi" to "🛡️"
+        "team.request" -> "Takım başvurun iletildi" to "⏳"
+        "team.request.review" -> if (payload.b("approve")) "Takım başvurusu onaylandı" to "✓" else "Takım başvurusu reddedildi" to "✕"
+        "challenge.create" -> "Meydan okuma gönderildi" to "⚔️"
+        "challenge.respond" -> if (payload.b("accept")) "Meydan okuma kabul edildi" to "✓" else "Meydan okuma reddedildi" to "✕"
+        "tournament.create" -> "Turnuva oluşturuldu" to "🏆"
+        "tournament.register" -> "Turnuva kaydı tamamlandı" to "🏆"
+        "tournament.withdraw" -> "Turnuva kaydı geri çekildi" to "↩️"
+        "tournament.cancel" -> "Turnuva iptal edildi" to "↩️"
+        "booking.create" -> "Saha rezervasyonu kaydedildi" to "🏟️"
+        "booking.cancel" -> "Rezervasyon iptal edildi" to "↩️"
+        "community.join" -> "Topluluk işlemi gönderildi" to "🤝"
+        "community.leave" -> "Topluluktan ayrıldın" to "↩️"
+        "chat.send", "message.edit", "message.delete", "message.hide", "chat.clear", "chat.delete", "chat.mute" -> "Sohbet güncellendi" to "💬"
+        "memory.like", "memory.create", "memory.delete", "memory.update", "memory.comment" -> "Anı vitrini güncellendi" to "📸"
+        "user.block" -> if (payload.b("blocked")) "Kullanıcı engellendi" to "🛡️" else "Engel kaldırıldı" to "🛡️"
+        "report.create" -> "Bildirimin iletildi" to "🛡️"
+        "support.create" -> "Destek talebin alındı" to "💬"
+        "preferences.save" -> "Tercihlerin kaydedildi" to "✓"
+        "result.submit" -> "Maç sonucu kaydedildi" to "🏆"
+        "result.confirm" -> "Maç sonucu onaylandı" to "🏆"
+        "result.dispute" -> "Skor itirazı kaydedildi" to "⚖️"
+        "feedback.submit" -> "Değerlendirmen kaydedildi" to "⭐"
+        "account.delete" -> "Hesap silme talebi kaydedildi" to "ℹ️"
+        else -> "İşlem tamamlandı" to "✓"
+    }
+
+    fun remote(operation: String, payload: JsonObject, silent: Boolean = false, after: (JsonObject) -> Unit = {}): Boolean {
+        if (sessionLeaving || !isLoggedIn || !hasCompletedPassport || authWire?.b("legalAcceptanceRequired") == true) { pendingAccountAction = { remote(operation, payload, silent, after) }; showAuthSheet = true; return true }
         if (!backend.enabled) return false
         val key = backend.requestKey(operation)
         lateinit var execute: () -> Unit
         execute = {
             demoScope.launch {
-                backendBusy++
+                if (!silent) backendBusy++
                 try {
-                    val result = backend.command(operation, payload, key); after(result); backendError = null; backendRetry = null
+                    val toastBefore = currentToast?.id
+                    val result = backend.command(operation, payload, key)
+                    after(result)
+                    backendError = null; backendRetry = null
+                    if (!silent && currentToast?.id == toastBefore) {
+                        defaultOperationToast(operation, payload)?.let { (msg, emoji) -> showToast(msg, emoji) }
+                    }
                     if (operation in listOf("event.join", "event.create", "booking.create")) requestNotifications()
                 }
                 catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                catch (error: Exception) { backendError = error.message ?: "İşlem tamamlanamadı."; backendRetry = execute }
-                finally { backendBusy-- }
+                catch (error: Exception) {
+                    val msg = error.message ?: "İşlem tamamlanamadı."
+                    showToast(msg, "⚠️")
+                    if (!silent) { backendError = msg; backendRetry = execute }
+                }
+                finally { if (!silent) backendBusy-- }
             }
         }
         execute()
@@ -327,10 +379,16 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                         if (!updated.avatarRemovalRequested && updated.avatar != null && (uploadId == null || updated.avatar !== profile.avatar)) uploadId = backend.uploadPhoto(updated.avatar)
                         preparedPayload = updated.toApiPayload(updated.version.takeIf { it > 0 }, uploadId)
                     }
+                    val toastBefore = currentToast?.id
                     backend.command("profile.save", requireNotNull(preparedPayload), key)
                     after(); backendError = null; backendRetry = null
+                    if (currentToast?.id == toastBefore) showToast("Sporcu profilin güncellendi", "✓")
                 } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                catch (error: Exception) { backendError = error.message ?: "Profil kaydedilemedi."; backendRetry = execute }
+                catch (error: Exception) {
+                    val msg = error.message ?: "Profil kaydedilemedi."
+                    showToast(msg, "⚠️")
+                    backendError = msg; backendRetry = execute
+                }
                 finally { backendBusy-- }
             }
         }
@@ -359,9 +417,14 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 )
                 backend.enqueueSend(operation, payload, memory.customBitmap.takeIf { memory.remoteUploadId == null })
                 backendError = null; backendRetry = null
+                showToast(if (operation == "memory.create") "Anı paylaşımı gönderiliyor" else "Fotoğraf sohbete gönderiliyor", "📸")
                 demoScope.launch { backend.processPendingSends() }
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-            catch (error: Exception) { backendError = error.message ?: "Fotoğraf kaydedilemedi."; backendRetry = execute }
+            catch (error: Exception) {
+                val msg = error.message ?: "Fotoğraf kaydedilemedi."
+                showToast(msg, "⚠️")
+                backendError = msg; backendRetry = execute
+            }
             finally { backendBusy-- }
         } }
         execute(); return true
@@ -380,8 +443,13 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     "matchScoreTag" to memory.matchScoreTag, "sceneTheme" to memory.sceneTheme, "uploadId" to upload,
                     "approximateLocation" to memory.approximateLocation?.let { mapOf("latitude" to it.latitude, "longitude" to it.longitude) }), key)
                 backendError = null; backendRetry = null
+                showToast("Anı güncellendi", "✓")
             } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-            catch (error: Exception) { backendError = error.message; backendRetry = execute }
+            catch (error: Exception) {
+                val msg = error.message ?: "Anı güncellenemedi."
+                showToast(msg, "⚠️")
+                backendError = msg; backendRetry = execute
+            }
             finally { backendBusy-- }
         } }
         execute(); return true
@@ -400,8 +468,13 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 backend.command("profile.save", requireNotNull(savedPayload), "$key-profile")
                 backend.command("verification.photo", apiPayload("uploadId" to uploadId), "$key-review")
                 showPhotoVerification = false; backendError = null; after(true)
+                showToast("Fotoğraf doğrulama talebi iletildi", "✓")
             } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-            catch (e: Exception) { after(false); backendError = e.message; backendRetry = execute }
+            catch (e: Exception) {
+                val msg = e.message ?: "Fotoğraf doğrulaması gönderilemedi."
+                showToast(msg, "⚠️")
+                after(false); backendError = msg; backendRetry = execute
+            }
             finally { backendBusy-- }
         } }
         execute(); return true
@@ -445,7 +518,11 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     ?: throw BackendFailure("PASSPORT_REQUIRED", "Sporcu pasaportun kaydedilemedi.")
                 finishAuthentication(saved); backendError = null; backendRetry = null
             } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-            catch (error: Exception) { backendError = error.message; backendRetry = execute }
+            catch (error: Exception) {
+                val msg = error.message ?: "Sporcu pasaportun kaydedilemedi."
+                showToast(msg, "⚠️")
+                backendError = msg; backendRetry = execute
+            }
             finally { backendBusy--; completingAuthentication = false }
         } }
         execute()
@@ -550,7 +627,11 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     showToast("Bu maç artık listede bulunmuyor", "ℹ️")
                 }
             } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-            catch (error: Exception) { backendError = error.message; backendRetry = { openEventById(eventId) } }
+            catch (error: Exception) {
+                val msg = error.message ?: "İlan yüklenemedi."
+                showToast(msg, "⚠️")
+                backendError = msg; backendRetry = { openEventById(eventId) }
+            }
             finally { backendBusy-- }
         }
     }
@@ -590,7 +671,11 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     finishAuthentication(saved)
                 }
             }
-            catch (error: Exception) { backendError = error.message; backendRetry = { demoScope.launch { runCatching { backend.start() }.onFailure { backendError = it.message } } } }
+            catch (error: Exception) {
+                val msg = error.message ?: "Sunucuya bağlanılamadı."
+                showToast(msg, "⚠️")
+                backendError = msg; backendRetry = { demoScope.launch { runCatching { backend.start() }.onFailure { val m = it.message ?: "Sunucuya bağlanılamadı."; showToast(m, "⚠️"); backendError = m } } }
+            }
             finally { backendBusy-- }
         }
     }
@@ -598,7 +683,11 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
         if (backend.enabled) {
             try { backend.setBrowseCity(currentCity) }
             catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-            catch (error: Exception) { backendError = error.message; backendRetry = { demoScope.launch { runCatching { backend.setBrowseCity(currentCity) }.onFailure { backendError = it.message } } } }
+            catch (error: Exception) {
+                val msg = error.message ?: "Şehir verileri yüklenemedi."
+                showToast(msg, "⚠️")
+                backendError = msg; backendRetry = { demoScope.launch { runCatching { backend.setBrowseCity(currentCity) }.onFailure { val m = it.message ?: "Şehir verileri yüklenemedi."; showToast(m, "⚠️"); backendError = m } } }
+            }
         }
     }
     LaunchedEffect(backend, currentTab) {
@@ -724,11 +813,20 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     showToast((error as? BackendFailure)?.message ?: "Sohbet akışı şu an yenilenemedi.", "⚠️")
                 }
             }
+            var offlineNotified = false
             while (true) {
                 kotlinx.coroutines.delay(if (activeChatThreadId != null && !backend.realtimeConnected.value) 3000L else 20000L)
-                try { backend.poll() }
+                try {
+                    backend.poll()
+                    offlineNotified = false
+                }
                 catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-                catch (_: Exception) { /* Existing snapshot remains available; explicit actions surface errors. */ }
+                catch (error: Exception) {
+                    if (error is BackendFailure && error.code == "OFFLINE" && !offlineNotified) {
+                        offlineNotified = true
+                        showToast(error.message ?: "İnternet bağlantısı yok · Çevrimdışı", "⚠️")
+                    }
+                }
             }
         }
     }
@@ -1072,7 +1170,10 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             catch (_: Exception) { /* Polling retries after the next server snapshot. */ }
         }
     }
-    CompositionLocalProvider(LocalBackendAction provides { operation, payload -> remote(operation, payload); Unit }) {
+    CompositionLocalProvider(
+        LocalBackendAction provides { operation, payload -> remote(operation, payload); Unit },
+        LocalToastNotifier provides ::showToast
+    ) {
     if (showVenueOperator) VenueOperatorSheet { showVenueOperator = false }
     if (showModeration) ModerationSheet { showModeration = false }
     // Otomatik Toast Kapanışı
@@ -1159,7 +1260,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     onFindEventById = { requireAccount { openEventById(it) } },
                     onNetworkScopeChanged = { scope ->
                         initialListingScope = scope
-                        if (backend.enabled && isLoggedIn) remote("discovery.save", apiPayload("city" to currentCity, "district" to currentDistrict, "travelMode" to (scope == EventNetworkScope.TRAVEL)))
+                        if (backend.enabled && isLoggedIn) remote("discovery.save", apiPayload("city" to currentCity, "district" to currentDistrict, "travelMode" to (scope == EventNetworkScope.TRAVEL)), silent = true)
                     },
                     onOpenMap = { currentTab = 1 },
                     onOpenPlayNow = { requireAccount { showPlayNowSheet = true  }},
@@ -1560,34 +1661,6 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     }
     }
 
-    if (currentToast != null) androidx.compose.ui.window.Popup(alignment = Alignment.TopCenter) {
-        MToastBanner(toast = currentToast)
-    }
-
-    val uploadProgress by backend.uploadProgress.collectAsState()
-    var showBusyPopup by remember { mutableStateOf(false) }
-    LaunchedEffect(backendBusy) {
-        if (backendBusy > 0) {
-            kotlinx.coroutines.delay(450L)
-            showBusyPopup = true
-        } else {
-            showBusyPopup = false
-        }
-    }
-
-    if (showBusyPopup) androidx.compose.ui.window.Popup(alignment = Alignment.TopCenter) {
-        Surface(shape = RoundedCornerShape(14.dp), color = MColors.Ink900, modifier = Modifier.statusBarsPadding().padding(12.dp)) {
-            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MColors.BrandLight)
-                Text(when (val progress = uploadProgress) {
-                    null -> "Güncelleniyor…"
-                    -1 -> "Fotoğraf hazırlanıyor…"
-                    100 -> "Fotoğraf işleniyor…"
-                    else -> "Fotoğraf yükleniyor · %$progress"
-                }, color = Color.White, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-    }
     backendError?.let { message -> AlertDialog(onDismissRequest = { backendError = null }, title = { Text("İşlem tamamlanamadı") }, text = { Text(message) },
         confirmButton = { TextButton(onClick = { backendError = null; backendRetry?.invoke() }) { Text("Tekrar dene") } },
         dismissButton = { TextButton(onClick = { backendError = null }) { Text("Kapat") } }) }
@@ -2229,7 +2302,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 currentCity = newCity
                 currentDistrict = newDistrict
                 isGpsLocationActive = isGps
-                if (backend.enabled && isLoggedIn) remote("discovery.save", apiPayload("city" to newCity, "district" to newDistrict, "travelMode" to false))
+                if (backend.enabled && isLoggedIn) remote("discovery.save", apiPayload("city" to newCity, "district" to newDistrict, "travelMode" to false), silent = true)
                 val msg = if (isGps) {
                     "Güncel konum seçildi: $newDistrict, $newCity"
                 } else {
@@ -2337,6 +2410,27 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     feedbackEvent?.let { event -> PlayerFeedbackSheet((remotePlayers + selectedDetailPlayers).distinctBy { it.id }.filter { it.id != DemoData.ME && it.id in event.participantIds && (!backend.enabled || event.checkedInParticipantIds.isEmpty() || it.id in event.checkedInParticipantIds) && (event.id to backend.serverUserId(it.id)) !in live?.submittedFeedbackTargets.orEmpty() },
         onSubmit = { target, fairPlay, again -> remote("feedback.submit", apiPayload("eventId" to event.id, "targetId" to backend.serverUserId(target), "fairPlay" to fairPlay, "playAgain" to again)) { feedbackEvent = null } },
         onDismiss = { feedbackEvent = null }) }
+
+    val uploadProgress by backend.uploadProgress.collectAsState()
+    var showBusyPopup by remember { mutableStateOf(false) }
+    LaunchedEffect(backendBusy) {
+        if (backendBusy > 0) {
+            kotlinx.coroutines.delay(450L)
+            showBusyPopup = true
+        } else {
+            showBusyPopup = false
+        }
+    }
+    val busyPopupText = if (showBusyPopup) when (val progress = uploadProgress) {
+        null -> "Güncelleniyor…"
+        -1 -> "Fotoğraf hazırlanıyor…"
+        100 -> "Fotoğraf işleniyor…"
+        else -> "Fotoğraf yükleniyor · %$progress"
+    } else null
+
+    if (currentToast != null || busyPopupText != null) androidx.compose.ui.window.Popup(alignment = Alignment.TopCenter) {
+        MToastBanner(toast = currentToast, busyMessage = busyPopupText)
+    }
 
     } // Persistent command host survives child sheet dismissal.
 

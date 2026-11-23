@@ -362,6 +362,7 @@ private fun ModerationVenueApplicationPhotos(uploadIds: List<String>) {
 @Composable
 fun CreateVenueSheet(venue: JsonObject? = null, application: Boolean = false, onDismiss: () -> Unit) {
     val backend = LocalBackendRepository.current
+    val toastNotifier = LocalToastNotifier.current
     val wire = backend?.snapshots?.collectAsState()?.value
     val scope = rememberCoroutineScope()
     var name by remember(venue?.s("id"), application) { mutableStateOf(venue?.s("name").orEmpty()) }
@@ -560,11 +561,14 @@ fun CreateVenueSheet(venue: JsonObject? = null, application: Boolean = false, on
                         val payload = if (application || venue == null) fields else JsonObject(fields + apiPayload("venueId" to venue.s("id"), "expectedVersion" to venue.i("version", 1)))
                         repo.command(op, payload, requestKey)
                         pendingKey = null
+                        toastNotifier?.invoke(if (application) "Tesis başvurun iletildi" else "Tesis kaydedildi", "🏟️")
                         onDismiss()
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (failure: Exception) {
-                        errorMessage = failure.safeOperatorMessage("Tesis kaydedilemedi.")
+                        val msg = failure.safeOperatorMessage("Tesis kaydedilemedi.")
+                        errorMessage = msg
+                        toastNotifier?.invoke(msg, "⚠️")
                     } finally {
                         saving = false
                     }

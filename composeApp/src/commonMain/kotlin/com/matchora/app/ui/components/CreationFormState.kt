@@ -22,7 +22,8 @@ class CreationFormState(
     private val backend: BackendRepository?,
     private val owner: String?,
     private val store: ListingDraftStore,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val onToast: ((String, String) -> Unit)? = null
 ) {
     val restored = store.restore() ?: apiPayload()
     var fields = restored
@@ -79,7 +80,11 @@ class CreationFormState(
                 if (result == null) onPreview() else onPublished(result.s("id"))
                 onDismiss()
             } catch (cancel: CancellationException) { throw cancel }
-            catch (failure: Exception) { error = failure.message ?: "Kaydedilemedi. Taslağın korunuyor; tekrar deneyebilirsin." }
+            catch (failure: Exception) {
+                val msg = failure.message ?: "Kaydedilemedi. Taslağın korunuyor; tekrar deneyebilirsin."
+                error = msg
+                onToast?.invoke(msg, "⚠️")
+            }
             finally { busy = false }
         }
     }
@@ -90,8 +95,9 @@ fun rememberCreationForm(kind: String): CreationFormState {
     val backend = LocalBackendRepository.current
     val owner = backend?.userId
     val scope = rememberCoroutineScope()
+    val toastNotifier = LocalToastNotifier.current
     return remember(kind, owner, backend) {
-        CreationFormState(backend, owner, ListingDraftStore("form:$kind:${owner ?: "preview"}"), scope)
+        CreationFormState(backend, owner, ListingDraftStore("form:$kind:${owner ?: "preview"}"), scope, toastNotifier)
     }
 }
 

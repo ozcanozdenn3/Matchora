@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -959,16 +960,21 @@ fun ExploreMenuSheet(
     }
 }
 
+val LocalToastNotifier = staticCompositionLocalOf<((String, String) -> Unit)?> { null }
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// TOAST BANNER (Dynamic Island / Frosted Glass Floating Capsule)
+// TOAST BANNER (Dynamic Island / Solid High-Contrast Floating Capsule)
 // ═══════════════════════════════════════════════════════════════════════════════
 @Composable
 fun MToastBanner(
     toast: Toast?,
+    busyMessage: String? = null,
     modifier: Modifier = Modifier
 ) {
+    val activeToast = toast
+    val activeBusy = if (activeToast == null) busyMessage else null
     AnimatedVisibility(
-        visible = toast != null,
+        visible = activeToast != null || activeBusy != null,
         enter = slideInVertically(
             animationSpec = androidx.compose.animation.core.spring(
                 dampingRatio = 0.75f,
@@ -978,7 +984,14 @@ fun MToastBanner(
         exit = slideOutVertically { -it * 2 } + fadeOut(),
         modifier = modifier.semantics { liveRegion = LiveRegionMode.Polite }
     ) {
-        if (toast != null) {
+        if (activeToast != null || activeBusy != null) {
+            val isAlert = activeToast?.emoji in setOf("⚠️", "✕")
+            val messageText = activeToast?.message ?: activeBusy.orEmpty()
+            val accentColor = when {
+                activeBusy != null -> MColors.BrandLight
+                isAlert -> MColors.Amber
+                else -> MColors.Mint
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -988,10 +1001,13 @@ fun MToastBanner(
             ) {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
-                    color = Color(0xF20F172A), // Deep obsidian glass
-                    border = BorderStroke(1.dp, Color(0x3538BDF8)),
-                    shadowElevation = 14.dp,
-                    tonalElevation = 6.dp,
+                    color = Color(0xFF0F172A),
+                    border = BorderStroke(
+                        1.dp,
+                        if (isAlert) MColors.Amber.copy(alpha = 0.55f) else Color(0xFF1E3A5F)
+                    ),
+                    shadowElevation = 16.dp,
+                    tonalElevation = 0.dp,
                     modifier = Modifier
                         .wrapContentWidth()
                         .widthIn(max = 380.dp)
@@ -1002,38 +1018,44 @@ fun MToastBanner(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // Sol İkon / Emoji Rozeti
                         Box(
                             modifier = Modifier
                                 .size(34.dp)
                                 .clip(CircleShape)
-                                .background(Brush.radialGradient(listOf(Color(0x3338BDF8), Color(0x15FFFFFF)))),
+                                .background(Color(0xFF1E293B)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(text = toast.emoji, fontSize = 17.sp)
+                            if (activeBusy != null) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MColors.BrandLight
+                                )
+                            } else {
+                                Text(text = activeToast?.emoji ?: "✓", fontSize = 17.sp)
+                            }
                         }
 
-                        // Metin Alanı
                         Column(modifier = Modifier.weight(1f, fill = false)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "MATCHORA",
+                                    text = if (activeBusy != null) "İŞLEM SÜRÜYOR" else "MATCHORA",
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.sp,
-                                    color = MColors.Mint
+                                    color = accentColor
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Box(
                                     modifier = Modifier
                                         .size(5.dp)
                                         .clip(CircleShape)
-                                        .background(MColors.Mint)
+                                        .background(accentColor)
                                 )
                             }
                             Spacer(modifier = Modifier.height(1.dp))
                             Text(
-                                text = toast.message,
+                                text = messageText,
                                 color = Color.White,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
@@ -1043,20 +1065,21 @@ fun MToastBanner(
                             )
                         }
 
-                        // Sağ Onay İndikatörü
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .background(Color(0x20FFFFFF)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = null,
-                                tint = MColors.Mint,
-                                modifier = Modifier.size(14.dp)
-                            )
+                        if (activeToast != null) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0x20FFFFFF)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (isAlert) Icons.Rounded.PriorityHigh else Icons.Rounded.Check,
+                                    contentDescription = null,
+                                    tint = accentColor,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
                         }
                     }
                 }

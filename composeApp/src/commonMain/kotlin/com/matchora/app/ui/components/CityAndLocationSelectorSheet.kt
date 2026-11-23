@@ -56,7 +56,14 @@ fun CityAndLocationSelectorSheet(
                 DeviceLocationState.current.value = result.value
                 val foundCity = result.value.city
                 if (foundCity.isNullOrBlank()) locationError = LocationOutcome.Failed("Konum alındı ancak il ve ilçe çözümlenemedi. Bölgeni elle seçebilirsin.")
-                else { city = foundCity; district = result.value.district ?: "Merkez"; gpsSelected = true }
+                else {
+                    val foundDistrict = result.value.district?.trim()?.takeIf { it.isNotBlank() } ?: "Merkez"
+                    city = foundCity
+                    district = foundDistrict
+                    gpsSelected = true
+                    onSelectLocation(foundCity, foundDistrict, true)
+                    onDismiss()
+                }
             }
             is LocationOutcome.Failed -> { DeviceLocationState.current.value = null; locationError = result }
         }
@@ -67,12 +74,50 @@ fun CityAndLocationSelectorSheet(
         scrimColor = androidx.compose.ui.graphics.Color(0xFF0B1220).copy(alpha = .48f),
 onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MColors.Canvas, dragHandle = { MPremiumSheetHandle() }) {
-        Column(Modifier.fillMaxWidth().imePadding().padding(20.dp).padding(bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.fillMaxWidth().imePadding().padding(20.dp).padding(bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             MSheetHeading("Şehir ve bölge", "Türkiye’nin 81 ilinde spor", Icons.Rounded.LocationCity, onDismiss)
-            MButton(if (locating) "Konumun bulunuyor…" else "Güncel konumumu kullan",
-                { locating = true; requestLocation() }, enabled = !locating,
-                icon = Icons.Rounded.MyLocation, isPrimary = false)
-            Text("Konum izniyle yakın maçları buluruz. Giriş yaptığında yaklaşık konumun eşleşme ve izin verdiğin acil çağrılar için 15 dakika kullanılır; profilinde kesin konum gösterilmez.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
+            Surface(
+                onClick = { if (!locating) { locating = true; requestLocation() } },
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF203B35),
+                shadowElevation = 4.dp,
+                border = BorderStroke(1.dp, MColors.Mint.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Brush.horizontalGradient(listOf(Color(0xFF22423B), Color(0xFF162B26))))
+                        .padding(horizontal = 14.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(11.dp),
+                        color = MColors.Mint.copy(alpha = 0.18f),
+                        border = BorderStroke(1.dp, MColors.Mint.copy(alpha = 0.4f)),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.MyLocation, null, tint = Color(0xFF9EDDC8), modifier = Modifier.size(19.dp))
+                        }
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = if (locating) "Konumun bulunuyor…" else "Mevcut Konumu Kullan",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = if (isGpsActive) "Canlı GPS aktif · yenilemek için dokun" else "Bulunduğun ile ve ilçeye tek tıkla geç",
+                            fontSize = 11.sp,
+                            color = Color(0xFF9EDDC8)
+                        )
+                    }
+                    Icon(Icons.Rounded.ChevronRight, null, tint = Color(0xFF9EDDC8), modifier = Modifier.size(20.dp))
+                }
+            }
             ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
                 OutlinedTextField(
                     colors = com.matchora.app.ui.components.premiumTextFieldColors(),

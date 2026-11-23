@@ -120,6 +120,7 @@ fun BackendIncomingTeamInvites(teams: List<TeamProfile>, onOpen: (TeamProfile) -
 internal fun rememberBackendAction(): (String, JsonObject) -> Unit {
     LocalBackendAction.current?.let { return it }
     val backend = LocalBackendRepository.current
+    val toast = LocalToastNotifier.current
     val scope = rememberCoroutineScope()
     var pending by remember { mutableStateOf<PendingCommand?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -128,9 +129,17 @@ internal fun rememberBackendAction(): (String, JsonObject) -> Unit {
         val command = pending
         if (!busy && command != null && backend != null) scope.launch {
             busy = true
-            try { backend.command(command.operation, command.payload, command.key); pending = null; error = null }
+            try {
+                backend.command(command.operation, command.payload, command.key)
+                pending = null; error = null
+                toast?.invoke("İşlem tamamlandı", "✓")
+            }
             catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-            catch (failure: Exception) { error = failure.message }
+            catch (failure: Exception) {
+                val msg = failure.message ?: "İşlem tamamlanamadı."
+                error = msg
+                toast?.invoke(msg, "⚠️")
+            }
             finally { busy = false }
         }
     }
