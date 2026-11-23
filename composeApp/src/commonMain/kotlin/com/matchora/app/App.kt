@@ -158,8 +158,8 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     }
     // ═══════════════ STATE MANAGEMENT ═══════════════
     var tokenBalance by remember { mutableIntStateOf(if (backend.enabled) 0 else 120) }
-    var lockedTokens by remember { mutableIntStateOf(if (backend.enabled) 0 else 20) }
-    var eventTokenHolds by remember { mutableStateOf(mapOf("e5" to 10, "e7" to 10)) }
+    var lockedTokens by remember { mutableIntStateOf(0) }
+    var eventTokenHolds by remember { mutableStateOf(emptyMap<String, Int>()) }
     var selectedTopUpPack by remember { mutableStateOf(DemoData.tokenPacks.getOrNull(1) ?: DemoData.tokenPacks.first()) }
     var activeProPlan by remember { mutableStateOf<ProPlan?>(null) }
     var isLoggedIn by remember { mutableStateOf(authBackend.authenticated) }

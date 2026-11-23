@@ -621,27 +621,11 @@ object DemoData {
         AppNotification("n9", NotifPriority.P4, "🚀", "Pro'yu 7 gün ücretsiz dene", "Gelişmiş filtreler ve derin istatistikler", "3 g", read = true, destination = NotificationDestination.PLUS)
     )
 
-    val initialLedger = listOf(
-        LedgerEntry("l1", LedgerType.BONUS, 50, "Hoş geldin bonusu", "1 Eyl", idempotencyKey = "bonus-welcome-me"),
-        LedgerEntry("l2", LedgerType.PURCHASE, 100, "100 Token paketi", "3 Eyl", idempotencyKey = "iap-7f2a91", channel = "App Store"),
-        LedgerEntry("l3", LedgerType.HOLD, -10, "Taahhüt · Kalamış Kort", "14 Eki", ref = "e2-old", idempotencyKey = "hold-e2old-me"),
-        LedgerEntry("l4", LedgerType.RELEASE, 10, "Zamanında check-in · Kalamış Kort", "14 Eki", ref = "e2-old", idempotencyKey = "rel-e2old-me"),
-        LedgerEntry("l5", LedgerType.SPEND, -15, "İlan boost · Kadıköy Utd kadro ilanı", "15 Eki", idempotencyKey = "spend-boost-881"),
-        LedgerEntry("l6", LedgerType.HOLD, -10, "Taahhüt · Suadiye Padel", "16 Eki", ref = "e5", idempotencyKey = "hold-e5-me"),
-        LedgerEntry("l7", LedgerType.HOLD, -10, "Taahhüt · Kadıköy Utd – Ataşehir FC", "16 Eki", ref = "e7", idempotencyKey = "hold-e7-me"),
-        LedgerEntry("l8", LedgerType.BONUS, 15, "Haftalık görev: 3 farklı rakip", "16 Eki", idempotencyKey = "mission-w41-me")
-    )
+    val initialLedger = emptyList<LedgerEntry>()
 
-    val initialVenuePayments = listOf(
-        VenuePayment("vp1", "Kalamış Tenis Kulübü", "Kort 3 · 14 Eki 18:00 · payın", 250, "Visa •• 4242", "14 Eki", PaymentStatus.PAID),
-        VenuePayment("vp2", "Moda Spor Parkı", "Saha 2 · 9 Eki 20:30 · payın", 180, "Mastercard •• 8812", "9 Eki", PaymentStatus.PAID),
-        VenuePayment("vp3", "Fikirtepe Arena", "İptal edilen maç · 2 Eki", 200, "Visa •• 4242", "2 Eki", PaymentStatus.REFUNDED)
-    )
+    val initialVenuePayments = emptyList<VenuePayment>()
 
-    val initialPaymentMethods = listOf(
-        PaymentMethod("pm1", "Visa", "4242", "08/28", "OZCAN OZDEN", true),
-        PaymentMethod("pm2", "Mastercard", "8812", "11/27", "OZCAN OZDEN", false)
-    )
+    val initialPaymentMethods = emptyList<PaymentMethod>()
 
     val tokenPacks = listOf(
         TokenPack("tkn_50", 50, 0, "₺49,99"),
