@@ -31,12 +31,19 @@ class MatchoraMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         if (BackendBuildConfig.MODE == "preview") return
         val destination = message.data["destination"].orEmpty()
-        if (destination !in listOf("EVENT", "CHAT", "CHALLENGES", "WALLET", "PLUS", "ACCOUNT", "RANKING", "PASSPORT", "PLAY")) return
+        if (destination !in listOf(
+                "EVENT", "CHAT", "CHALLENGES", "TEAM", "TOURNAMENT", "WALLET", "PLUS", "ACCOUNT",
+                "RANKING", "PASSPORT", "PLAY", "NETWORK", "VENUES", "MEMORIES", "MODERATION",
+                "RESERVATIONS", "VENUE_MANAGEMENT"
+            )) return
         val manager = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("matchora_activity", "Maçlar ve mesajlar", NotificationManager.IMPORTANCE_DEFAULT))
         if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return
-        val intent = Intent(this, MainActivity::class.java).putExtra("destination", destination)
-            .putExtra("targetId", message.data["targetId"].orEmpty()).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val intent = Intent(this, MainActivity::class.java)
+            .putExtra("destination", destination)
+            .putExtra("targetId", message.data["targetId"].orEmpty())
+            .putExtra("notificationId", message.data["notificationId"].orEmpty())
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val id = (message.messageId ?: message.data["notificationId"] ?: message.sentTime.toString()).hashCode()
         val pending = PendingIntent.getActivity(this, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val notification = NotificationCompat.Builder(this, "matchora_activity")

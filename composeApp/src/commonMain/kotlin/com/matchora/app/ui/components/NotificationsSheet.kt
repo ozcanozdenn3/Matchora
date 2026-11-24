@@ -161,7 +161,13 @@ fun NotificationsSheet(
                             }
                         }
                         Spacer(Modifier.weight(1f))
-                        IconButton(onClick = { pendingDelete = "all" }, enabled = notifications.isNotEmpty()) { Icon(Icons.Rounded.DeleteSweep, "Tüm bildirimleri temizle") }
+                        IconButton(onClick = { pendingDelete = "all" }, enabled = visibleNotifications.isNotEmpty()) {
+                            Icon(
+                                Icons.Rounded.DeleteSweep,
+                                "Tüm bildirimleri temizle",
+                                tint = if (visibleNotifications.isNotEmpty()) Color(0xFFE8D4BE) else Color(0xFF6B7785)
+                            )
+                        }
                         TextButton(onClick = onMarkAllRead, enabled = unreadCount > 0,
                             colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFE8D4BE), disabledContentColor = Color(0xFF8D99A4)),
                             contentPadding = PaddingValues(horizontal = 8.dp)) {
@@ -282,17 +288,31 @@ private fun NotificationInboxCard(notification: AppNotification, onClick: () -> 
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    if (notification.emoji.isNotBlank()) Text(notification.emoji, fontSize = 13.sp)
                     Text(notification.title, Modifier.weight(1f), fontSize = 13.sp, lineHeight = 18.sp, fontWeight = if (unread) FontWeight.Bold else FontWeight.SemiBold, color = MColors.Ink900)
                     if (unread) Box(Modifier.size(6.dp).background(accent, CircleShape))
                     IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) { Icon(Icons.Rounded.DeleteOutline, "Bildirimi sil", modifier = Modifier.size(16.dp), tint = MColors.Ink400) }
                 }
                 Text(notification.body, fontSize = 12.sp, lineHeight = 17.sp, color = MColors.Ink600)
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(notification.timeAgo, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = MColors.Ink400)
+                    notification.expiresIn?.takeIf { it.isNotBlank() }?.let { exp ->
+                        Surface(shape = RoundedCornerShape(6.dp), color = MColors.AmberTint) {
+                            Text(exp, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = MColors.Amber, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                        }
+                    }
                     Spacer(Modifier.weight(1f))
                     val actionLabel = when {
-                        notification.eventId != null || notification.destination == NotificationDestination.EVENT -> "Etkinliği aç"
+                        notification.eventId != null || (notification.destination == NotificationDestination.EVENT && !notification.targetId.isNullOrBlank()) -> "Etkinliği aç"
                         notification.destination == NotificationDestination.MEMORIES -> "Anıyı aç"
+                        notification.destination == NotificationDestination.CHAT -> "Sohbeti aç"
+                        notification.destination == NotificationDestination.WALLET -> "Cüzdanı aç"
+                        notification.destination == NotificationDestination.PLUS -> "Plus’ı aç"
+                        notification.destination == NotificationDestination.RANKING -> "Sıralamayı aç"
+                        notification.destination == NotificationDestination.PASSPORT -> "Pasaportu aç"
+                        notification.destination == NotificationDestination.ACCOUNT -> "Ayarları aç"
+                        notification.destination == NotificationDestination.PLAY -> "Maçları aç"
+                        notification.destination == NotificationDestination.MODERATION -> "Yönetimi aç"
                         notification.destination in listOf(NotificationDestination.TEAM, NotificationDestination.TOURNAMENT, NotificationDestination.CHALLENGES, NotificationDestination.NETWORK, NotificationDestination.VENUES, NotificationDestination.RESERVATIONS, NotificationDestination.VENUE_MANAGEMENT) -> "Detayı aç"
                         else -> null
                     }

@@ -29,7 +29,11 @@ class MainActivity : ComponentActivity() {
     }
     private fun handleNotification(intent: Intent?) {
         intent?.getStringExtra("destination")?.let { destination ->
-            com.matchora.app.data.DeviceEventBridge.openNotification(destination, intent.getStringExtra("targetId").orEmpty())
+            com.matchora.app.data.DeviceEventBridge.openPushNotification(
+                destination,
+                intent.getStringExtra("targetId").orEmpty(),
+                intent.getStringExtra("notificationId").orEmpty()
+            )
         }
     }
 }

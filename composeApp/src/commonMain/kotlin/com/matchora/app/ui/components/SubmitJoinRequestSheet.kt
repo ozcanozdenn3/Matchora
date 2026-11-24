@@ -39,8 +39,8 @@ fun SubmitJoinRequestSheet(
     onSubmitRequest: (position: String, note: String) -> Unit,
     onOpenTopUp: () -> Unit
 ) {
-    val suggestedPositions = remember(event.sport) {
-        when (event.sport) {
+    val suggestedPositions = remember(event.id, event.sport, event.neededRoles) {
+        val defaults = when (event.sport) {
             Sport.FOOTBALL -> listOf("Orta Saha (MID)", "Forvet (FWD)", "Defans (DEF)", "Kaleci (GK)", "Kanat")
             Sport.BASKETBALL -> listOf("Point Guard", "Shooting Guard", "Small Forward", "Power Forward", "Center")
             Sport.VOLLEYBALL -> listOf("Smaçör", "Pasör", "Orta Oyuncu", "Libero", "Pasör Çaprazı")
@@ -50,9 +50,10 @@ fun SubmitJoinRequestSheet(
             Sport.ESPORTS_FC -> listOf("1v1 Standart", "2v2 Co-Op")
             else -> listOf("Oyuncu", "Yedek", "Kaptan")
         }
+        (event.neededRoles + defaults).map { it.trim() }.filter { it.isNotBlank() }.distinct()
     }
 
-    var selectedPosition by remember { mutableStateOf(suggestedPositions.first()) }
+    var selectedPosition by remember(event.id) { mutableStateOf(suggestedPositions.first()) }
     var applicantNote by remember { mutableStateOf("") }
     val hasEnoughTokens = tokenBalance >= event.commitmentTokens
 

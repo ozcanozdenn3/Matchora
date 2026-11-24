@@ -67,7 +67,13 @@ fun CreateCommunitySheet(city: String, district: String, onDismiss: () -> Unit, 
                         text = "${sp.emoji} ${sp.label} ✕",
                         tone = MPillTone.NEUTRAL,
                         compact = true,
-                        onClick = { if (sports.size > 1) sports = sports - sp }
+                        onClick = {
+                            if (sports.size > 1) {
+                                val nextSports = sports - sp
+                                sports = nextSports
+                                if (sport == sp) sport = nextSports.first()
+                            }
+                        }
                     )
                 }
             }
@@ -90,10 +96,11 @@ fun CreateCommunitySheet(city: String, district: String, onDismiss: () -> Unit, 
         )
         CreationFormNotice(form)
         MButton(if (form.busy) "Topluluğun kaydediliyor…" else "Topluluğu oluştur", {
-            val community = CommunityInfo("community_${Clock.System.now().toEpochMilliseconds()}", name.trim(), type, selectedDistrict, 1,
+            val district = selectedDistrict.trim().ifBlank { "Merkez" }
+            val community = CommunityInfo("community_${Clock.System.now().toEpochMilliseconds()}", name.trim(), type, district, 1,
                 access, type.emoji, 0, description.trim(), sports, selectedCity)
             form.submit("community.create", community.toApiPayload(), { onCreate(community) }, onPublished, onDismiss)
-        }, enabled = !form.busy && name.trim().length >= 3)
+        }, enabled = !form.busy && name.trim().length >= 3 && selectedCity.isNotBlank() && selectedDistrict.trim().length >= 2)
         }
         }
     }

@@ -41,7 +41,8 @@ fun AthleteSearchSheet(onDismiss: () -> Unit, onSelect: (Player) -> Unit, initia
         delay(300)
         try {
             if (backend == null) {
-                error = "Sporcu aramak için giriş yap."
+                cursor = null
+                error = null
             } else {
                 val result = backend.searchPlayers(query, sport?.name, city, area, if (page == 0) null else cursor)
                 rows = (if (page == 0) result.a("items") else rows + result.a("items")).distinctBy { it.s("id") }
@@ -57,8 +58,17 @@ fun AthleteSearchSheet(onDismiss: () -> Unit, onSelect: (Player) -> Unit, initia
             error = failure.message ?: "Sporcular yüklenemedi."
         } finally { loading = false }
     }
-    val players = remember(rows, backend?.userId) {
-        BackendSnapshot(apiPayload("players" to rows, "userId" to backend?.userId)).players
+    val players = remember(rows, backend?.userId, query, city, area, sport) {
+        if (backend == null) {
+            com.matchora.app.state.DemoData.players.filter { candidate ->
+                (query.isBlank() || candidate.name.contains(query, ignoreCase = true) || candidate.area.contains(query, ignoreCase = true)) &&
+                    (city.isBlank() || com.matchora.app.state.matchesTurkishPlace(candidate.city, city)) &&
+                    (area.isBlank() || com.matchora.app.state.matchesTurkishPlace(candidate.area, area)) &&
+                    (sport == null || sport in candidate.sports)
+            }
+        } else {
+            BackendSnapshot(apiPayload("players" to rows, "userId" to backend.userId)).players
+        }
     }
     ModalBottomSheet(
         onDismissRequest = onDismiss, containerColor = MColors.Canvas,

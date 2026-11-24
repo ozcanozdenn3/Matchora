@@ -247,13 +247,14 @@ fun EventDetailSheet(
                                 MBadge("Kaptan", MColors.BrandDeep, MColors.BrandTint)
                             }
                             if (event.status == EventStatus.IN_PROGRESS || !backendMode || event.startsAtEpochMillis?.let { now < it + event.durationMin * 60000 } == true) {
+                                val needsCheckIn = backendMode && isJoined && !isCheckedIn && event.status == EventStatus.IN_PROGRESS
                                 MButton(
-                                    text = if (backendMode && isJoined && !isCheckedIn) "Önce saha check-in yap" else if (event.status == EventStatus.IN_PROGRESS) "Maçı tamamla" else "Maçı başlat",
+                                    text = if (needsCheckIn) "Önce saha check-in yap" else if (event.status == EventStatus.IN_PROGRESS) "Maçı tamamla" else "Maçı başlat",
                                     icon = if (event.status == EventStatus.IN_PROGRESS) Icons.Rounded.CheckCircle else Icons.Rounded.PlayArrow,
                                     height = 48.dp,
-                                    enabled = !backendMode || !isJoined || isCheckedIn || mayCheckIn,
+                                    enabled = !backendMode || !needsCheckIn || mayCheckIn,
                                     onClick = {
-                                        if (backendMode && isJoined && !isCheckedIn) onCheckIn()
+                                        if (needsCheckIn) onCheckIn()
                                         else hostAction = if (event.status == EventStatus.IN_PROGRESS) "complete" else "start"
                                     }
                                 )
@@ -798,10 +799,12 @@ fun EventDetailSheet(
                                 Text(eventDisplayId(event.id), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = MColors.BrandDeep)
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                                    val toast = LocalToastNotifier.current
                                     OutlinedButton(
                                         onClick = {
                                             clipboard.setText(androidx.compose.ui.text.AnnotatedString(event.id))
                                             copiedToast = true
+                                            toast?.invoke("İlan kodu kopyalandı", "✓")
                                         },
                                         modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                                         shape = RoundedCornerShape(12.dp),
@@ -849,7 +852,7 @@ fun EventDetailSheet(
             name = player.name,
             initials = player.initials,
             rating = player.rating,
-            rank = 1,
+            rank = 0,
             player = player,
             isInvitedToTeam = false,
             sport = event.sport,

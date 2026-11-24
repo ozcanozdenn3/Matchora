@@ -348,6 +348,34 @@ fun MFloatingInputBox(
                     }
                 }
             }
+            if (suggestions.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    suggestions.forEach { suggestion ->
+                        val selected = value == suggestion
+                        Surface(
+                            onClick = { onSuggestionClick?.invoke(suggestion) ?: onValueChange(suggestion) },
+                            shape = RoundedCornerShape(9.dp),
+                            color = if (selected) MColors.BrandTint else Color(0xFFF1F5F9),
+                            border = BorderStroke(1.dp, if (selected) MColors.Brand.copy(alpha = 0.45f) else Color(0xFFE2E8F0))
+                        ) {
+                            Text(
+                                text = suggestion,
+                                fontSize = 11.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                                color = if (selected) MColors.BrandDeep else MColors.Ink700,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

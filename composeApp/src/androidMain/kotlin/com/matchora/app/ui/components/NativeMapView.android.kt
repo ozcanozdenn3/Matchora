@@ -285,7 +285,7 @@ private fun PreviewNativeMapView(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .offset(x = (xPos.value - 30).dp, y = (yPos.value - 20).dp)
-                        .clickable { onPinSelected(pin.id) }
+                        .clickable(enabled = interactive) { onPinSelected(pin.id) }
                 ) {
                     Surface(
                         shape = RoundedCornerShape(16.dp),

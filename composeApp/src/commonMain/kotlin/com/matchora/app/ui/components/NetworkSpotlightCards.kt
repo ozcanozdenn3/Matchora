@@ -170,7 +170,7 @@ fun CommunitySpotlightCard(
         Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SpotlightStats(
                 listOf(
-                    "${community.members + if (joined) 1 else 0}" to "Üye",
+                    "${community.members}" to "Üye",
                     "${community.upcomingEvents}" to "Yaklaşan",
                     community.access.label to "Katılım"
                 )
@@ -207,13 +207,15 @@ fun CommunitySpotlightCard(
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                val isOwner = community.ownerId == DemoData.ME
                 MButton(when {
+                    isOwner -> "Topluluğu yönet"
                     joined -> "Katıldın · Ayrıl"
                     requested -> "Başvuru bekliyor · İptal"
                     community.access == CommunityAccess.OPEN -> "Topluluğa katıl"
                     community.access == CommunityAccess.APPROVAL -> "Katılım başvurusu"
                     else -> "Davet gerekli"
-                }, onJoin, Modifier.weight(1f), enabled = joined || requested || community.access != CommunityAccess.INVITE, isPrimary = !joined && !requested, isDestructive = joined || requested, height = 38.dp)
+                }, if (isOwner) ({ onCardClick?.invoke(); Unit }) else onJoin, Modifier.weight(1f), enabled = isOwner || joined || requested || community.access != CommunityAccess.INVITE, isPrimary = !joined && !requested && !isOwner, isDestructive = !isOwner && (joined || requested), height = 38.dp)
                 if (onShare != null) {
                     FilledTonalButton(
                         onClick = onShare,

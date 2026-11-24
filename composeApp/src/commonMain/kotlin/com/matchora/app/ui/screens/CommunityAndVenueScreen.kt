@@ -77,6 +77,8 @@ fun CommunityAndVenueScreen(
     val venueOrigin = deviceLocation ?: rememberRegionCenter(currentCity, currentDistrict)
     var detailCommunity by remember { mutableStateOf<CommunityInfo?>(null) }
     var leaveCommunityConfirm by remember { mutableStateOf<CommunityInfo?>(null) }
+    var consumedFocusId by remember { mutableStateOf<String?>(null) }
+    val feedback = LocalToastNotifier.current
     pendingWithdrawApp?.let { targetApp ->
         AlertDialog(
             onDismissRequest = { pendingWithdrawApp = null },
@@ -91,7 +93,27 @@ fun CommunityAndVenueScreen(
             dismissButton = { TextButton(onClick = { pendingWithdrawApp = null }) { Text("Vazgeç") } }
         )
     }
-    LaunchedEffect(initialTab, focusedId) { selectedTab = initialTab.coerceIn(0, 1) }
+    LaunchedEffect(initialTab) { selectedTab = initialTab.coerceIn(0, 1) }
+    LaunchedEffect(focusedId, communities, venues) {
+        if (focusedId == null) {
+            consumedFocusId = null
+        } else if (focusedId != consumedFocusId) {
+            val matchedCommunity = communities.firstOrNull { it.id == focusedId }
+            val matchedVenue = venues.firstOrNull { it.id == focusedId }
+            when {
+                matchedCommunity != null -> {
+                    selectedTab = 0
+                    detailCommunity = matchedCommunity
+                    consumedFocusId = focusedId
+                }
+                matchedVenue != null -> {
+                    selectedTab = 1
+                    detailVenue = matchedVenue
+                    consumedFocusId = focusedId
+                }
+            }
+        }
+    }
     var travelModeActive by remember { mutableStateOf(false) }
     var travelCity by remember { mutableStateOf("") }
     var showTravelLocation by remember { mutableStateOf(false) }
@@ -103,7 +125,7 @@ fun CommunityAndVenueScreen(
     if (showTravelLocation) CityAndLocationSelectorSheet(travelCity.ifBlank { currentCity }, currentDistrict, false,
         onDismiss = { showTravelLocation = false }, onSelectLocation = { city, district, _ ->
             if (backend?.enabled == true) command("discovery.save", apiPayload("city" to city, "district" to district, "travelMode" to true))
-            else { travelModeActive = true; travelCity = city }
+            else { travelModeActive = true; travelCity = city; feedback?.invoke("$city keşfi açıldı", "✈️") }
         })
     if (createCommunity) CreateCommunitySheet(currentCity, currentDistrict, { createCommunity = false }, onCreateCommunity, onPublishedCommunity)
     reviewVenue?.let { VenueReviewsSheet(it, { reviewVenue = null }, onReportReview) }
@@ -230,6 +252,7 @@ fun CommunityAndVenueScreen(
                                                                 )
                                                             } else {
                                                                 travelModeActive = false
+                                                                feedback?.invoke("Seyahat modu kapatıldı", "📍")
                                                             }
                                                         }
                                                     }
@@ -252,6 +275,7 @@ fun CommunityAndVenueScreen(
                 val activeCommunityCity = when {
                     allCommunityCities -> null
                     pickedCommunityCity != null -> pickedCommunityCity
+                    travelModeActive && travelCity.isNotBlank() -> travelCity
                     else -> currentCity
                 }
                 val filteredCommunities = communities.filter { community ->
@@ -277,13 +301,15 @@ fun CommunityAndVenueScreen(
                 // Modül B: Topluluklar Listesi
                 items(filteredCommunities, key = { it.id }) { community ->
                     val isJoined = community.id in joinedCommunityIds
+                    val isOwner = community.ownerId == DemoData.ME
                     CommunitySpotlightCard(
                         community = community,
                         joined = isJoined,
                         requested = community.id in requestedCommunityIds,
                         onShare = { onShareCommunity?.invoke(community) },
                         onJoin = {
-                            if (isJoined) leaveCommunityConfirm = community
+                            if (isOwner) detailCommunity = community
+                            else if (isJoined) leaveCommunityConfirm = community
                             else onJoinCommunity(community)
                         },
                         onCardClick = { detailCommunity = community }
@@ -515,6 +541,7 @@ fun CommunityAndVenueScreen(
                     }
                 }
                 item {
+                    val isOwner = fresh.ownerId == DemoData.ME
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(
                             Modifier.fillMaxWidth(),
@@ -530,11 +557,17 @@ fun CommunityAndVenueScreen(
                                     height = 44.dp
                                 )
                             } else {
+                                val inviteOnlyBlocked = fresh.access == CommunityAccess.INVITE && !isRequested
                                 MButton(
-                                    text = if (isRequested) "Başvuru bekliyor · İptal" else "Topluluğa katıl",
+                                    text = when {
+                                        isRequested -> "Başvuru bekliyor · İptal"
+                                        inviteOnlyBlocked -> "Yalnızca Davetle"
+                                        else -> "Topluluğa katıl"
+                                    },
                                     onClick = { detailCommunity = null; onJoinCommunity(fresh) },
                                     modifier = Modifier.weight(1f),
-                                    isPrimary = !isRequested,
+                                    enabled = !inviteOnlyBlocked,
+                                    isPrimary = !isRequested && !inviteOnlyBlocked,
                                     isDestructive = isRequested,
                                     icon = Icons.Rounded.GroupAdd,
                                     height = 44.dp
@@ -553,7 +586,7 @@ fun CommunityAndVenueScreen(
                                 }
                             }
                         }
-                        if (isJoined) {
+                        if (isJoined && !isOwner) {
                             MPillActionButton(
                                 text = "Topluluktan ayrıl",
                                 icon = Icons.Rounded.ExitToApp,
@@ -564,7 +597,7 @@ fun CommunityAndVenueScreen(
                         }
                     }
                 }
-                item { BackendCommunityActions(fresh) }
+                item { BackendCommunityActions(fresh, onArchived = { detailCommunity = null }) }
             }
         }
     }

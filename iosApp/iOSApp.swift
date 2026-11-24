@@ -93,7 +93,11 @@ final class MatchoraAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifica
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let data = response.notification.request.content.userInfo
         if let destination = data["destination"] as? String {
-            DeviceEventBridge.shared.openNotification(destination: destination, targetId: data["targetId"] as? String ?? "")
+            DeviceEventBridge.shared.openPushNotification(
+                destination: destination,
+                targetId: data["targetId"] as? String ?? "",
+                notificationId: data["notificationId"] as? String ?? ""
+            )
         }
         completionHandler()
     }

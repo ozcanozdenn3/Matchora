@@ -205,8 +205,8 @@ fun PlayNowModalSheet(
     var selectedSport by remember { mutableStateOf<Sport?>(Sport.FOOTBALL) }
     var searchCategory by remember { mutableStateOf<SportCategory?>(null) }
     var customDate by remember { mutableStateOf("Tümü") }
-    var customHour by remember { mutableIntStateOf(19) }
-    var customMinute by remember { mutableIntStateOf(0) }
+    var customClock by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var adVenueBeforeMapPick by remember { mutableStateOf("") }
     var selectedMode by remember { mutableStateOf<PlayMode?>(null) }
     var verifiedOnly by remember { mutableStateOf(false) }
     var maxDistanceKm by remember { mutableStateOf<Int?>(null) }
@@ -368,8 +368,8 @@ fun PlayNowModalSheet(
     fun effectiveDistanceKm(event: SportEvent): Float? =
         origin?.let { ref -> event.approximateLocation?.let { pt -> approximateDistanceKm(ref, pt.latitude, pt.longitude) } }
             ?: event.distanceKm
-    val filteredEvents = remember(backendMode, currentCity, currentArea, origin, allEvents, searchCategory, selectedSport, selectedMode, verifiedOnly, maxDistanceKm, customDate, customHour, customMinute) {
-        val selectedClock = customHour * 60 + customMinute
+    val filteredEvents = remember(backendMode, currentCity, currentArea, origin, allEvents, searchCategory, selectedSport, selectedMode, verifiedOnly, maxDistanceKm, customDate, customClock) {
+        val selectedClock = customClock?.let { (h, m) -> h * 60 + m }
         allEvents.filter { event ->
             (!backendMode || matchesTurkishPlace(event.city, currentCity)) &&
             event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING, EventStatus.FULL) &&
@@ -379,7 +379,7 @@ fun PlayNowModalSheet(
             (!verifiedOnly || event.verifiedOnly) &&
             (maxDistanceKm?.toFloat()?.let { limit -> effectiveDistanceKm(event)?.let { distance -> distance <= limit } == true } ?: true) &&
             event.matchesDayFilter(customDate) &&
-            (customDate == "Tümü" || (parseClockMinutes(event.time)?.let { it >= selectedClock } ?: false))
+            (selectedClock == null || (parseClockMinutes(event.time)?.let { it >= selectedClock } ?: false))
         }.sortedWith(compareByDescending<SportEvent> { it.freeSpots > 0 }.thenByDescending { it.score.total })
     }
 
@@ -518,18 +518,15 @@ fun PlayNowModalSheet(
                                     icon = Icons.Rounded.CalendarMonth
                                 )
 
-                                val timeSlots = remember {
-                                    (9..23).flatMap { h -> listOf(0, 15, 30, 45).map { m -> h to m } }
+                                val timeSlots: List<Pair<Int, Int>?> = remember {
+                                    listOf(null) + (9..23).flatMap { h -> listOf(0, 15, 30, 45).map { m -> h to m } }
                                 }
                                 MFloatingDropdownBox(
                                     label = "Başlangıç Saati",
-                                    selectedValue = customHour to customMinute,
+                                    selectedValue = customClock,
                                     options = timeSlots,
-                                    optionLabel = { (h, m) -> "${formatTime(h, m)} sonrası" },
-                                    onSelect = { (h, m) ->
-                                        customHour = h
-                                        customMinute = m
-                                    },
+                                    optionLabel = { slot -> slot?.let { (h, m) -> "${formatTime(h, m)} sonrası" } ?: "Tümü" },
+                                    onSelect = { customClock = it },
                                     icon = Icons.Rounded.Schedule
                                 )
                             }
@@ -602,7 +599,7 @@ fun PlayNowModalSheet(
                             val alreadyWaiting = waitlistedEventIds.contains(event.id)
                             val isHost = event.hostId == DemoData.ME
                             val canJoin = event.freeSpots > 0 && event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING)
-                            val canWaitlist = event.status == EventStatus.FULL
+                            val canWaitlist = event.status == EventStatus.FULL || event.freeSpots == 0
                             val canAct = !isHost && !alreadyJoined && !alreadyPending && (alreadyWaiting || canJoin || canWaitlist)
                             Button(
                                 onClick = {
@@ -1049,7 +1046,10 @@ fun PlayNowModalSheet(
                                         label = "Harita Konumu",
                                         valueText = if (adPoint == null) "Haritadan Seç" else "Konum Hazır · Değiştir",
                                         icon = if (adPoint == null) Icons.Rounded.AddLocationAlt else Icons.Rounded.WhereToVote,
-                                        onClick = { showAdMap = true }
+                                        onClick = {
+                                            adVenueBeforeMapPick = adVenue
+                                            showAdMap = true
+                                        }
                                     )
 
                                     MFloatingDropdownBox(
@@ -1368,7 +1368,7 @@ fun PlayNowModalSheet(
         initialPoint = adPoint ?: cityMapCenter(adCity), initialAddress = adVenue, city = adCity, district = adLocation,
         onDismiss = { showAdMap = false }, onConfirm = { point, address ->
             adPoint = point
-            if (adVenue.isBlank() || !adVenueCustomized) {
+            if (address.isNotBlank() && (adVenue.isBlank() || address != adVenueBeforeMapPick || !adVenueCustomized)) {
                 adVenue = address
                 adVenueCustomized = true
             }

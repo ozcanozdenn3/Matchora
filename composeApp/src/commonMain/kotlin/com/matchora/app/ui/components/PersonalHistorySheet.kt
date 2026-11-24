@@ -44,9 +44,7 @@ fun PersonalHistorySheet(initialKind: String = "matches", onDismiss: () -> Unit)
                 error = "Geçmişini görmek için giriş yap."
             } else {
                 val page = backend.personalHistory(kind, if (requestedPage == 0) null else cursor)
-                val items = if (kind == "wallet") {
-                    page.a("items").filterNot { it.s("ref") in setOf("welcome", "passport_complete") }
-                } else page.a("items")
+                val items = page.a("items")
                 rows = (rows + items).distinctBy { it.s("id") }
                 cursor = page.s("nextCursor").ifBlank { null }
             }

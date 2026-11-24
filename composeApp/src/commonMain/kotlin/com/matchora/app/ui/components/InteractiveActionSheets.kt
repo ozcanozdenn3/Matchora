@@ -371,28 +371,33 @@ fun PlayerProfileSheet(
                                 }
                             }
 
-                            // MMR Rozeti
-                            Column(horizontalAlignment = Alignment.End) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(MColors.Brand)
-                                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                                ) {
+                            // MMR Rozeti & Kapat
+                            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(MColors.Brand)
+                                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                                    ) {
+                                        Text(
+                                            text = "$displayRating MMR",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = Color.White
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(3.dp))
                                     Text(
-                                        text = "$displayRating MMR",
+                                        text = "Tier: ${player.tier.label}",
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = Color.White
+                                        color = Color(0xFFCFD6E0)
                                     )
                                 }
-                                Spacer(modifier = Modifier.height(3.dp))
-                                Text(
-                                    text = "Tier: ${player.tier.label}",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFCFD6E0)
-                                )
+                                IconButton(onClick = onDismiss, modifier = Modifier.size(30.dp)) {
+                                    Icon(Icons.Rounded.Close, contentDescription = "Kapat", tint = Color(0xFFD0D9E4), modifier = Modifier.size(18.dp))
+                                }
                             }
                         }
                     }
@@ -898,10 +903,13 @@ fun TournamentDetailSheet(
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                                        val toast = LocalToastNotifier.current
+                                        val backendEnabled = LocalBackendRepository.current?.enabled == true
                                         FilledTonalButton(
                                             onClick = {
-                                                clipboard.setText(androidx.compose.ui.text.AnnotatedString(tournament.id))
+                                                clipboard.setText(androidx.compose.ui.text.AnnotatedString(tournamentDisplayId(tournament.id)))
                                                 copiedTourneyId = true
+                                                toast?.invoke("Turnuva kodu kopyalandı", "✓")
                                             },
                                             shape = RoundedCornerShape(10.dp),
                                             contentPadding = PaddingValues(horizontal = 9.dp, vertical = 5.dp),
@@ -913,8 +921,11 @@ fun TournamentDetailSheet(
                                         }
                                         Button(
                                             onClick = {
-                                                shareText("Turnuva Daveti", tournamentInvitationText(tournament.name, tournament.id, tournament.dates, tournament.format, tournament.organizer))
-                                                onShareTournament?.invoke()
+                                                if (onShareTournament != null) {
+                                                    onShareTournament.invoke()
+                                                } else {
+                                                    shareText("Turnuva Daveti", tournamentInvitationText(tournament.name, tournament.id, tournament.dates, tournament.format, tournament.organizer))
+                                                }
                                             },
                                             colors = ButtonDefaults.buttonColors(containerColor = MColors.Brand),
                                             shape = RoundedCornerShape(10.dp),
@@ -923,7 +934,7 @@ fun TournamentDetailSheet(
                                         ) {
                                             Icon(Icons.Rounded.Share, null, modifier = Modifier.size(13.dp))
                                             Spacer(Modifier.width(3.dp))
-                                            Text("Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            Text(if (backendEnabled) "Paylaş" else "Paylaş (+2 TKN)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
@@ -1243,7 +1254,8 @@ fun TournamentDetailSheet(
                     MButton(
                         text = "Kaydı geri çek",
                         onClick = {
-                            showWithdrawConfirmation = true
+                            onWithdrawRegistration()
+                            onDismiss()
                         },
                         isPrimary = false,
                         isDestructive = true,
@@ -1251,27 +1263,6 @@ fun TournamentDetailSheet(
                     )
                 }
             }
-        }
-
-        if (showWithdrawConfirmation) {
-            AlertDialog(
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                containerColor = androidx.compose.ui.graphics.Color(0xFFFAFBFC),
-                tonalElevation = 0.dp,
-                onDismissRequest = { showWithdrawConfirmation = false },
-                title = { Text("Turnuva kaydı silinsin mi?") },
-                text = { Text("Takımının turnuva kaydı geri çekilecek ve kontenjan diğer takımlara açılacak.") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showWithdrawConfirmation = false
-                        onWithdrawRegistration()
-                        onDismiss()
-                    }) { Text("Kaydı Geri Çek", color = MColors.Rose) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showWithdrawConfirmation = false }) { Text("Vazgeç") }
-                }
-            )
         }
 
         if (showCancelConfirmation) {

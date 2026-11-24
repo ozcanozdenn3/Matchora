@@ -27,7 +27,7 @@ test('team application withdrawal and owner transfer recheck ownership and real 
 });
 test('passport QR is short-lived, signed, and contains no private contacts',async t=>{
  const f=await fixture(t),code=(await f.cmd(f.host,'passport.code')).result.code,data=await f.service.verifyPassport(code);
- assert.equal(data.name,'Ev sahibi');assert.equal(data.phone,undefined);assert.equal(data.email,undefined);
+ assert.equal(data.name,'Ev sahibi');assert.equal(data.reliability,100);assert.equal(data.phone,undefined);assert.equal(data.email,undefined);
  await assert.rejects(f.service.verifyPassport(code+'a'),e=>e.code==='PASSPORT_CODE_INVALID');f.advance(900001);await assert.rejects(f.service.verifyPassport(code),e=>e.code==='PASSPORT_CODE_INVALID');
 });
 test('profile edits cannot replace a verified phone without OTP or falsely retain its verification',async t=>{

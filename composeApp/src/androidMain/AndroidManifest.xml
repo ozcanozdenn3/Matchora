@@ -40,6 +40,10 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="matchora" android:host="event" />
+                <data android:scheme="matchora" android:host="tournament" />
+                <data android:scheme="matchora" android:host="team" />
+                <data android:scheme="matchora" android:host="venue" />
+                <data android:scheme="matchora" android:host="community" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

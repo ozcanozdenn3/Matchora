@@ -21,6 +21,8 @@ test('changing only the venue text removes stale coordinates and coordinate edit
  let version=(await f.service.event(f.host,id)).version;
  await f.cmd(f.host,'event.update',{eventId:id,expectedVersion:version,venue:'Başka kort'});assert.equal(await saved(f,id,f.host),null);assert.equal((await f.service.event(null,id)).approximateLocation,null);
  version=(await f.service.event(f.host,id)).version;await f.cmd(f.host,'event.update',{eventId:id,expectedVersion:version,approximateLocation:exact});assert.deepEqual(await saved(f,id,f.host),exact);
+ version=(await f.service.event(f.host,id)).version;await f.cmd(f.host,'event.update',{eventId:id,expectedVersion:version,approximateLocation:null});assert.equal(await saved(f,id,f.host),null);assert.equal((await f.service.event(null,id)).approximateLocation,null);
+ version=(await f.service.event(f.host,id)).version;await f.cmd(f.host,'event.update',{eventId:id,expectedVersion:version,approximateLocation:exact});assert.deepEqual(await saved(f,id,f.host),exact);
  await assert.rejects(f.cmd(f.host,'event.update',{eventId:id,expectedVersion:(await f.service.event(f.host,id)).version,approximateLocation:{latitude:NaN,longitude:29}}),e=>e.code==='INVALID_LOCATION');
  assert.deepEqual(await saved(f,id,f.host),exact);
 });

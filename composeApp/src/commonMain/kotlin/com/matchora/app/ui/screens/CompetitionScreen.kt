@@ -130,7 +130,7 @@ fun CompetitionScreen(
     var showManageTeamRequestsSheet by remember { mutableStateOf(false) }
     var managedTeamId by remember { mutableStateOf<String?>(null) }
     var challengeTarget by remember { mutableStateOf<TeamProfile?>(null) }
-    var inviteTarget by remember { mutableStateOf<Player?>(null) }
+    var inviteTarget by remember { mutableStateOf<Pair<Player, Sport>?>(null) }
     var challengeNotice by remember { mutableStateOf<String?>(null) }
     var playerChallengeNotice by remember { mutableStateOf<String?>(null) }
     var teamToApply by remember { mutableStateOf<TeamProfile?>(null) }
@@ -143,11 +143,28 @@ fun CompetitionScreen(
         selectedTournamentForDetail?.let { selected -> selectedTournamentForDetail = tournaments.firstOrNull { it.id == selected.id } }
         selectedTeamForDetail?.let { selected -> selectedTeamForDetail = teams.firstOrNull { it.id == selected.id } }
     }
-    LaunchedEffect(focusedId, tournaments, teams) {
+    LaunchedEffect(focusedId, tournaments, teams, challenges) {
         if (focusedId != null) {
-            tournaments.firstOrNull { it.id == focusedId }?.let { selectedTournamentForDetail = it }
-            teams.firstOrNull { it.id == focusedId }?.let { selectedTeamForDetail = it }
-            if (tournaments.any { it.id == focusedId } || teams.any { it.id == focusedId }) onFocusConsumed()
+            val matchedTournament = tournaments.firstOrNull { it.id == focusedId }
+            val matchedTeam = teams.firstOrNull { it.id == focusedId }
+            val matchedChallenge = challenges.firstOrNull { it.id == focusedId }
+            when {
+                matchedTournament != null -> {
+                    selectedTab = 1
+                    selectedTournamentForDetail = matchedTournament
+                    onFocusConsumed()
+                }
+                matchedTeam != null -> {
+                    selectedTab = 2
+                    selectedTeamForDetail = matchedTeam
+                    onFocusConsumed()
+                }
+                matchedChallenge != null -> {
+                    selectedTab = 2
+                    selectedChallengeForDetail = matchedChallenge
+                    onFocusConsumed()
+                }
+            }
         }
     }
 
@@ -379,15 +396,47 @@ fun CompetitionScreen(
                             }
 
                             item {
-                                leaderboard.firstOrNull()?.let { athlete -> AthleteAwardCard(athlete) { selectedPlayerForProfile = athlete } }
-                                    ?: MSubCard {
-                                        Text(
-                                            text = "Bu filtrede henüz sıralamaya giren sporcu yok.",
+                                when {
+                                    rankingBackend != null && rankingBusy && rankingWire == null -> MSubCard {
+                                        Row(
                                             modifier = Modifier.fillMaxWidth().padding(14.dp),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MColors.Ink600
-                                        )
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MColors.Brand)
+                                            Text("Sıralama yükleniyor…", style = MaterialTheme.typography.bodyMedium, color = MColors.Ink600)
+                                        }
                                     }
+                                    rankingBackend != null && rankingError != null && rankingWire == null -> MSubCard {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = rankingError ?: "Sıralama yüklenemedi.",
+                                                modifier = Modifier.weight(1f),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MColors.Rose
+                                            )
+                                            MPillActionButton(
+                                                text = "Yenile",
+                                                tone = MPillTone.BRAND,
+                                                compact = true,
+                                                onClick = { rankingRetry += 1 }
+                                            )
+                                        }
+                                    }
+                                    else -> leaderboard.firstOrNull()?.let { athlete -> AthleteAwardCard(athlete) { selectedPlayerForProfile = athlete } }
+                                        ?: MSubCard {
+                                            Text(
+                                                text = "Bu filtrede henüz sıralamaya giren sporcu yok.",
+                                                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MColors.Ink600
+                                            )
+                                        }
+                                }
                             }
                             items(leaderboard, key = { it.playerId }) { row ->
                                 RankingSpotlightCard(row) { selectedPlayerForProfile = row }
@@ -528,7 +577,23 @@ fun CompetitionScreen(
                                         onDetails = { requireAccount { selectedChallengeForDetail = challenge } },
                                         onAccept = { requireAccount { onAcceptChallenge(challenge) } },
                                         onDecline = { requireAccount { onDeclineChallenge(challenge) } },
-                                        onChat = { requireAccount { (remotePlayers ?: DemoData.players).firstOrNull { it.id == opponentTeam.captainId }?.let(onOpenDirectChat) } },
+                                        onChat = {
+                                            requireAccount {
+                                                val captain = (remotePlayers ?: DemoData.players).firstOrNull { it.id == opponentTeam.captainId }
+                                                    ?: currentPlayer.copy(
+                                                        id = opponentTeam.captainId,
+                                                        name = "${opponentTeam.name} Kaptanı",
+                                                        verified = false,
+                                                        rating = opponentTeam.rating,
+                                                        verifiedMatches = 0,
+                                                        reliability = 0,
+                                                        position = null,
+                                                        reliabilityVisible = false,
+                                                        profileAvailable = false
+                                                    )
+                                                onOpenDirectChat(captain)
+                                            }
+                                        },
                                         canRespond = !backendMode || teams.firstOrNull { it.id == challenge.toTeamId }?.captainId == DemoData.ME)
                                 }
                             }
@@ -658,7 +723,7 @@ fun CompetitionScreen(
                 }
             },
             onInviteTeam = {
-                requireAccount { inviteTarget = targetPlayer }
+                requireAccount { inviteTarget = targetPlayer to selectedSport }
             },
             onDirectMessage = {
                 requireAccount {
@@ -668,8 +733,8 @@ fun CompetitionScreen(
             }
         )
     }
-    inviteTarget?.let { player ->
-        val options = captainedTeams.filter { it.sport == selectedSport && player.id !in it.memberIds }
+    inviteTarget?.let { (player, inviteSport) ->
+        val options = captainedTeams.filter { it.sport == inviteSport && player.id !in it.memberIds }
         AlertDialog(
             onDismissRequest = { inviteTarget = null },
             title = { Text("Davet göndereceğin takımı seç") },
@@ -763,10 +828,12 @@ fun CompetitionScreen(
     if (selectedTeamForDetail != null) {
         val detailTeam = selectedTeamForDetail!!
         TeamDetailSheet(
-            players = remotePlayers ?: DemoData.players,            team = detailTeam,
+            players = remotePlayers ?: DemoData.players,
+            team = detailTeam,
             currentPlayer = currentPlayer,
             myTeam = captainedTeams.firstOrNull { it.sport == detailTeam.sport && it.id != detailTeam.id },
             pendingRequestsCount = teamJoinRequests.count { it.teamId == detailTeam.id && it.status == JoinRequestStatus.PENDING },
+            hasPendingJoinRequest = teamJoinRequests.any { it.teamId == detailTeam.id && it.player.id == DemoData.ME && it.status == JoinRequestStatus.PENDING },
             onDismiss = { selectedTeamForDetail = null },
             onOpenChallenge = {
                 requireAccount {
@@ -804,7 +871,7 @@ fun CompetitionScreen(
                 }
             },
             onInvitePlayerToTeam = { player ->
-                requireAccount { inviteTarget = player }
+                requireAccount { inviteTarget = player to detailTeam.sport }
             }
         )
     }
@@ -870,7 +937,7 @@ fun CompetitionScreen(
     if (showAiMatchScouterSheet && myTeam != null) {
         AiMatchScouterSheet(
             myTeam = myTeam,
-            opponents = opponents,
+            opponents = opponents.filter { it.sport == myTeam.sport },
             onDismiss = { showAiMatchScouterSheet = false },
             onIssueBeltChallenge = { targetTeam ->
                 showAiMatchScouterSheet = false

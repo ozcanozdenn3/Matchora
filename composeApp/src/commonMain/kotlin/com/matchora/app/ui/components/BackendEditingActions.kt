@@ -46,6 +46,7 @@ fun BackendEventEditing(event: SportEvent, modifier: Modifier = Modifier) {
     var description by remember(event.id) { mutableStateOf(event.description) }
     var point by remember(event.id) { mutableStateOf(event.meetingLocation ?: event.approximateLocation) }
     var pickingPoint by remember { mutableStateOf(false) }
+    var venueBeforePick by remember(event.id) { mutableStateOf("") }
     val start = remember(event.id) { event.startsAtEpochMillis?.let { Instant.fromEpochMilliseconds(it).toLocalDateTime(TimeZone.of("Europe/Istanbul")) } }
     var date by remember(event.id) { mutableStateOf(start?.date ?: todayDate()) }
     var hour by remember(event.id) { mutableIntStateOf(start?.hour ?: 20) }
@@ -89,7 +90,7 @@ fun BackendEventEditing(event: SportEvent, modifier: Modifier = Modifier) {
                         icon = Icons.Rounded.AddLocationAlt,
                         tone = MPillTone.NEUTRAL,
                         compact = true,
-                        onClick = { pickingPoint = true }
+                        onClick = { venueBeforePick = venue; pickingPoint = true }
                     )
                     if (point != null) {
                         MPillActionButton(
@@ -143,7 +144,7 @@ fun BackendEventEditing(event: SportEvent, modifier: Modifier = Modifier) {
                 "approximateLocation" to point?.let { mapOf("latitude" to it.latitude, "longitude" to it.longitude) }
             ))
         }, enabled = title.trim().length >= 3 && venue.trim().length >= 2 && (capacity.toIntOrNull() ?: 0) in 2..100 && (durationText.toIntOrNull() ?: 0) in 15..720) { Text("Kaydet") } }, dismissButton = { TextButton(onClick = { open = false }) { Text("Vazgeç") } })
-    if (pickingPoint) EventLocationPicker(initialPoint = point, initialAddress = venue, city = event.city, onDismiss = { pickingPoint = false }, onConfirm = { selected, address -> point = selected; if (venue.isBlank()) venue = address; pickingPoint = false }, district = event.area)
+    if (pickingPoint) EventLocationPicker(initialPoint = point, initialAddress = venue, city = event.city, onDismiss = { pickingPoint = false }, onConfirm = { selected, address -> point = selected; if (address.isNotBlank() && (venue.isBlank() || address != venueBeforePick)) venue = address; pickingPoint = false }, district = event.area)
 }
 
 @Composable

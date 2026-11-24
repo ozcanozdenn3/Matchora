@@ -242,7 +242,7 @@ fun BackendTeamActions(team: TeamProfile, players: List<Player>) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun BackendCommunityActions(community: CommunityInfo) {
+fun BackendCommunityActions(community: CommunityInfo, onArchived: () -> Unit = {}) {
     val backend = LocalBackendRepository.current ?: return
     if (!backend.enabled) return
     val snapshot by backend.snapshots.collectAsState()
@@ -275,7 +275,7 @@ fun BackendCommunityActions(community: CommunityInfo) {
         dismissButton = { TextButton(onClick = { confirmDeclineInvite = false }) { Text("Vazgeç") } }
     )
     if (archiveCommunity) AlertDialog(onDismissRequest = { archiveCommunity = false }, title = { Text("Topluluk kapatılsın mı?") }, text = { Text("Üyelikler ve başvurular kapanacak. Gelecekteki özel maçlar iptal edilip taahhütler iade edilir. Devam eden özel maç varsa önce sonuçlandırmalısın.") },
-        confirmButton = { TextButton(onClick = { command("community.archive", apiPayload("communityId" to community.id)); archiveCommunity = false }) { Text("Topluluğu kapat", color = MColors.Rose) } },
+        confirmButton = { TextButton(onClick = { command("community.archive", apiPayload("communityId" to community.id)); archiveCommunity = false; onArchived() }) { Text("Topluluğu kapat", color = MColors.Rose) } },
         dismissButton = { TextButton(onClick = { archiveCommunity = false }) { Text("Vazgeç") } })
     if (owned) MSubCard(backgroundColor = Color.White, borderColor = Color(0xFFE2E8F0)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -332,16 +332,48 @@ fun BackendCommunityActions(community: CommunityInfo) {
         } }, confirmButton = { TextButton(onClick = { remove = false }) { Text("Kapat") } })
     }
     removalTarget?.let { id -> AlertDialog(onDismissRequest = { removalTarget = null }, title = { Text("Üye çıkarılsın mı?") }, text = { Text("Üyelik ve gelecekteki özel maçlara katılımı kapanacak; ilgili taahhütler iade edilecek.") }, confirmButton = { TextButton(onClick = { command("community.member.remove", apiPayload("communityId" to community.id, "userId" to id)); removalTarget = null }) { Text("Üyeyi çıkar", color = MColors.Rose) } }, dismissButton = { TextButton(onClick = { removalTarget = null }) { Text("Vazgeç") } }) }
+    var transferTarget by remember { mutableStateOf<JsonObject?>(null) }
+    var memberQuery by remember(transfer, invite) { mutableStateOf("") }
     if (transfer || invite) {
         val members = snapshot?.a("ownedCommunityMembers")?.filter { it.s("community_id") == community.id }?.map { it.s("user_id") }.orEmpty()
-        val options = players.filter { it.s("id") != backend.userId && if (transfer) it.s("id") in members else it.s("id") !in members }
-        AlertDialog(onDismissRequest = { transfer = false; invite = false }, title = { Text(if (transfer) "Yeni yöneticiyi seç" else "Sporcu davet et") }, text = { Column {
-            if (options.isEmpty()) Text("Uygun sporcu bulunamadı.")
-            options.take(30).forEach { player -> TextButton(onClick = {
-                command(if (transfer) "community.transfer" else "community.invite", apiPayload("communityId" to community.id, "userId" to player.s("id")))
-                transfer = false; invite = false
-            }) { Text(player.s("name")) } }
-        } }, confirmButton = { TextButton(onClick = { transfer = false; invite = false }) { Text("Kapat") } })
+        val options = players.filter {
+            it.s("id") != backend.userId &&
+                (if (transfer) it.s("id") in members else it.s("id") !in members) &&
+                (memberQuery.isBlank() || it.s("name").contains(memberQuery.trim(), ignoreCase = true))
+        }
+        AlertDialog(onDismissRequest = { transfer = false; invite = false }, title = { Text(if (transfer) "Yeni yöneticiyi seç" else "Sporcu davet et") }, text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                MPremiumTextField(memberQuery, { memberQuery = it.take(60) }, label = "Sporcu ara")
+                Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+                    if (options.isEmpty()) Text("Uygun sporcu bulunamadı.")
+                    options.take(40).forEach { player ->
+                        TextButton(onClick = {
+                            if (transfer) {
+                                transferTarget = player
+                                transfer = false
+                            } else {
+                                command("community.invite", apiPayload("communityId" to community.id, "userId" to player.s("id")))
+                                invite = false
+                            }
+                        }) { Text(player.s("name")) }
+                    }
+                }
+            }
+        }, confirmButton = { TextButton(onClick = { transfer = false; invite = false }) { Text("Kapat") } })
+    }
+    transferTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { transferTarget = null },
+            title = { Text("Yöneticilik devredilsin mi?") },
+            text = { Text("${target.s("name")} ${community.name} topluluğunun yeni yöneticisi olacak. Onaylıyor musun?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    command("community.transfer", apiPayload("communityId" to community.id, "userId" to target.s("id")))
+                    transferTarget = null
+                }) { Text("Devret", color = MColors.Rose) }
+            },
+            dismissButton = { TextButton(onClick = { transferTarget = null }) { Text("Vazgeç") } }
+        )
     }
     if (requests.isNotEmpty()) MCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Topluluk üyelik talepleri", style = MaterialTheme.typography.titleSmall)

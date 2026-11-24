@@ -131,6 +131,12 @@ actual fun NativeMapView(
                         mapView.selectAnnotation(selectedAnn, animated = true)
                     }
                 }
+            } else {
+                mapView.selectedAnnotations.forEach { selectedAnn ->
+                    (selectedAnn as? platform.MapKit.MKAnnotationProtocol)?.let { ann ->
+                        mapView.deselectAnnotation(ann, animated = true)
+                    }
+                }
             }
         },
         interactive = interactive,

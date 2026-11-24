@@ -66,6 +66,7 @@ fun CreateTournamentSheet(
     var customSportName by remember(form) { mutableStateOf(draft.s("customSportName", "")) }
     var customIsGaming by remember(form) { mutableStateOf(draft.b("customIsGaming")) }
     var title by remember(form) { mutableStateOf(draft.s("title", "")) }
+    var titleCustomized by remember(form) { mutableStateOf(title.isNotBlank()) }
     var dates by remember(form) { mutableStateOf(draft.s("dates", "")) }
     var organizer by remember(form) { mutableStateOf(draft.s("organizer", organizerName)) }
     var prizeToken by remember(form) { mutableStateOf(draft.s("prizeToken", "")) }
@@ -143,16 +144,16 @@ fun CreateTournamentSheet(
                             tournamentCategory = cat
                             if (cat == SportCategory.PHYSICAL && selectedSport.category != SportCategory.PHYSICAL) {
                                 selectedSport = Sport.FOOTBALL
-                                title = "$tournamentArea Halı Saha Kupası"
+                                if (!titleCustomized || title.isBlank()) title = "$tournamentArea Halı Saha Kupası"
                                 format = "$liveCapacity Takım · Tek Eleme"
                             } else if (cat == SportCategory.ESPORTS && selectedSport.category != SportCategory.ESPORTS) {
                                 selectedSport = Sport.ESPORTS_FC
-                                title = "FC 25 Kadıköy E-Kupa"
+                                if (!titleCustomized || title.isBlank()) title = "FC 25 ${tournamentArea.ifBlank { tournamentCity }} E-Kupa"
                                 platform = "PS5 & PC Crossplay"
                                 format = "$liveCapacity Takım · 1v1 Tek Maç Eleme"
                             } else if (cat == SportCategory.CUSTOM) {
                                 selectedSport = Sport.CUSTOM
-                                title = "${customSportName.ifBlank { "Özel Branş" }} Kadıköy Kupası"
+                                if (!titleCustomized || title.isBlank()) title = "${customSportName.ifBlank { "Özel Branş" }} ${tournamentArea.ifBlank { tournamentCity }} Kupası"
                             }
                         }
                     )
@@ -205,7 +206,10 @@ fun CreateTournamentSheet(
                     MFloatingInputBox(
                         label = "Turnuva Adı",
                         value = title,
-                        onValueChange = { title = it },
+                        onValueChange = {
+                            title = it
+                            titleCustomized = it.isNotBlank()
+                        },
                         placeholder = "Örn: FC 25 $tournamentCity E-Kupa",
                         subtitle = "Resmi kupa veya topluluk ligi başlığı",
                         icon = Icons.Rounded.EmojiEvents,
@@ -438,10 +442,10 @@ fun CreateTournamentSheet(
                     text = if (form.busy) "Turnuvan yayınlanıyor…" else if (tokenBalance < lockAmount && !form.hasAttempt) "Token yükle · $lockAmount TKN gerekli" else "Turnuvayı yayınla · $lockAmount TKN kilitle",
                     onClick = {
                         val validationError = when {
-                            title.isBlank() -> "Turnuva adını gir."
+                            title.trim().length < 3 -> "Turnuva adı en az 3 karakter olmalı."
                             organizer.isBlank() -> "Organizatör adını gir."
                             selectedSport == Sport.CUSTOM && customSportName.isBlank() -> "Özel branş adını gir."
-                            dates.isBlank() -> "Turnuva tarihini gir."
+                            dates.trim().length < 2 -> "Turnuva tarihini gir."
                             !liveMode && prizeToken.isBlank() && prizeCash.isBlank() -> "Ödül havuzunu belirt."
                             else -> null
                         }

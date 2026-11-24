@@ -438,7 +438,8 @@ class BackendRepository(val baseUrl: String = BackendBuildConfig.BASE_URL, val m
                 repeat(catalogPages[kind] ?: 0) {
                     val cursor = updated.o("nextCatalogCursors").s(kind)
                     if (cursor.isNotBlank()) {
-                        updated = mergeCatalogPage(updated, kind, request("/v1/catalog/$kind?after=${queryValue(cursor)}&limit=100")); pages++
+                        val cityQuery = if (kind == "venues") browseCity?.let { "&city=${queryValue(it)}" }.orEmpty() else ""
+                        updated = mergeCatalogPage(updated, kind, request("/v1/catalog/$kind?after=${queryValue(cursor)}&limit=100$cityQuery")); pages++
                     }
                 }
             } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
@@ -526,7 +527,7 @@ class BackendRepository(val baseUrl: String = BackendBuildConfig.BASE_URL, val m
         require(kind in catalogKinds)
         val snapshot = mutableSnapshot.value ?: return@withLock
         val cursor = snapshot.o("nextCatalogCursors").s(kind).ifBlank { return@withLock }
-        val cityQuery = if (kind in listOf("venues", "communities")) browseCity?.let { "&city=${queryValue(it)}" }.orEmpty() else ""
+        val cityQuery = if (kind == "venues") browseCity?.let { "&city=${queryValue(it)}" }.orEmpty() else ""
         val page = request("/v1/catalog/$kind?after=${queryValue(cursor)}&limit=100$cityQuery")
         activeCatalogs = activeCatalogs + kind
         applySnapshot(mergeCatalogPage(snapshot, kind, page)); catalogPages[kind] = (catalogPages[kind] ?: 0) + 1

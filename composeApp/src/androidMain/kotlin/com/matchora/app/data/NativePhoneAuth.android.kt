@@ -16,6 +16,9 @@ import kotlin.coroutines.resumeWithException
 
 actual val isNativePhoneAuthSupported: Boolean = true
 
+private val pendingInstantCredentials = java.util.concurrent.ConcurrentHashMap<String, PhoneAuthCredential>()
+private var instantNonce: Long = 0L
+
 private fun getFirebaseAuth(context: Context): FirebaseAuth {
     if (FirebaseApp.getApps(context).isEmpty()) {
         if (BackendBuildConfig.FIREBASE_APP_ID.isNotBlank()) {
@@ -48,9 +51,10 @@ actual suspend fun startNativePhoneVerification(phoneNumber: String): NativePhon
             .setActivity(activity)
             .setCallbacks(object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
                 override fun onVerificationCompleted(credential: PhoneAuthCredential) {
-                    val code = credential.smsCode
-                    if (code != null && continuation.isActive) {
-                        continuation.resume(NativePhoneVerification(verificationId = "instant:$code"))
+                    val instantId = "instant:${++instantNonce}:${credential.smsCode.orEmpty()}"
+                    pendingInstantCredentials[instantId] = credential
+                    if (continuation.isActive) {
+                        continuation.resume(NativePhoneVerification(verificationId = instantId))
                     }
                 }
 
@@ -81,7 +85,8 @@ actual suspend fun verifyNativePhoneCode(verificationId: String, code: String): 
     return try {
         val context = AndroidBackendRuntime.context
         val auth = getFirebaseAuth(context)
-        val credential = PhoneAuthProvider.getCredential(verificationId, code)
+        val credential = pendingInstantCredentials.remove(verificationId)
+            ?: PhoneAuthProvider.getCredential(verificationId, code)
         val authResult = auth.signInWithCredential(credential).await()
         val user = authResult.user
             ?: throw BackendFailure("AUTH_FAILED", "Kullanıcı oturumu açılamadı.")

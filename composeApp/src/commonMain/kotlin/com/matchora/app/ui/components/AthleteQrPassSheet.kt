@@ -39,6 +39,8 @@ fun AthleteQrPassSheet(
     onDismiss: () -> Unit
  ) {
     val backend = LocalBackendRepository.current
+    val toast = LocalToastNotifier.current
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val backendWire = if (backend != null) backend.snapshots.collectAsState().value else null
     val avatarUploadId = backendWire?.o("profile")?.s("avatarUploadId")?.takeIf { it.isNotBlank() && it != "null" }
     val scope = rememberCoroutineScope()
@@ -47,6 +49,19 @@ fun AthleteQrPassSheet(
     var showVerifyInput by remember { mutableStateOf(false) }
     var verifyCodeInput by remember { mutableStateOf("") }
     var verifyResult by remember { mutableStateOf<String?>(null) }
+    fun extractPassportCode(raw: String): String {
+        val trimmed = raw.trim()
+        return if ("code=" in trimmed) trimmed.substringAfter("code=").substringBefore('&').trim() else trimmed
+    }
+    val pickQrImage = rememberGalleryPhotoPicker { image ->
+        val decoded = readQrCode(image)?.let(::extractPassportCode)?.takeIf { it.isNotBlank() }
+        if (decoded == null) {
+            verifyResult = "Görselde okunabilir sporcu QR kodu bulunamadı."
+        } else {
+            verifyCodeInput = decoded
+            verifyResult = null
+        }
+    }
     fun refresh() { if (backend != null) scope.launch {
         try { code = backend.command("passport.code", apiPayload(), backend.requestKey("passport-code")).s("code"); error = null }
         catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
@@ -233,6 +248,19 @@ fun AthleteQrPassSheet(
                             letterSpacing = 2.sp,
                             color = MColors.Ink700
                         )
+                        if (backend != null && code.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            MPillActionButton(
+                                text = "Geçici kodu kopyala",
+                                icon = Icons.Rounded.ContentCopy,
+                                tone = MPillTone.NEUTRAL,
+                                compact = true,
+                                onClick = {
+                                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(code))
+                                    toast?.invoke("Sporcu kartı kodu kopyalandı", "✓")
+                                }
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -288,10 +316,13 @@ fun AthleteQrPassSheet(
                     ) {
                         MPremiumTextField(
                             value = verifyCodeInput,
-                            onValueChange = { verifyCodeInput = it.trim() },
+                            onValueChange = { verifyCodeInput = extractPassportCode(it) },
                             label = "Pasaport kodu",
                             modifier = Modifier.weight(1f)
                         )
+                        IconButton(onClick = pickQrImage) {
+                            Icon(Icons.Rounded.PhotoCamera, contentDescription = "Görselden QR oku", tint = MColors.BrandDeep)
+                        }
                         MPillActionButton(
                             text = "Doğrula",
                             icon = Icons.Rounded.VerifiedUser,
@@ -300,9 +331,12 @@ fun AthleteQrPassSheet(
                             onClick = {
                                 scope.launch {
                                     try {
-                                        val res = backend.verifyPassport(verifyCodeInput)
-                                        val p = res.o("passport")
-                                        verifyResult = "✓ Doğrulandı: ${p.s("name")} (${p.s("city")} · Güvenilirlik %${p.i("reliability")})"
+                                        val cleanCode = extractPassportCode(verifyCodeInput)
+                                        val res = backend.verifyPassport(cleanCode)
+                                        val p = (res["passport"] as? kotlinx.serialization.json.JsonObject) ?: res
+                                        val rel = p.i("reliability")
+                                        val reliabilityPart = if (rel > 0) " · Güvenilirlik %$rel" else ""
+                                        verifyResult = "✓ Doğrulandı: ${p.s("name")} (${p.s("city")}$reliabilityPart)"
                                     } catch (e: Exception) {
                                         verifyResult = (e as? com.matchora.app.data.BackendFailure)?.message ?: "Kod doğrulanamadı."
                                     }

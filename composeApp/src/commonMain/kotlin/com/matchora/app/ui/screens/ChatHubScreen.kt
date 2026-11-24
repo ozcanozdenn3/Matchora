@@ -50,7 +50,7 @@ import com.matchora.app.ui.theme.MColors
 import com.matchora.app.data.*
 import kotlinx.coroutines.launch
 
-private enum class ChatHubSection(val label: String) {
+enum class ChatHubSection(val label: String) {
     MESSAGES("Mesajlar"),
     SHOWCASE("Anı Vitrini")
 }
@@ -115,13 +115,14 @@ fun ChatHubScreen(
     currentDistrict: String = "Kadıköy",
     currentUser: UserProfile = DemoData.me,
     initialActiveThreadId: String? = null,
+    initialSection: ChatHubSection = ChatHubSection.MESSAGES,
+    focusedMemoryId: String? = null,
     onActiveThreadChange: (String?) -> Unit = {},
     onSendMessage: (String, String) -> Unit,
     onSendMemoryToChat: (threadId: String, caption: String, memory: MatchMemoryPost) -> Unit = { _, _, _ -> },
     onCreateMemoryPost: (MatchMemoryPost, String?) -> Unit = { _, _ -> },
     onToggleLikeMemory: (String, Boolean) -> Unit = { _, _ -> },
     onUpdateMemory: (MatchMemoryPost) -> Unit = {},
-    onRequireLogin: () -> Unit = {},
     onSendReply: (String, String, String?) -> Unit = { thread, text, _ -> onSendMessage(thread, text) },
     onEditMessage: (ChatMsg, String) -> Unit = { _, _ -> },
     onDeleteMessage: (ChatMsg, Boolean) -> Unit = { _, _ -> },
@@ -143,6 +144,7 @@ fun ChatHubScreen(
     val backend = LocalBackendRepository.current
     val requireAccount = LocalRequireAccount.current
     val featuresLocked = LocalFeaturesLocked.current
+    val chatFeedback = LocalToastNotifier.current
     val inboxSnapshot = backend?.snapshots?.collectAsState()?.value
     var inboxBusy by remember { mutableStateOf(false) }
     var inboxError by remember { mutableStateOf<String?>(null) }
@@ -171,7 +173,8 @@ fun ChatHubScreen(
     var clearChatConfirmation by remember { mutableStateOf<Boolean?>(null) }
     var deleteAndBlock by remember { mutableStateOf(false) }
     var activeId by remember(initialActiveThreadId) { mutableStateOf(initialActiveThreadId) }
-    var activeSection by remember { mutableStateOf(ChatHubSection.MESSAGES) }
+    var activeSection by remember(initialSection) { mutableStateOf(initialSection) }
+    var consumedMemoryId by remember { mutableStateOf<String?>(null) }
     var input by remember(activeId) { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
     var showAthleteSearch by remember(backend?.userId) { mutableStateOf(false) }
@@ -234,6 +237,17 @@ fun ChatHubScreen(
         }
     }
     LaunchedEffect(activeId) { replyTarget = null; editingMessage = null; messageMenu = null; clearChatConfirmation = null }
+    LaunchedEffect(focusedMemoryId, visibleMemories) {
+        if (focusedMemoryId == null) {
+            consumedMemoryId = null
+        } else if (focusedMemoryId != consumedMemoryId) {
+            visibleMemories.firstOrNull { it.id == focusedMemoryId }?.let {
+                activeSection = ChatHubSection.SHOWCASE
+                selectedMemoryForDetail = it
+                consumedMemoryId = focusedMemoryId
+            }
+        }
+    }
     fun open(id: String?) {
         activeId = id
         onActiveThreadChange(id)
@@ -459,7 +473,7 @@ fun ChatHubScreen(
                     }
                 }
                 if (filteredThreads.isEmpty()) item {
-                    MCard(Modifier.fillMaxWidth(), onClick = { requireAccount {} }) { Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(if (query.isBlank()) "Henüz sohbet yok" else "Sohbet bulunamadı", style = MaterialTheme.typography.titleMedium)
                         Text(if (query.isBlank()) "Bir maça katıldığında takım sohbetin burada açılır." else "Başka bir isim veya mesajla tekrar ara.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
                     } }
@@ -741,7 +755,10 @@ fun ChatHubScreen(
                             }
 
                             Surface(
-                                onClick = { shuffleSeed++ },
+                                onClick = {
+                                    shuffleSeed++
+                                    if (backend == null) chatFeedback?.invoke("Vitrin akışı yenilendi", "✨")
+                                },
                                 shape = RoundedCornerShape(11.dp),
                                 color = Color(0xFFF8FAFC),
                                 border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
@@ -1242,10 +1259,10 @@ fun ChatHubScreen(
                                 onOpenRelatedEvent(active.relatedEventId)
                             })
                         }
-                        if (active.type == ThreadType.TEAM && onOpenRelatedTeam != null) {
+                        if (active.type == ThreadType.TEAM && (active.relatedTeamId != null || active.title.isNotBlank()) && onOpenRelatedTeam != null) {
                             MPremiumMenuRow("Takım Sayfasına Git", Icons.Rounded.Shield, {
                                 showInfo = false
-                                onOpenRelatedTeam(active.title)
+                                onOpenRelatedTeam(active.relatedTeamId ?: active.title)
                             })
                         }
                         if (active.type == ThreadType.DIRECT) {
@@ -1362,9 +1379,9 @@ fun ChatHubScreen(
             name = player.name,
             initials = player.initials,
             rating = player.rating,
-            rank = 1,
+            rank = 0,
             player = player,
-            sport = Sport.FOOTBALL,
+            sport = player.sports.firstOrNull() ?: Sport.FOOTBALL,
             onDismiss = { inspectedPlayer = null },
             onChallenge = null,
             onInviteTeam = null,
@@ -1410,228 +1427,6 @@ private fun OlderMessagesAction(threadId: String) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // GÖRSEL BİLEŞENLER: SAHA ANILARI VİTRİNİ (INSTAGRAM KEŞFET STİLİ)
 // ═══════════════════════════════════════════════════════════════════════════════
-
-@Composable
-private fun MiniMemoryStoryTile(
-    post: MatchMemoryPost,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
-        color = MColors.Ink900,
-        shadowElevation = 5.dp,
-        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-        modifier = Modifier
-            .width(84.dp)
-            .height(104.dp)
-            .shadow(6.dp, RoundedCornerShape(14.dp), ambientColor = Color(0x2A0B1220), spotColor = Color(0x3C0B1220))
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            MatchMemoryVisualCanvas(
-                post = post,
-                modifier = Modifier.fillMaxSize()
-            )
-            // Üst konum rozeti
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = Color.Black.copy(alpha = 0.58f),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(5.dp)
-            ) {
-                Text(
-                    text = "📍 ${post.area}${post.distanceKm?.let { " · ≈$it km" }.orEmpty()}",
-                    fontSize = 8.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                )
-            }
-            // Alt bilgi
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.82f))
-                        )
-                    )
-                    .padding(horizontal = 6.dp, vertical = 5.dp)
-            ) {
-                Text(
-                    text = "${post.sport.emoji} ${post.authorName.substringBefore(" ")}",
-                    fontSize = 9.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HeroMemoryExploreCard(
-    post: MatchMemoryPost,
-    onClick: () -> Unit,
-    onLike: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(20.dp),
-        color = MColors.Ink900,
-        shadowElevation = 8.dp,
-        border = BorderStroke(1.dp, Color(0xFFD8E2EE)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(210.dp)
-            .shadow(10.dp, RoundedCornerShape(20.dp), ambientColor = Color(0x340B1220), spotColor = Color(0x480B1220))
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            MatchMemoryVisualCanvas(
-                post = post,
-                modifier = Modifier.fillMaxSize()
-            )
-
-            // Üst Satır: Konum & Maç Skoru Etiketi
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color.Black.copy(alpha = 0.62f),
-                    border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.22f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(Icons.Rounded.LocationOn, null, tint = Color(0xFFFFB37B), modifier = Modifier.size(13.dp))
-                        Text(
-                            text = "${post.venue} · ${post.area}",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                post.matchScoreTag?.let { score ->
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MColors.Ink900.copy(alpha = 0.85f),
-                        border = BorderStroke(0.8.dp, post.sceneTheme.accentColor.copy(alpha = 0.5f))
-                    ) {
-                        Text(
-                            text = "${post.sport.emoji} $score",
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
-                        )
-                    }
-                }
-            }
-
-            // Alt Satır: Oyuncu, Anı Notu ve Beğeni
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.88f))
-                        )
-                    )
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f).padding(end = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(22.dp)
-                                .clip(CircleShape)
-                                .background(post.sceneTheme.accentColor, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (post.authorAvatarUploadId != null) {
-                                BackendPhoto(post.authorAvatarUploadId, post.authorName, Modifier.fillMaxSize())
-                            } else {
-                                Text(
-                                    text = post.authorInitials,
-                                    fontSize = 9.5.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MColors.Ink900
-                                )
-                            }
-                        }
-                        Text(
-                            text = "${post.authorName} · ${post.timeAgo}${if (post.status != "approved") " · İncelemede" else ""}",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White.copy(alpha = 0.92f)
-                        )
-                    }
-                    Text(
-                        text = post.caption,
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                Surface(
-                    onClick = onLike,
-                    shape = RoundedCornerShape(11.dp),
-                    color = if (post.likedByMe) Color(0xFFE11D48) else Color.White.copy(alpha = 0.18f),
-                    border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.28f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (post.likedByMe) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                            contentDescription = "Beğen",
-                            tint = Color.White,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = "${post.likes}",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun GridMemoryExploreTile(
@@ -2157,7 +1952,7 @@ private fun MemoryDetailSheet(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     if (onEdit != null) TextButton(onClick = onEdit) { Text("Paylaşımı düzenle") }
                     if (onDelete != null) TextButton(onClick = { confirmDelete = true }) { Text("Paylaşımı sil", color = MColors.Rose) }
-                    if (onEdit == null && onDelete == null) TextButton(onClick = onReport) { Text("İçeriği bildir", color = MColors.Ink500) }
+                    if (post.authorId != DemoData.ME) TextButton(onClick = onReport) { Text("İçeriği bildir", color = MColors.Ink500) }
                 }
             }
 

@@ -68,7 +68,7 @@ export async function eventEligibility(ctx, event) {
     ensure(membership, 403, 'COMMUNITY_REQUIRED', 'Bu ağın onaylı üyeliği gerekiyor.');
   }
 }
-export async function joinEvent(ctx, event, userId = ctx.actor.id) {
+export async function joinEvent(ctx, event, userId = ctx.actor.id, { notifyJoined = true } = {}) {
   assertMutableEventRoster(event);
   const old = await ctx.db.get('SELECT * FROM event_members WHERE event_id=? AND user_id=?', [event.id, userId]);
   ensure(old?.status !== 'removed',409,'EVENT_REMOVED','Yeniden katılım için organizatörün izni gerekiyor.');
@@ -83,7 +83,7 @@ export async function joinEvent(ctx, event, userId = ctx.actor.id) {
   if (thread) await ctx.db.run('INSERT INTO thread_members(thread_id,user_id) VALUES(?,?) ON CONFLICT(thread_id,user_id) DO NOTHING', [thread.id, userId]);
   await ctx.db.run("UPDATE waitlist SET status='joined',offered_until=NULL WHERE event_id=? AND user_id=?", [event.id, userId]);
   await ctx.db.run("UPDATE join_requests SET status='approved' WHERE scope='event' AND scope_id=? AND user_id=? AND status='pending'", [event.id,userId]);
-  await notify(ctx, userId, 'matches', 'Maç kadrosundasın', json(event.payload).title, 'EVENT', event.id, `joined:${event.id}:${userId}:${ctx.requestKey}`);
+  if (notifyJoined) await notify(ctx, userId, 'matches', 'Maç kadrosundasın', json(event.payload).title, 'EVENT', event.id, `joined:${event.id}:${userId}:${ctx.requestKey}`);
 }
 export async function offerWaitlist(ctx, eventId) {
   const event = await row(ctx, 'events', 'id', eventId);

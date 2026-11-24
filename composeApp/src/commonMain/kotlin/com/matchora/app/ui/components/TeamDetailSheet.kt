@@ -44,6 +44,7 @@ fun TeamDetailSheet(
     players: List<Player> = DemoData.players,
     myTeam: TeamProfile?,
     pendingRequestsCount: Int = 0,
+    hasPendingJoinRequest: Boolean = false,
     onDismiss: () -> Unit,
     onOpenChallenge: () -> Unit,
     onApplyToTeam: () -> Unit,
@@ -54,6 +55,7 @@ fun TeamDetailSheet(
     onShareTeam: (() -> Unit)? = null
 ) {
     val backendMode = LocalBackendRepository.current?.enabled == true
+    val feedback = LocalToastNotifier.current
     var selectedPlayerProfile by remember { mutableStateOf<Player?>(null) }
     val captainPlayer = remember(team.captainId, currentPlayer, players) {
         if (team.captainId == DemoData.ME) currentPlayer else players.firstOrNull { it.id == team.captainId } ?: currentPlayer.copy(id = team.captainId, name = "Takım kaptanı", verified = false, rating = 0, verifiedMatches = 0, reliabilityVisible = false, profileAvailable = false)
@@ -549,6 +551,7 @@ fun TeamDetailSheet(
                                 onClick = {
                                     clipboard.setText(androidx.compose.ui.text.AnnotatedString(team.id))
                                     copiedClubId = true
+                                    feedback?.invoke("Kulüp ID kopyalandı", "🪪")
                                 },
                                 shape = RoundedCornerShape(10.dp),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
@@ -586,7 +589,7 @@ fun TeamDetailSheet(
                                 icon = Icons.Rounded.Groups
                             )
                             BackendTeamEditing(team)
-                            BackendTeamActions(team, players)
+                            BackendTeamActions(team, rosterPlayers)
                         }
                     }
                 } else if (team.isMine) {
@@ -600,12 +603,12 @@ fun TeamDetailSheet(
                                 isPrimary = false,
                                 height = 44.dp
                             )
-                            BackendTeamActions(team, players)
+                            BackendTeamActions(team, rosterPlayers)
                         }
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        BackendTeamActions(team, players)
+                        BackendTeamActions(team, rosterPlayers)
                         BackendTeamEditing(team)
                         MButton("Meydan Oku", onOpenChallenge, icon = Icons.Rounded.SportsKabaddi)
 
@@ -614,7 +617,11 @@ fun TeamDetailSheet(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             if (team.recruitingOpen) {
-                                MButton("Kadroya Katıl", onApplyToTeam, Modifier.weight(1f), icon = Icons.Rounded.PersonAddAlt1, isPrimary = false, height = 44.dp)
+                                if (hasPendingJoinRequest) {
+                                    MButton("Başvurun Bekliyor", {}, Modifier.weight(1f), enabled = false, icon = Icons.Rounded.Schedule, isPrimary = false, height = 44.dp)
+                                } else {
+                                    MButton("Kadroya Katıl", onApplyToTeam, Modifier.weight(1f), icon = Icons.Rounded.PersonAddAlt1, isPrimary = false, height = 44.dp)
+                                }
                             }
 
                             MButton("Kaptana Mesaj", { onOpenCaptainChat(captainPlayer) }, Modifier.weight(1f), icon = Icons.Rounded.ChatBubbleOutline, isPrimary = false, height = 44.dp)
@@ -629,7 +636,7 @@ fun TeamDetailSheet(
             name = player.name,
             initials = player.initials,
             rating = player.rating,
-            rank = 1,
+            rank = 0,
             player = player,
             isInvitedToTeam = false,
             sport = team.sport,

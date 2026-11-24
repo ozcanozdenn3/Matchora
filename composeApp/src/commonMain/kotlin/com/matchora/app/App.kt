@@ -197,11 +197,12 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     var threads by remember { mutableStateOf(if (backend.enabled) emptyList() else DemoData.chats) }
     var memoryPosts by remember { mutableStateOf(if (backend.enabled) emptyList() else DemoData.initialMemoryPosts) }
     var activeChatThreadId by remember { mutableStateOf<String?>(null) }
+    var chatEntrySection by remember { mutableStateOf(ChatHubSection.MESSAGES) }
+    var focusedMemoryId by remember { mutableStateOf<String?>(null) }
     var notifications by remember { mutableStateOf(if (backend.enabled) emptyList() else DemoData.notifications) }
     var ledger by remember { mutableStateOf(if (backend.enabled) emptyList() else DemoData.initialLedger) }
     var venuePayments by remember { mutableStateOf(if (backend.enabled) emptyList() else DemoData.initialVenuePayments) }
     var bookedSlotIds by remember { mutableStateOf(emptySet<String>()) }
-    var paymentMethods by remember { mutableStateOf(if (backend.enabled) emptyList() else DemoData.initialPaymentMethods) }
 
     var teams by remember { mutableStateOf(if (backend.enabled) emptyList() else DemoData.teams) }
     var tournaments by remember { mutableStateOf(if (backend.enabled) emptyList() else DemoData.tournaments) }
@@ -263,7 +264,6 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     var playNowInitialTime by remember { mutableStateOf<String?>(null) }
     var walletStartsOnPlus by remember { mutableStateOf(false) }
     var showWalletSheet by remember { mutableStateOf(false) }
-    var showCreateEventSheet by remember { mutableStateOf(false) }
     var showNotificationsSheet by remember { mutableStateOf(false) }
     var challengeTargetTeam by remember { mutableStateOf<TeamProfile?>(null) }
     var challengeSourceTeam by remember { mutableStateOf<TeamProfile?>(null) }
@@ -294,10 +294,16 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     }
 
     fun defaultOperationToast(operation: String, payload: JsonObject): Pair<String, String>? = when (operation) {
-        "discovery.save", "discovery.location", "notification.read", "chat.read", "device.register", "device.remove" -> null
+        "discovery.save", "discovery.location", "chat.read", "device.register", "device.remove" -> null
+        "notification.read" -> if (payload.s("notificationId").isBlank()) "Bildirimler okundu işaretlendi" to "✓" else null
+        "notification.clear" -> if (payload.s("notificationId").isBlank()) "Bildirimler temizlendi" to "✓" else "Bildirim silindi" to "✓"
         "event.join" -> "Kadroya katıldın" to "⚽"
         "event.leave" -> "Kadrodan ayrıldın" to "↩️"
-        "event.waitlist" -> if (payload.s("action") == "leave") "Bekleme listesinden ayrıldın" to "↩️" else "Bekleme listesine eklendin" to "⏳"
+        "event.waitlist" -> when (payload.s("action")) {
+            "leave" -> "Bekleme listesinden ayrıldın" to "↩️"
+            "accept" -> "Kadroya katıldın" to "⚽"
+            else -> "Bekleme listesine eklendin" to "⏳"
+        }
         "event.request" -> "Katılım başvurun iletildi" to "⏳"
         "event.request.review" -> if (payload.b("approve")) "Başvuru onaylandı" to "✓" else "Başvuru reddedildi" to "✕"
         "event.request.cancel" -> "Başvurun geri çekildi" to "↩️"
@@ -487,6 +493,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             finally { sessionLeaving = false }
             isLoggedIn = false; hasCompletedPassport = false; activeChatThreadId = null; profile = guestProfile
             showAccountSettings = false; currentTab = 0; showAuthSheet = false
+            showToast("Çıkış yapıldı · Misafir modundasın", "ℹ️")
             if (backend.enabled) runCatching { backend.reload() }
         }
         return true
@@ -499,6 +506,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 DemoData.me.skills.filter { demo -> signedProfile.skills.none { it.sport == demo.sport } }
         )
         isLoggedIn = true; hasCompletedPassport = true; showAuthSheet = false
+        showToast("Pasaportun hazır · Hoş geldin!", "🪪")
         val pending = pendingAccountAction; pendingAccountAction = null; pending?.invoke()
     }
     fun completeAuthentication(newProfile: UserProfile) {
@@ -537,8 +545,8 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             catch (_: Exception) { /* Login stays locked; explicit sign-in displays retryable errors. */ }
         }
     }
-    fun openEventById(eventId: String) {
-        if (sessionLeaving || !isLoggedIn || !hasCompletedPassport || authWire?.b("legalAcceptanceRequired") == true) { requireAccount { openEventById(eventId) }; return }
+    fun openEventById(eventId: String, grantDirectInvite: Boolean = false) {
+        if (sessionLeaving || !isLoggedIn || !hasCompletedPassport || authWire?.b("legalAcceptanceRequired") == true) { requireAccount { openEventById(eventId, grantDirectInvite) }; return }
         val clean = eventId.trim().removePrefix("#")
 
         // 1. Önce Turnuva eşleşmesini kontrol et (#TRN-... veya turnuva ID)
@@ -605,9 +613,9 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
         val matchedEvent = events.firstOrNull { matchesEventInviteCode(it.id, clean) }
         val targetEventId = matchedEvent?.id ?: clean
         if (matchedEvent != null) {
-            directInvitedEventId = matchedEvent.id
+            if (grantDirectInvite) directInvitedEventId = matchedEvent.id
             selectedDetailEvent = matchedEvent
-            showToast("🎟️ ${matchedEvent.title} bulundu · Özel davet onaylandı!", "✅")
+            showToast(if (grantDirectInvite) "🎟️ ${matchedEvent.title} bulundu · Özel davet onaylandı!" else "⚽ ${matchedEvent.title} açıldı", if (grantDirectInvite) "✅" else "🎟️")
             return
         }
 
@@ -620,9 +628,9 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 selectedDetailPlayers = parsed.players
                 val loadedEvent = parsed.events.firstOrNull()
                 if (loadedEvent != null) {
-                    directInvitedEventId = loadedEvent.id
+                    if (grantDirectInvite) directInvitedEventId = loadedEvent.id
                     selectedDetailEvent = loadedEvent
-                    showToast("🎟️ ${loadedEvent.title} bulundu · Özel davet onaylandı!", "✅")
+                    showToast(if (grantDirectInvite) "🎟️ ${loadedEvent.title} bulundu · Özel davet onaylandı!" else "⚽ ${loadedEvent.title} açıldı", if (grantDirectInvite) "✅" else "🎟️")
                 } else {
                     showToast("Bu maç artık listede bulunmuyor", "ℹ️")
                 }
@@ -630,7 +638,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             catch (error: Exception) {
                 val msg = error.message ?: "İlan yüklenemedi."
                 showToast(msg, "⚠️")
-                backendError = msg; backendRetry = { openEventById(eventId) }
+                backendError = msg; backendRetry = { openEventById(eventId, grantDirectInvite) }
             }
             finally { backendBusy-- }
         }
@@ -762,10 +770,23 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             if (!isLoggedIn || !hasCompletedPassport || authWire?.b("legalAcceptanceRequired") == true) showAuthSheet = true
             else {
                 try {
+                    if (navigation.notificationId.isNotBlank()) {
+                        notifications = notifications.map { if (it.id == navigation.notificationId) it.copy(read = true) else it }
+                        if (backend.enabled) remote("notification.read", apiPayload("notificationId" to navigation.notificationId), silent = true)
+                    }
                     when (navigation.destination) {
                         "EVENT" -> openEventById(navigation.targetId)
-                        "CHAT" -> { activeChatThreadId = navigation.targetId; currentTab = 4 }
-                        "CHALLENGES" -> { competitionEntryTab = 2; currentTab = 2 }
+                        "CHAT" -> {
+                            activeChatThreadId = navigation.targetId
+                            chatEntrySection = ChatHubSection.MESSAGES
+                            focusedMemoryId = null
+                            currentTab = 4
+                        }
+                        "CHALLENGES" -> {
+                            competitionEntryTab = 2
+                            competitionFocusId = navigation.targetId.takeIf { it.isNotBlank() }
+                            currentTab = 2
+                        }
                         "TEAM", "TOURNAMENT" -> openCatalogTarget(if (navigation.destination == "TOURNAMENT") "tournaments" else "teams", navigation.targetId)
                         "WALLET", "PLUS" -> { walletStartsOnPlus = navigation.destination == "PLUS"; showWalletSheet = true }
                         "ACCOUNT" -> showAccountSettings = true
@@ -780,7 +801,12 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                                 openCatalogTarget(if (navigation.destination == "VENUES") "venues" else "communities", target)
                             }
                         }
-                        "MEMORIES" -> { activeChatThreadId = null; currentTab = 4 }
+                        "MEMORIES" -> {
+                            activeChatThreadId = null
+                            chatEntrySection = ChatHubSection.SHOWCASE
+                            focusedMemoryId = navigation.targetId.takeIf { it.isNotBlank() }
+                            currentTab = 4
+                        }
                         "MODERATION" -> showModeration = true
                         "RESERVATIONS" -> showMyActivity = true
                         "VENUE_MANAGEMENT" -> showVenueOperator = true
@@ -788,6 +814,27 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
                 catch (error: Exception) { backendError = (error as? BackendFailure)?.message ?: "Yönlendirme açılamadı." }
                 DeviceEventBridge.consumeNavigation()
+            }
+        }
+    }
+    LaunchedEffect(currentTab) {
+        if (currentTab != 4) {
+            focusedMemoryId = null
+            chatEntrySection = ChatHubSection.MESSAGES
+        }
+    }
+    LaunchedEffect(selectedDetailEvent?.id, backend.enabled) {
+        val targetId = selectedDetailEvent?.id
+        if (targetId == null || !backend.enabled) {
+            if (targetId == null) selectedDetailPlayers = emptyList()
+            return@LaunchedEffect
+        }
+        runCatching {
+            val detail = backend.eventDetails(targetId)
+            val parsed = BackendSnapshot(apiPayload("userId" to backend.userId, "events" to listOf(detail), "players" to detail.a("players")))
+            if (selectedDetailEvent?.id == targetId) {
+                selectedDetailPlayers = parsed.players
+                parsed.events.firstOrNull()?.let { selectedDetailEvent = it }
             }
         }
     }
@@ -906,7 +953,12 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     fun joinEventImmediately(event: SportEvent, reason: String, bypassApproval: Boolean = false) {
         val isInvited = bypassApproval || (directInvitedEventId == event.id)
         if (event.approvalRequired && !isInvited) { showSubmitJoinSheetForEvent = event; return }
-        if (remote("event.join", apiPayload("eventId" to event.id, "bypassApproval" to isInvited, "invitationId" to event.id))) return
+        val joinPayload = if (isInvited) {
+            apiPayload("eventId" to event.id, "bypassApproval" to true, "invitationId" to event.id)
+        } else {
+            apiPayload("eventId" to event.id)
+        }
+        if (remote("event.join", joinPayload)) return
         if (joinedEventIds.contains(event.id)) {
             showToast("Zaten bu karşılaşmanın kadrosundasın", "ℹ️")
             return
@@ -938,7 +990,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     }
 
     fun openDirectChatWithPlayer(targetPlayer: Player) {
-        if (remote("chat.direct", apiPayload("userId" to backend.serverUserId(targetPlayer.id))) { result -> activeChatThreadId = result["id"]?.jsonPrimitive?.content; selectedDetailEvent = null; currentTab = 4 }) return
+        if (remote("chat.direct", apiPayload("userId" to backend.serverUserId(targetPlayer.id))) { result -> activeChatThreadId = result["id"]?.jsonPrimitive?.content; chatEntrySection = ChatHubSection.MESSAGES; focusedMemoryId = null; selectedDetailEvent = null; currentTab = 4 }) return
         val existingThread = threads.firstOrNull { it.type == ThreadType.DIRECT && it.title == targetPlayer.name }
         val threadId = if (existingThread != null) {
             existingThread.id
@@ -967,6 +1019,8 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             newId
         }
         activeChatThreadId = threadId
+        chatEntrySection = ChatHubSection.MESSAGES
+        focusedMemoryId = null
         selectedDetailEvent = null
         showSubmitJoinSheetForEvent = null
         showManageJoinRequestsForEvent = null
@@ -1257,7 +1311,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     waitlistedEventIds = waitlistedEventIds,
                     pendingRequestEventIds = pendingRequestEventIds,
                     onSelectEvent = { selectedDetailEvent = it },
-                    onFindEventById = { requireAccount { openEventById(it) } },
+                    onFindEventById = { requireAccount { openEventById(it, grantDirectInvite = true) } },
                     onNetworkScopeChanged = { scope ->
                         initialListingScope = scope
                         if (backend.enabled && isLoggedIn) remote("discovery.save", apiPayload("city" to currentCity, "district" to currentDistrict, "travelMode" to (scope == EventNetworkScope.TRAVEL)), silent = true)
@@ -1274,9 +1328,13 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                         val squad = threads.firstOrNull { if (backend.enabled) it.relatedEventId == selectedMatch?.id && selectedMatch?.id in joinedEventIds else it.type == ThreadType.SQUAD }
                         if (squad != null) {
                             activeChatThreadId = squad.id
+                            chatEntrySection = ChatHubSection.MESSAGES
+                            focusedMemoryId = null
                             currentTab = 4
                             showToast("Maç sohbeti açıldı", "✨")
                         } else {
+                            chatEntrySection = ChatHubSection.MESSAGES
+                            focusedMemoryId = null
                             currentTab = 4
                             selectedMatch?.let { selectedDetailEvent = it }; showToast("Sohbete katılmak için maç kadrosuna katılmalısın", "ℹ️")
                         }
@@ -1446,8 +1504,47 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                         }
                     },
                     onPublishedCommunity = { id -> networkEntryTab = 0; networkTargetId = id; showToast("Topluluğun oluşturuldu.", "🤝") },
-                    onCreateCommunity = { community -> if (!remote("community.create", apiPayload("name" to community.name, "type" to community.type, "access" to community.access, "city" to community.city, "area" to community.area, "description" to community.description, "sport" to community.sports.first(), "sports" to community.sports.map { it.name }))) requireAccount { previewCommunities = listOf(community) + previewCommunities; joinedCommunityIds = joinedCommunityIds + community.id } },
-                    onOpenCommunityChat = { com -> if (!remote("community.chat", apiPayload("communityId" to com.id)) { res -> activeChatThreadId = res.s("id"); currentTab = 4 }) { requireAccount { showToast("${com.name} sohbet odası açıldı", "💬"); currentTab = 4 } } },
+                    onCreateCommunity = { community -> if (!remote("community.create", apiPayload("name" to community.name, "type" to community.type, "access" to community.access, "city" to community.city, "area" to community.area, "description" to community.description, "sport" to community.sports.first(), "sports" to community.sports.map { it.name }))) requireAccount { previewCommunities = listOf(community) + previewCommunities; joinedCommunityIds = joinedCommunityIds + community.id; showToast("${community.name} topluluğu oluşturuldu", "🤝") } },
+                    onOpenCommunityChat = { com ->
+                        if (!remote("community.chat", apiPayload("communityId" to com.id)) { res ->
+                            activeChatThreadId = res.s("id")
+                            chatEntrySection = ChatHubSection.MESSAGES
+                            focusedMemoryId = null
+                            currentTab = 4
+                        }) {
+                            requireAccount {
+                                val threadId = "th_com_${com.id}"
+                                if (threads.none { it.id == threadId }) {
+                                    threads = listOf(
+                                        ChatThread(
+                                            id = threadId,
+                                            type = ThreadType.SQUAD,
+                                            title = "${com.name} Sohbeti",
+                                            emoji = com.emoji,
+                                            memberCount = com.members,
+                                            messages = listOf(
+                                                ChatMsg(
+                                                    id = nextUniqueId("m_com_sys"),
+                                                    senderId = "sys",
+                                                    senderName = "Matchora",
+                                                    text = "${com.name} topluluk sohbet odası açıldı.",
+                                                    time = "Şimdi",
+                                                    isSystem = true
+                                                )
+                                            ),
+                                            unread = 0,
+                                            locked = false
+                                        )
+                                    ) + threads
+                                }
+                                activeChatThreadId = threadId
+                                chatEntrySection = ChatHubSection.MESSAGES
+                                focusedMemoryId = null
+                                currentTab = 4
+                                showToast("${com.name} sohbet odası açıldı", "💬")
+                            }
+                        }
+                    },
                     venues = if (backend.enabled) remoteVenues else DemoData.venues,
                     joinedCommunityIds = joinedCommunityIds,
                     requestedCommunityIds = requestedCommunityIds,
@@ -1502,7 +1599,6 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     onDeleteMemory = { post -> if (!remote("memory.delete", apiPayload("memoryId" to post.id))) requireAccount { memoryPosts = memoryPosts.filterNot { it.id == post.id } } },
                     onReportMemory = { post -> requireAccount { reportTargetName = "${post.authorName} · Fotoğraf"; reportTargetId = if (post.isShowcase) post.id else activeChatThreadId.orEmpty(); reportTargetType = if (post.isShowcase) "memory" else "thread" } },
                     onAddMemoryComment = { memoryId, text -> if (!remote("memory.comment", apiPayload("memoryId" to memoryId, "text" to text))) { requireAccount { memoryPosts = memoryPosts.map { if (it.id == memoryId) it.copy(comments = it.comments + MemoryComment(nextUniqueId("mc"), DemoData.ME, profile.name, text, "Şimdi")) else it } } } },
-                    onRequireLogin = { showAuthSheet = true },
                     onUpdateMemory = { post -> if (!remoteMemoryEdit(post)) memoryPosts = memoryPosts.map { if (it.id == post.id) post.copy(status = "approved") else it } },
                     onSendReply = { threadId, text, replyTo ->
                         if (!remote("chat.send", apiPayload("threadId" to threadId, "text" to text, "replyTo" to replyTo))) {
@@ -1527,13 +1623,17 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     currentDistrict = currentDistrict,
                     currentUser = profile,
                     initialActiveThreadId = activeChatThreadId,
+                    initialSection = chatEntrySection,
+                    focusedMemoryId = focusedMemoryId,
                     onOpenRelatedEvent = { eventId -> openEventById(eventId) },
-                    onOpenRelatedTeam = { teamName ->
-                        val targetTeam = teams.firstOrNull { it.name.equals(teamName, ignoreCase = true) }
+                    onOpenRelatedTeam = { teamKey ->
+                        val targetTeam = teams.firstOrNull { it.id == teamKey || it.name.equals(teamKey, ignoreCase = true) }
                         if (targetTeam != null) {
                             competitionEntryTab = 2
                             competitionFocusId = targetTeam.id
                             currentTab = 2
+                        } else if (backend.enabled) {
+                            openCatalogTarget("teams", teamKey)
                         } else {
                             showToast("Takım bulunamadı", "ℹ️")
                         }
@@ -1803,7 +1903,21 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 showManageJoinRequestsForEvent = ev
              }},
             onDirectMessageHost = { requireAccount {
-                val hostPlayer = (if (backend.enabled) remotePlayers else DemoData.players).firstOrNull { it.id == ev.hostId }
+                val pool = if (backend.enabled) (remotePlayers + selectedDetailPlayers).distinctBy { it.id } else DemoData.players
+                val hostPlayer = pool.firstOrNull { it.id == ev.hostId } ?: if (backend.enabled) {
+                    currentPlayer.copy(
+                        id = ev.hostId,
+                        name = "Organizatör",
+                        verified = false,
+                        rating = 0,
+                        verifiedMatches = 0,
+                        reliability = 0,
+                        position = null,
+                        reliabilityVisible = false,
+                        profileAvailable = false,
+                        city = ev.city
+                    )
+                } else null
                 if (hostPlayer != null) openDirectChatWithPlayer(hostPlayer) else showToast("Organizatör profili şu anda yüklenemiyor.", "ℹ️")
              }},
             onDirectMessagePlayer = { player -> requireAccount { openDirectChatWithPlayer(player) } },
@@ -1828,7 +1942,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 if (backend.enabled) {
                     val targetThread = threads.firstOrNull { it.relatedEventId == ev.id }
                     if (targetThread != null) {
-                        activeChatThreadId = targetThread.id; selectedDetailEvent = null; currentTab = 4
+                        activeChatThreadId = targetThread.id; chatEntrySection = ChatHubSection.MESSAGES; focusedMemoryId = null; selectedDetailEvent = null; currentTab = 4
                     } else {
                         showToast("Etkinlik sohbetini açmak için önce kadroya katılmalısın", "💬")
                     }
@@ -2130,40 +2244,6 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
         )
     }
 
-    // 4. Etkinlik Oluşturma
-    if (showCreateEventSheet) {
-        CreateEventSheet(
-            onDismiss = { showCreateEventSheet = false },
-            currentCity = currentCity,
-            currentDistrict = currentDistrict,
-            venues = if (backend.enabled) remoteVenues else DemoData.venues,
-            newEventId = { nextUniqueId("ev_legacy") },
-            onCreateEvent = { newEvent ->
-                val handled = remote("event.create", newEvent.toApiPayload()) { result ->
-                    showCreateEventSheet = false
-                    openEventById(result.s("id"))
-                    showToast("İlan yayınlandı · ID: ${eventDisplayId(result.s("id"))}", "🎉")
-                }
-                if (!handled) {
-                    if (events.any { it.id == newEvent.id }) {
-                        showToast("Bu ilan kimliği zaten kullanılmış; yeniden dene", "⚠️")
-                    } else if (lockTokens(10, "İlan oluşturma")) {
-                        events = listOf(newEvent) + events
-                        joinedEventIds = joinedEventIds + newEvent.id
-                        eventTokenHolds = eventTokenHolds + (newEvent.id to 10)
-                        ledger = listOf(
-                            LedgerEntry(nextUniqueId("l_ad"), LedgerType.HOLD, -10, "İlan Kilidi · ${newEvent.title}", "Şimdi", idempotencyKey = nextUniqueId("op_ad"))
-                        ) + ledger
-                        showToast("İlan yayınlandı · ID: ${eventDisplayId(newEvent.id)}", "🎉")
-                        selectedDetailEvent = newEvent
-                        showManageJoinRequestsForEvent = newEvent
-                        showCreateEventSheet = false
-                    }
-                }
-            }
-        )
-    }
-
     // 5. Bildirimler Merkezi
     if (showNotificationsSheet) {
         NotificationsSheet(
@@ -2179,7 +2259,11 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     NotificationDestination.EVENT -> {
                         (notif.eventId ?: notif.targetId)?.let { openEventById(it) } ?: showToast("Bu bildirimin maç bağlantısı bulunamadı", "ℹ️")
                     }
-                    NotificationDestination.CHALLENGES -> { competitionEntryTab = 2; currentTab = 2 }
+                    NotificationDestination.CHALLENGES -> {
+                        competitionEntryTab = 2
+                        competitionFocusId = notif.targetId?.takeIf { it.isNotBlank() }
+                        currentTab = 2
+                    }
                     NotificationDestination.TEAM, NotificationDestination.TOURNAMENT -> notif.targetId?.let { openCatalogTarget(if (notif.destination == NotificationDestination.TOURNAMENT) "tournaments" else "teams", it) }
                     NotificationDestination.RANKING -> { competitionEntryTab = 0; currentTab = 2 }
                     NotificationDestination.PASSPORT -> { currentTab = 5 }
@@ -2187,19 +2271,32 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     NotificationDestination.PLAY -> requireAccount { showPlayNowSheet = true }
                     NotificationDestination.PLUS -> requireAccount { walletStartsOnPlus = true; showWalletSheet = true }
                     NotificationDestination.WALLET -> requireAccount { walletStartsOnPlus = false; showWalletSheet = true }
-                    NotificationDestination.CHAT -> requireAccount { activeChatThreadId = notif.targetId; currentTab = 4 }
+                    NotificationDestination.CHAT -> requireAccount {
+                        activeChatThreadId = notif.targetId
+                        chatEntrySection = ChatHubSection.MESSAGES
+                        focusedMemoryId = null
+                        currentTab = 4
+                    }
                     NotificationDestination.NETWORK, NotificationDestination.VENUES -> {
                         val target = notif.targetId.orEmpty()
                         if (target.isBlank()) currentTab = 3
                         else openCatalogTarget(if (notif.destination == NotificationDestination.VENUES) "venues" else "communities", target)
                     }
-                    NotificationDestination.MEMORIES -> { activeChatThreadId = null; currentTab = 4 }
+                    NotificationDestination.MEMORIES -> {
+                        activeChatThreadId = null
+                        chatEntrySection = ChatHubSection.SHOWCASE
+                        focusedMemoryId = notif.targetId?.takeIf { it.isNotBlank() }
+                        currentTab = 4
+                    }
                     NotificationDestination.MODERATION -> requireAccount { showModeration = true }
                     NotificationDestination.RESERVATIONS -> requireAccount { showMyActivity = true }
                     NotificationDestination.VENUE_MANAGEMENT -> requireAccount { showVenueOperator = true }
                 }
             },
-            onClearNotifications = { id -> if (!remote("notification.clear", apiPayload("notificationId" to id))) notifications = if (id == null) emptyList() else notifications.filterNot { it.id == id } },
+            onClearNotifications = { id -> if (!remote("notification.clear", apiPayload("notificationId" to id))) {
+                notifications = if (id == null) emptyList() else notifications.filterNot { it.id == id }
+                showToast(if (id == null) "Bildirimler temizlendi" else "Bildirim silindi", "✓")
+            } },
             onMarkAllRead = { if (!(remote("notification.read", apiPayload()))) {
                 notifications = notifications.map { it.copy(read = true) }
                 showToast("Tüm bildirimler okundu olarak işaretlendi", "✓")
@@ -2357,26 +2454,30 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     if (showContactVerification) ContactVerificationSheet(profile.phone,
         backend = backend.takeIf { it.enabled },
         onRecordRequest = { phone ->
-            profile = profile.copy(phone = phone)
+            profile = profile.copy(phone = phone, verifications = profile.verifications + VerificationLevel.BASIC)
             supportRequests = listOf(SupportRequest(nextUniqueId("contact_verify"), "İletişim doğrulaması", "Telefon doğrulama talebi", "Hesap")) + supportRequests
+            showToast("Telefon doğrulama talebin kaydedildi", "✓")
         }, onDismiss = { showContactVerification = false })
     if (showPhotoVerification) PhotoVerificationSheet(profile,
         onPhotoRequest = { photo, completed -> if (!remotePhotoVerification(photo, completed)) {
             profile = profile.copy(avatar = photo)
             supportRequests = listOf(SupportRequest(nextUniqueId("photo_verify"), "Fotoğraf doğrulaması", "Fotoğraf inceleme talebi", "Hesap")) + supportRequests
+            showToast("Fotoğraf doğrulama talebin kaydedildi", "✓")
             completed(true)
         } }, onDismiss = { showPhotoVerification = false })
     if (showAccountSettings) AccountSettingsSheet(
         privacyPrefs, { prefs -> if (!remote("preferences.save", apiPayload("privacy" to JsonObject(prefs.toApiPayload().filter { (key, value) -> privacyPrefs.toApiPayload()[key] != value })))) privacyPrefs = prefs },
         notificationPrefs, { prefs -> if (!remote("preferences.save", apiPayload("notifications" to JsonObject(prefs.toApiPayload().filter { (key, value) -> notificationPrefs.toApiPayload()[key] != value })))) notificationPrefs = prefs },
         threads.filter { if (backend.enabled) live?.otherUserForThread(it.id) in live?.wire?.ss("blockedUserIds").orEmpty() else it.id in blockedChatIds }, { threadId ->
-            if (!backend.enabled) blockedChatIds = blockedChatIds - threadId
-            else live?.otherUserForThread(threadId)?.let { remote("user.block", apiPayload("userId" to it, "blocked" to false)) }
+            if (!backend.enabled) {
+                blockedChatIds = blockedChatIds - threadId
+                showToast("Engel kaldırıldı", "🛡️")
+            } else live?.otherUserForThread(threadId)?.let { remote("user.block", apiPayload("userId" to it, "blocked" to false)) }
         },
         supportRequests, moderationReports,
-        onSupport = { subject, message, category -> if (!remote("support.create", apiPayload("subject" to subject, "message" to message, "category" to category))) supportRequests = listOf(SupportRequest(nextUniqueId("support"), subject, message, category)) + supportRequests },
-        onLogout = { if (!(remoteLogout())) { isLoggedIn = false; showAccountSettings = false; currentTab = 5; activeChatThreadId = null  } },
-        onRequestDeletion = { if (!remote("account.delete", apiPayload()) && supportRequests.none { it.subject == "Hesap silme talebi" }) supportRequests = listOf(SupportRequest(nextUniqueId("deletion"), "Hesap silme talebi", "Hesap ve kişisel verilerin silinmesi talebi", "Hesap")) + supportRequests },
+        onSupport = { subject, message, category -> if (!remote("support.create", apiPayload("subject" to subject, "message" to message, "category" to category))) { supportRequests = listOf(SupportRequest(nextUniqueId("support"), subject, message, category)) + supportRequests; showToast("Destek talebin alındı", "💬") } },
+        onLogout = { if (!(remoteLogout())) { isLoggedIn = false; showAccountSettings = false; currentTab = 5; activeChatThreadId = null; showToast("Çıkış yapıldı · Misafir modundasın", "ℹ️") } },
+        onRequestDeletion = { if (!remote("account.delete", apiPayload())) { if (supportRequests.none { it.subject == "Hesap silme talebi" }) supportRequests = listOf(SupportRequest(nextUniqueId("deletion"), "Hesap silme talebi", "Hesap ve kişisel verilerin silinmesi talebi", "Hesap")) + supportRequests; showToast("Hesap silme talebi kaydedildi", "ℹ️") } },
         onDismiss = { showAccountSettings = false }
     )
     if (showMyActivity) MyActivitySheet(events, joinedEventIds, waitlistedEventIds,
@@ -2405,10 +2506,22 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             if (!remote("result.dispute", apiPayload("eventId" to event.id, "reason" to reason))) matchResults[event.id]?.let { matchResults = matchResults + (event.id to it.copy(disputed = true, disputeReason = reason)) }
             moderationReports = listOf(ModerationReport(nextUniqueId("result_dispute"), event.title, "Skor itirazı", reason)) + moderationReports
         }, onDismiss = { resultEvent = null },
-        onConfirm = if (backend.enabled) ({ remote("result.confirm", apiPayload("eventId" to event.id)); Unit }) else null,
-        onOpenFeedback = if (backend.enabled) ({ feedbackEvent = event }) else null) }
-    feedbackEvent?.let { event -> PlayerFeedbackSheet((remotePlayers + selectedDetailPlayers).distinctBy { it.id }.filter { it.id != DemoData.ME && it.id in event.participantIds && (!backend.enabled || event.checkedInParticipantIds.isEmpty() || it.id in event.checkedInParticipantIds) && (event.id to backend.serverUserId(it.id)) !in live?.submittedFeedbackTargets.orEmpty() },
-        onSubmit = { target, fairPlay, again -> remote("feedback.submit", apiPayload("eventId" to event.id, "targetId" to backend.serverUserId(target), "fairPlay" to fairPlay, "playAgain" to again)) { feedbackEvent = null } },
+        onConfirm = {
+            if (!remote("result.confirm", apiPayload("eventId" to event.id))) {
+                matchResults[event.id]?.let { matchResults = matchResults + (event.id to it.copy(status = "verified")) }
+                showToast("Maç sonucu onaylandı", "🏆")
+            }
+        },
+        onOpenFeedback = { feedbackEvent = event }) }
+    feedbackEvent?.let { event ->
+        val candidatePool = if (backend.enabled) (remotePlayers + selectedDetailPlayers).distinctBy { it.id } else DemoData.players
+        PlayerFeedbackSheet(candidatePool.filter { it.id != DemoData.ME && it.id in event.participantIds && (!backend.enabled || event.checkedInParticipantIds.isEmpty() || it.id in event.checkedInParticipantIds) && (event.id to backend.serverUserId(it.id)) !in live?.submittedFeedbackTargets.orEmpty() },
+        onSubmit = { target, fairPlay, again ->
+            if (!remote("feedback.submit", apiPayload("eventId" to event.id, "targetId" to backend.serverUserId(target), "fairPlay" to fairPlay, "playAgain" to again)) { feedbackEvent = null }) {
+                feedbackEvent = null
+                showToast("Değerlendirmen kaydedildi", "⭐")
+            }
+        },
         onDismiss = { feedbackEvent = null }) }
 
     val uploadProgress by backend.uploadProgress.collectAsState()

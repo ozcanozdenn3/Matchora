@@ -110,7 +110,7 @@ fun DiscoverMapScreen(
                 ev.venue.contains(searchQuery, ignoreCase = true) ||
                 ev.area.contains(searchQuery, ignoreCase = true) ||
                 ev.sport.label.contains(searchQuery, ignoreCase = true)
-            val matchCity = !backendMode || com.matchora.app.state.matchesTurkishPlace(ev.city, currentCity)
+            val matchCity = com.matchora.app.state.matchesTurkishPlace(ev.city, currentCity)
             isDiscoverable && matchSport && matchAi && matchQuery && matchCity
         }
     }
@@ -427,14 +427,14 @@ fun DiscoverMapScreen(
                                             modifier = Modifier
                                                 .size(7.dp)
                                                 .clip(CircleShape)
-                                                .background(MColors.Mint)
+                                                .background(if (ev.freeSpots > 0) MColors.Mint else MColors.Amber)
                                         )
                                         Spacer(modifier = Modifier.width(5.dp))
                                         Text(
-                                            text = "Son ${ev.freeSpots} Boş",
+                                            text = if (ev.freeSpots > 0) "Son ${ev.freeSpots} Boş" else "Kontenjan Dolu",
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = MColors.Mint
+                                            color = if (ev.freeSpots > 0) MColors.Mint else MColors.Amber
                                         )
                                         Text(
                                             text = ev.distanceKm?.let { " · $it km" }.orEmpty(),
@@ -451,7 +451,7 @@ fun DiscoverMapScreen(
                                         com.matchora.app.domain.EventStatus.PUBLISHED,
                                         com.matchora.app.domain.EventStatus.FILLING
                                     )
-                                    val canWaitlist = ev.status == com.matchora.app.domain.EventStatus.FULL
+                                    val canWaitlist = ev.status == com.matchora.app.domain.EventStatus.FULL || ev.freeSpots == 0
                                     val canAct = !isHost && !alreadyJoined && !alreadyPending && (alreadyWaiting || canJoin || canWaitlist)
                                     Button(
                                         onClick = {

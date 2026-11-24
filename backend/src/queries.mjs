@@ -99,7 +99,7 @@ async function threadView(ctx,t) {
  }
  let title=t.title;
  if(t.kind==='DIRECT'){const other=members.find(m=>m.user_id!==ctx.actor.id);title=other?(await publicPlayer(ctx,other.user_id)).name:title;}
- return{id:t.id,type:t.kind,title,memberIds:members.map(m=>m.user_id),memberCount:members.length,relatedEventId:t.event_id,activityAt:Number(t.activity_at??t.created_at),historyRevision:`${Number(revision?.revision??0)}:${memberState.version}`,nextMessageCursor:messages.length===100?Buffer.from(JSON.stringify([Number(messages[0].created_at),messages[0].id,Number(messages[0].sequence)])).toString('base64url'):null,messages:await Promise.all(messages.map(m=>messageView(ctx,m))),unread,muted:!!t.muted,locked:blocked};
+ return{id:t.id,type:t.kind,title,memberIds:members.map(m=>m.user_id),memberCount:members.length,relatedEventId:t.event_id,relatedTeamId:t.team_id,activityAt:Number(t.activity_at??t.created_at),historyRevision:`${Number(revision?.revision??0)}:${memberState.version}`,nextMessageCursor:messages.length===100?Buffer.from(JSON.stringify([Number(messages[0].created_at),messages[0].id,Number(messages[0].sequence)])).toString('base64url'):null,messages:await Promise.all(messages.map(m=>messageView(ctx,m))),unread,muted:!!t.muted,locked:blocked};
 }
 async function unreadThreadCount(ctx) {
  const candidates=await ctx.db.all(`SELECT t.id FROM threads t JOIN thread_members tm ON tm.thread_id=t.id

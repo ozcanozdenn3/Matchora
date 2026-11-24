@@ -109,10 +109,12 @@ fun ManageJoinRequestsSheet(
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                                val toast = LocalToastNotifier.current
                                 FilledTonalButton(
                                     onClick = {
                                         clipboard.setText(androidx.compose.ui.text.AnnotatedString(event.id))
                                         copyFeedback = true
+                                        toast?.invoke("İlan kodu kopyalandı", "✓")
                                     },
                                     shape = RoundedCornerShape(10.dp),
                                     contentPadding = PaddingValues(horizontal = 9.dp, vertical = 6.dp)
@@ -531,7 +533,7 @@ fun ManageJoinRequestsSheet(
             name = player.name,
             initials = player.initials,
             rating = player.rating,
-            rank = 1,
+            rank = 0,
             player = player,
             sport = event.sport,
             onDismiss = { selectedPlayerProfile = null },

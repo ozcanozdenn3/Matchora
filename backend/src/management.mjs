@@ -35,7 +35,7 @@ export const managementHandlers={
   await ctx.db.run('UPDATE events SET payload=?,capacity=?,starts_at=?,ends_at=?,status=?,version=version+1 WHERE id=?',[encode(next),capacity,start,start+duration*60000,count.n>=capacity?'FULL':'FILLING',event.id]);
   if(next.title!==data.title)await ctx.db.run('UPDATE threads SET title=? WHERE event_id=?',[next.title,event.id]);
   if(p.approximateLocation!=null){await saveMeetingLocation(ctx,event.id,p.approximateLocation);await ctx.db.run('UPDATE events SET latitude=?,longitude=? WHERE id=?',[Math.round(p.approximateLocation.latitude*100)/100,Math.round(p.approximateLocation.longitude*100)/100,event.id]);}
-  else if(next.venue!==data.venue){await saveMeetingLocation(ctx,event.id,null);await ctx.db.run('UPDATE events SET latitude=NULL,longitude=NULL WHERE id=?',[event.id]);}
+  else if(p.approximateLocation===null||next.venue!==data.venue){await saveMeetingLocation(ctx,event.id,null);await ctx.db.run('UPDATE events SET latitude=NULL,longitude=NULL WHERE id=?',[event.id]);}
   for(const member of await ctx.db.all("SELECT user_id FROM event_members WHERE event_id=? AND status='joined' AND user_id<>?",[event.id,ctx.actor.id]))await notify(ctx,member.user_id,'matches','Maç planı güncellendi',next.title,'EVENT',event.id,`event-updated:${event.id}:${event.version}:${member.user_id}`);
   if(capacity>event.capacity)await offerWaitlist(ctx,event.id);
   await audit(ctx,'event.update',event.id);return{updated:true};

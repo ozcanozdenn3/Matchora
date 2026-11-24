@@ -635,7 +635,8 @@ data class ChatThread(
     val unread: Int,
     val locked: Boolean = false,
     val relatedEventId: String? = null,
-    val muted: Boolean = false
+    val muted: Boolean = false,
+    val relatedTeamId: String? = null
 ) {
     val lastMessage: ChatMsg? get() = messages.lastOrNull()
 }

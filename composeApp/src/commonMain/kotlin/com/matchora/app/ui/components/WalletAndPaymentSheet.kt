@@ -567,16 +567,19 @@ fun TokenWalletSheet(
 
                 item {
                     val planToSubscribe = DemoData.proPlans.firstOrNull { it.sku == selectedPlanSku } ?: DemoData.proPlans.first()
+                    val currentPlanActive = activeProPlan != null && activeProPlan.sku == planToSubscribe.sku
                     Surface(
                         onClick = {
+                            if (currentPlanActive) return@Surface
                             if (remoteStorePending) storeAction(planToSubscribe.sku)
-                            else if (!loading && activeProPlan == null) {
+                            else if (!loading) {
                                 loading = true
                                 onSubscribePlan(planToSubscribe)
                             }
                         },
+                        enabled = !currentPlanActive,
                         shape = RoundedCornerShape(16.dp),
-                        color = if (activeProPlan != null) Color(0xFF16A34A) else MColors.Ink900,
+                        color = if (currentPlanActive) Color(0xFF16A34A) else MColors.Ink900,
                         shadowElevation = 5.dp,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -589,7 +592,7 @@ fun TokenWalletSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
-                            if (activeProPlan != null) {
+                            if (currentPlanActive) {
                                 Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
                                 Text("Matchora Plus Aktif", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
@@ -597,7 +600,11 @@ fun TokenWalletSheet(
                                 Icon(Icons.Rounded.WorkspacePremium, null, Modifier.size(20.dp), tint = Color(0xFFF3D5A5))
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    text = if (loading) "İşleniyor…" else "Plus’a Katıl · ${price(planToSubscribe.sku, planToSubscribe.priceLabel)}",
+                                    text = when {
+                                        loading -> "İşleniyor…"
+                                        activeProPlan != null -> "Plana Geç · ${price(planToSubscribe.sku, planToSubscribe.priceLabel)}"
+                                        else -> "Plus’a Katıl · ${price(planToSubscribe.sku, planToSubscribe.priceLabel)}"
+                                    },
                                     fontSize = 14.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White

@@ -62,7 +62,6 @@ fun SendTeamChallengeSheet(
     var selectedVenue by remember { mutableStateOf(if (liveMode) "" else "${myTeam.city.ifBlank { "İstanbul" }} Merkez Spor Tesisi") }
     var stakeTokens by remember { mutableIntStateOf(50) }
     var challengeNote by remember { mutableStateOf("") }
-    var officialReferee by remember { mutableStateOf(true) }
 
     val previewCity = myTeam.city.ifBlank { "İstanbul" }
     val venueOptions = if (liveMode) emptyList() else listOf(
@@ -254,9 +253,28 @@ fun MatchChallengeDetailSheet(
     canRespond: Boolean = true
 ) {
     var confirmDecline by remember { mutableStateOf(false) }
-    val oppCaptain = remember(fromTeam, toTeam, challenge.incoming) {
+    val oppCaptain = remember(fromTeam, toTeam, challenge.incoming, players) {
         val target = if (challenge.incoming) fromTeam else toTeam
-        players.firstOrNull { it.id == target.captainId }
+        players.firstOrNull { it.id == target.captainId } ?: Player(
+            id = target.captainId,
+            name = "${target.name} Kaptanı",
+            area = target.area,
+            sports = listOf(target.sport),
+            level = com.matchora.app.state.SkillLevel.INTERMEDIATE,
+            reliability = target.reliability,
+            verifiedMatches = target.verifiedMatches,
+            rating = target.rating,
+            chemistry = null,
+            verified = false,
+            position = null,
+            distanceKm = null,
+            playedTogether = 0,
+            availableNow = false,
+            color = target.color,
+            reliabilityVisible = false,
+            profileAvailable = false,
+            city = target.city.ifBlank { "İstanbul" }
+        )
     }
 
     ModalBottomSheet(
@@ -376,7 +394,7 @@ fun MatchChallengeDetailSheet(
                                 text = "Kaptanla Görüş",
                                 onClick = {
                                     onDismiss()
-                                    oppCaptain?.let(onOpenCaptainChat)
+                                    onOpenCaptainChat(oppCaptain)
                                 },
                                 icon = Icons.Rounded.ChatBubbleOutline,
                                 modifier = Modifier.weight(1f),
@@ -390,7 +408,7 @@ fun MatchChallengeDetailSheet(
                             text = "Kaptan ile Canlı Sohbet Odası",
                             onClick = {
                                 onDismiss()
-                                oppCaptain?.let(onOpenCaptainChat)
+                                onOpenCaptainChat(oppCaptain)
                             },
                             icon = Icons.Rounded.Chat
                         )
@@ -430,7 +448,8 @@ fun AiMatchScouterSheet(
     onDismiss: () -> Unit,
     onIssueBeltChallenge: (targetTeam: TeamProfile) -> Unit
 ) {
-    var selectedOpponent by remember { mutableStateOf(opponents.firstOrNull() ?: myTeam) }
+    val liveMode = LocalBackendRepository.current != null
+    var selectedOpponent by remember(opponents, myTeam.id) { mutableStateOf(opponents.firstOrNull() ?: myTeam) }
     val champion = (listOf(myTeam) + opponents).maxByOrNull { it.rating } ?: myTeam
     val ratingGap = myTeam.rating - selectedOpponent.rating
     val teamFit = (96 - abs(ratingGap) / 8).coerceIn(60, 96)
@@ -533,7 +552,7 @@ fun AiMatchScouterSheet(
                         if (opponents.isEmpty()) {
                             Text("Analiz için eşleşebileceğin bir rakip takım bulunmuyor.", fontSize = 11.sp, color = Color(0xFF14532D))
                         } else {
-                            Text("Tahmini güç dengesi · MMR tabanlı demo", fontSize = 10.sp, color = Color(0xFF15803D))
+                            Text(if (liveMode) "Tahmini güç dengesi · MMR tabanlı analiz" else "Tahmini güç dengesi · MMR tabanlı demo", fontSize = 10.sp, color = Color(0xFF15803D))
                             Spacer(modifier = Modifier.height(6.dp))
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("${myTeam.name} · %$myProb", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF166534), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -555,7 +574,7 @@ fun AiMatchScouterSheet(
                                 )
                             }
                             Spacer(modifier = Modifier.height(10.dp))
-                            Text("Demo öneri · $matchupInsight", fontSize = 11.sp, color = Color(0xFF14532D), lineHeight = 15.sp)
+                            Text(if (liveMode) "Taktik önerisi · $matchupInsight" else "Demo öneri · $matchupInsight", fontSize = 11.sp, color = Color(0xFF14532D), lineHeight = 15.sp)
                         }
                     }
                 }

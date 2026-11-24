@@ -16,6 +16,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.*
@@ -35,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -99,10 +102,6 @@ fun HomeScreen(
     val pendingOffers = wire?.a("challenges")?.count { it.s("status") == "PENDING" } ?: 0
     var selectedSportFilter by remember { mutableStateOf<Sport?>(null) }
     var activeNetworkMode by remember { mutableStateOf(NetworkMode.CITY) }
-    var activeAiFilterLabel by remember { mutableStateOf<String?>(null) }
-    var expandedEventIds by remember { mutableStateOf(setOf<String>()) }
-    var showAutoSquadSheet by remember { mutableStateOf(false) }
-    var showSmartMatchSheet by remember { mutableStateOf(false) }
     var invitationId by remember { mutableStateOf("") }
     var invitationError by remember { mutableStateOf<String?>(null) }
 
@@ -114,9 +113,9 @@ fun HomeScreen(
         events.filter { event ->
             event.status in setOf(EventStatus.PUBLISHED, EventStatus.FILLING, EventStatus.FULL) &&
             when (activeNetworkMode) {
-                NetworkMode.CITY -> event.networkScope == EventNetworkScope.CITY && (!backendMode || matchesTurkishPlace(event.city, currentCity))
-                NetworkMode.CAMPUS -> event.networkScope == EventNetworkScope.CAMPUS
-                NetworkMode.COMPANY -> event.networkScope == EventNetworkScope.COMPANY
+                NetworkMode.CITY -> event.networkScope == EventNetworkScope.CITY && matchesTurkishPlace(event.city, currentCity)
+                NetworkMode.CAMPUS -> event.networkScope == EventNetworkScope.CAMPUS && (backendMode || !user.campus.isNullOrBlank())
+                NetworkMode.COMPANY -> event.networkScope == EventNetworkScope.COMPANY && (backendMode || !user.company.isNullOrBlank())
                 NetworkMode.TRAVEL -> event.networkScope == EventNetworkScope.TRAVEL
             }
         }
@@ -138,17 +137,9 @@ fun HomeScreen(
         NetworkMode.COMPANY -> if (backendMode) companyMemberships.isEmpty() else user.company.isNullOrBlank()
         else -> false
     }
-    val filteredEvents = remember(scopedEvents, selectedSportFilter, activeAiFilterLabel) {
+    val filteredEvents = remember(scopedEvents, selectedSportFilter) {
         scopedEvents.filter { event ->
-            (selectedSportFilter == null || event.sport == selectedSportFilter) &&
-            (activeAiFilterLabel == null || when (activeAiFilterLabel) {
-                "FOOTBALL_TONIGHT" -> event.sport == Sport.FOOTBALL && event.matchesDayFilter("Bugün")
-                "WEEKEND_RACKET" -> (event.sport == Sport.TENNIS || event.sport == Sport.PADEL) &&
-                    (event.matchesDayFilter("Cumartesi") || event.matchesDayFilter("Pazar"))
-                "URGENT_FILL" -> event.emergency && event.freeSpots > 0
-                "TEAM_MATCH" -> event.isTeamEvent
-                else -> true
-            })
+            selectedSportFilter == null || event.sport == selectedSportFilter
         }
     }
     val noMatchAfterFiltering = scopedEvents.isNotEmpty() && filteredEvents.isEmpty()
@@ -266,6 +257,13 @@ fun HomeScreen(
 
                         Spacer(Modifier.height(14.dp))
                         Box(Modifier.fillMaxWidth()) {
+                            fun submitLookup() {
+                                requireAccount {
+                                    val id = eventInvitationId(invitationId, preview = true) ?: invitationId.trim().removePrefix("#").takeIf { it.isNotBlank() }
+                                    if (id == null) invitationError = "Geçerli bir ilan, turnuva, kulüp veya tesis ID’si gir."
+                                    else { invitationError = null; onFindEventById(id) }
+                                }
+                            }
                             OutlinedTextField(
                                 value = invitationId,
                                 onValueChange = { requireAccount { invitationId = it.take(200); invitationError = null } },
@@ -273,13 +271,9 @@ fun HomeScreen(
                                 label = { Text("ID ile bul") },
                                 placeholder = { Text("İlan, turnuva, kulüp veya tesis ID’si") },
                                 leadingIcon = { Icon(Icons.Rounded.Tag, null, tint = Color(0xFF203B35)) },
-                                trailingIcon = { IconButton(onClick = {
-                                    requireAccount {
-                                        val id = eventInvitationId(invitationId, preview = true) ?: invitationId.trim().removePrefix("#").takeIf { it.isNotBlank() }
-                                        if (id == null) invitationError = "Geçerli bir ilan, turnuva, kulüp veya tesis ID’si gir."
-                                        else { invitationError = null; onFindEventById(id) }
-                                    }
-                                }, enabled = !featuresLocked && invitationId.isNotBlank()) { Icon(Icons.Rounded.Search, "İlan veya turnuvayı bul") } },
+                                trailingIcon = { IconButton(onClick = ::submitLookup, enabled = !featuresLocked && invitationId.isNotBlank()) { Icon(Icons.Rounded.Search, "İlan veya turnuvayı bul") } },
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(onSearch = { if (!featuresLocked && invitationId.isNotBlank()) submitLookup() }),
                                 singleLine = true, isError = invitationError != null,
                                 shape = RoundedCornerShape(14.dp), colors = premiumTextFieldColors(),
                                 modifier = Modifier.fillMaxWidth()
@@ -370,7 +364,6 @@ fun HomeScreen(
                                     noMatchAfterFiltering -> {
                                         {
                                             selectedSportFilter = null
-                                            activeAiFilterLabel = null
                                         }
                                     }
                                     else -> onOpenPlayNow
@@ -895,6 +888,9 @@ fun HomeScreen(
                         events = remainingEvents,
                         city = currentCity,
                         selectedSport = selectedSportFilter,
+                        joinedEventIds = joinedEventIds,
+                        waitlistedEventIds = waitlistedEventIds,
+                        pendingRequestEventIds = pendingRequestEventIds,
                         onSelectEvent = onSelectEvent
                     )
                 }
@@ -906,37 +902,6 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(80.dp))
             }
         }
-    }
-
-    if (showSmartMatchSheet) {
-        SmartMatchSheet(
-            activeFilterKey = activeAiFilterLabel,
-            onSelectFilter = { activeAiFilterLabel = it },
-            matchingCount = filteredEvents.size,
-            bestMatch = activeMatch,
-            onDismiss = { showSmartMatchSheet = false },
-            onJoinBestMatch = {
-                showSmartMatchSheet = false
-                showAutoSquadSheet = true
-            }
-        )
-    }
-
-    if (showAutoSquadSheet) {
-        AutoSquadSheet(
-            event = activeMatch,
-            currentPlayer = currentPlayer,
-            players = players,
-            onDismiss = { showAutoSquadSheet = false },
-            onConfirmSquad = {
-                showAutoSquadSheet = false
-                activeMatch?.let(onSelectEvent)
-            },
-            onOpenChat = {
-                showAutoSquadSheet = false
-                onOpenAutoSquad(activeMatch)
-            }
-        )
     }
 }
 
@@ -1237,340 +1202,6 @@ private fun LiveMiniRadarView(
 // ═══════════════════════════════════════════════════════════════════════════════
 // AÇILIR KART: BÖLGESEL KARŞILAŞMA AKORDEONU (Expandable Match Card)
 // Sayfayı doldurup taşırmayan, kompakt başlayıp tıklandıkça açılan lüks kart
-// ═══════════════════════════════════════════════════════════════════════════════
-@Composable
-private fun ExpandableMatchCard(
-    event: SportEvent,
-    isExpanded: Boolean,
-    onToggleExpand: () -> Unit,
-    onSelectEvent: () -> Unit,
-    alreadyJoined: Boolean = false,
-    alreadyPending: Boolean = false,
-    alreadyWaiting: Boolean = false
-) {
-    val chevronRotation by animateFloatAsState(
-        targetValue = if (isExpanded) 180f else 0f,
-        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
-        label = "ChevronRotation"
-    )
-
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = Color.White,
-        border = BorderStroke(
-            width = if (isExpanded) 1.5.dp else 1.dp,
-            color = if (isExpanded) MColors.Brand.copy(alpha = 0.5f) else Color(0xFFE2E8F0)
-        ),
-        shadowElevation = if (isExpanded) 3.dp else 1.5.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize()
-            .clickable(onClick = onToggleExpand)
-    ) {
-        Column(modifier = Modifier.premiumSurface().padding(13.dp)) {
-            // ═══════════════════════════════════════════════════════════════
-            // 1. KOMPAKT ÜST SATIR (Her zaman derli toplu ve tek bakışta anlaşılır)
-            // ═══════════════════════════════════════════════════════════════
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Sol Bölüm: Branş Emojisi & Başlık & Saat
-                Row(
-                    modifier = Modifier.weight(1f).padding(end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(11.dp))
-                            .background(if (event.emergency) Color(0xFFFFF1EB) else MColors.BrandTint),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(event.sport.emoji, fontSize = 20.sp)
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = event.title,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = MColors.Ink900,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            if (event.emergency) {
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(5.dp),
-                                    color = Color(0xFFFFF1EB)
-                                ) {
-                                    Text(
-                                        text = "🚨 ACİL",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MColors.Brand,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "${event.day} · ${event.time} · 📍 ${event.venue}${event.distanceKm?.let { " · $it km" }.orEmpty()}",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MColors.Ink500,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                // Sağ Bölüm: Boş Kontenjan + Uyum Rozeti + Dönen Açılır Ok
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (event.freeSpots <= 2) Color(0xFFFFF7ED) else Color(0xFFF0FDF4),
-                        border = BorderStroke(
-                            1.dp,
-                            if (event.freeSpots <= 2) Color(0xFFFFEDD5) else Color(0xFFDCFCE7)
-                        )
-                    ) {
-                        Text(
-                            text = "${event.freeSpots} Boş",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (event.freeSpots <= 2) MColors.Brand else Color(0xFF15803D),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                        )
-                    }
-
-                    if (event.score.reasons.isNotEmpty()) {
-                        MChemistryBadge(percent = event.score.total, label = "%")
-                    } else {
-                        Text("Yeni ilan", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MColors.Ink500)
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFF1F5F9)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.KeyboardArrowDown,
-                            contentDescription = if (isExpanded) "Daralt" else "Aç",
-                            tint = MColors.Ink700,
-                            modifier = Modifier
-                                .size(17.dp)
-                                .rotate(chevronRotation)
-                        )
-                    }
-                }
-            }
-
-            // ═══════════════════════════════════════════════════════════════
-            // 2. AÇILIR DETAY ALANI (Sadece Kart Genişletildiğinde Akıcı Açılır)
-            // ═══════════════════════════════════════════════════════════════
-            if (isExpanded) {
-                Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp)
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Fiyat, Katılım ve Güvence Şeridi
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Kişi Başı Ücret",
-                            fontSize = 11.sp,
-                            color = MColors.Ink500,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = if (event.pricePerPersonTry == 0) "Ücretsiz" else "₺${event.pricePerPersonTry}",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MColors.Brand
-                        )
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFF0FDF4),
-                        border = BorderStroke(1.dp, Color(0xFFBBF7D0))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Rounded.Shield, null, tint = Color(0xFF15803D), modifier = Modifier.size(12.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "${event.commitmentTokens} TKN Güvenli Havuz",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF15803D)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Kadro İlerleme ve Güvenilirlik Çubuğu
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFF8FAFC),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Kadro Doluluğu: ${event.participantIds.size} / ${event.capacity} Oyuncu",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MColors.Ink800
-                            )
-                            Text(
-                                text = "Min. ${event.minReliability} Güvenilirlik",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MColors.Brand
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        LinearProgressIndicator(
-                            progress = { (event.participantIds.size.toFloat() / event.capacity.toFloat()).coerceIn(0f, 1f) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(5.dp)
-                                .clip(RoundedCornerShape(3.dp)),
-                            color = if (event.freeSpots <= 2) MColors.Brand else MColors.Mint,
-                            trackColor = Color(0xFFE2E8F0)
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Mini Roster Avatarları
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            event.participantIds.take(5).forEach { pid ->
-                                UserAvatar(
-                                    userId = pid,
-                                    name = pid,
-                                    modifier = Modifier.size(24.dp),
-                                    fallbackColor = MColors.BrandTint,
-                                    fallbackTextColor = MColors.Brand
-                                )
-                            }
-                            repeat(minOf(event.freeSpots, 3)) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .border(1.dp, Color(0xFFCBD5E1), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.PersonAdd,
-                                        contentDescription = null,
-                                        tint = Color(0xFF94A3B8),
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                }
-                            }
-                            if (event.capacity > 8) {
-                                Text(
-                                    text = "+${event.capacity - 8}",
-                                    fontSize = 11.sp,
-                                    color = MColors.Ink500,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Aksiyon Butonları
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onSelectEvent,
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                        modifier = Modifier.weight(1f).height(40.dp)
-                    ) {
-                        Text(
-                            text = "Detay & Konum",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MColors.Ink800
-                        )
-                    }
-
-                    val ctaLabel = when {
-                        event.hostId == DemoData.ME -> "İlanı Yönet"
-                        event.status == EventStatus.CANCELLED -> "İptal Edildi"
-                        event.status == EventStatus.COMPLETED || event.status == EventStatus.VERIFIED -> "Sonucu Gör"
-                        event.status == EventStatus.IN_PROGRESS -> "Maçta · Detay"
-                        alreadyJoined -> "Katıldın ✓"
-                        alreadyPending -> "Başvurun Bekliyor"
-                        alreadyWaiting -> "Yedek Listedesin"
-                        event.isFull -> "Yedek Listeye Gir"
-                        event.approvalRequired -> "Başvuru Gönder →"
-                        else -> "Kadroya Katıl →"
-                    }
-                    Button(
-                        onClick = onSelectEvent,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (alreadyJoined || alreadyPending || alreadyWaiting || event.status == EventStatus.CANCELLED) MColors.Ink900 else MColors.Brand
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1.3f).height(40.dp)
-                    ) {
-                        Text(
-                            text = ctaLabel,
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-
 private fun demoCoordinatesForArea(area: String): Pair<Double, Double> = when {
     area.contains("Maslak", ignoreCase = true) -> 41.1118 to 29.0225
     area.contains("Çankaya", ignoreCase = true) -> 39.9120 to 32.8597
@@ -1585,9 +1216,14 @@ private fun demoCoordinatesForArea(area: String): Pair<Double, Double> = when {
 
 @Composable
 private fun CompactEventDirectory(
-    events: List<SportEvent>, city: String, selectedSport: Sport?, onSelectEvent: (SportEvent) -> Unit
+    events: List<SportEvent>,
+    city: String,
+    selectedSport: Sport?,
+    joinedEventIds: Set<String> = emptySet(),
+    waitlistedEventIds: Set<String> = emptySet(),
+    pendingRequestEventIds: Set<String> = emptySet(),
+    onSelectEvent: (SportEvent) -> Unit
 ) {
-    val requireAccount = LocalRequireAccount.current
     var page by remember(city, selectedSport, events.map { it.id }) { mutableIntStateOf(0) }
     val groups = events.groupBy { it.sport }.entries.toList()
     val pageCount = ((groups.size + 2) / 3).coerceAtLeast(1)
@@ -1654,7 +1290,15 @@ private fun CompactEventDirectory(
                                 Text(match.area, style = MaterialTheme.typography.bodySmall, color = MColors.Ink500, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             Spacer(Modifier.width(8.dp))
-                            MBadge(if (match.isFull) "Dolu" else "${match.freeSpots} yer", if (match.isFull) MColors.Ink500 else MColors.BrandDeep, MColors.BrandTint)
+                            val rowStatusBadge = when {
+                                match.hostId == DemoData.ME -> Triple("İlanın", MColors.BrandDeep, MColors.BrandTint)
+                                match.id in joinedEventIds -> Triple("Katıldın", MColors.Mint, MColors.MintTint)
+                                match.id in pendingRequestEventIds -> Triple("Bekliyor", MColors.Amber, MColors.AmberTint)
+                                match.id in waitlistedEventIds -> Triple("Yedek", MColors.Lilac, MColors.LilacTint)
+                                match.isFull -> Triple("Dolu", MColors.Ink500, MColors.SurfaceMuted)
+                                else -> Triple("${match.freeSpots} yer", MColors.BrandDeep, MColors.BrandTint)
+                            }
+                            MBadge(rowStatusBadge.first, rowStatusBadge.second, rowStatusBadge.third)
                             Icon(Icons.Rounded.ChevronRight, null, tint = MColors.Ink400, modifier = Modifier.size(18.dp))
                         }
                     }
