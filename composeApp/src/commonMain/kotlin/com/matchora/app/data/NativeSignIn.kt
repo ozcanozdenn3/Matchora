@@ -3,7 +3,8 @@ package com.matchora.app.data
 data class NativeAuthResult(
     val idToken: String,
     val fullName: String? = null,
-    val email: String? = null
+    val email: String? = null,
+    val nonce: String? = null
 )
 
 expect val isNativeAppleSignInSupported: Boolean

@@ -38,6 +38,7 @@ import com.matchora.app.ui.components.LocalBackendRepository
 import com.matchora.app.ui.components.DeviceLocationState
 import com.matchora.app.ui.components.BackendMoreEventsButton
 import com.matchora.app.ui.components.rememberRegionCenter
+import com.matchora.app.ui.components.matchesSelectedRegion
 import com.matchora.app.ui.components.MBadge
 import com.matchora.app.ui.components.MCard
 import com.matchora.app.ui.components.MChemistryBadge
@@ -138,7 +139,7 @@ fun DiscoverMapScreen(
     val selectedEvent = filteredEvents.firstOrNull { it.id == selectedEventId }
     val selectedPoint = selectedEvent?.takeUnless { it.area.contains("online", ignoreCase = true) }?.approximateLocation
     val selectedRegionLocation = deviceLocation?.takeIf {
-        isGpsActive || it.city.isNullOrBlank() || com.matchora.app.state.matchesTurkishPlace(it.city, currentCity)
+        it.matchesSelectedRegion(currentCity, currentDistrict, isGpsActive)
     }
     val liveRegionCenter = selectedRegionLocation ?: regionCenter
     val mapCenter = run {
@@ -180,7 +181,7 @@ fun DiscoverMapScreen(
                 latitude = mapCenter.first,
                 longitude = mapCenter.second,
                 zoomMeters = if (selectedEvent == null && selectedRegionLocation != null) 3800.0
-                    else if (selectedEvent == null && liveRegionCenter == null && currentCity != "İstanbul") 1600000.0
+                    else if (selectedEvent == null && liveRegionCenter == null && currentCity != "İstanbul") 35000.0
                     else if (selectedEvent == null && (currentDistrict.isBlank() || currentDistrict == "Merkez")) 60000.0 else 3800.0,
                 pins = mapPinDataList,
                 selectedPinId = selectedEventId,

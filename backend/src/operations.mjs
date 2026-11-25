@@ -2,7 +2,7 @@ import { sealCursor,openCursor } from './opaque-cursor.mjs';
 import { coarseMemoryLocation } from './memory-feed.mjs';
 import { id, rateLimit } from './auth.mjs';
 import { ensure, keys, text, integer, choice, json } from './errors.mjs';
-import { row, audit, notify, adminRequired } from './model.mjs';
+import { row, audit, notify, notifyAdmins, adminRequired } from './model.mjs';
 import { publicPlayer, dateLabel } from './queries.mjs';
 import { SPORTS } from './sports.mjs';
 import { canonicalTurkishCity } from './turkish-locale.mjs';
@@ -68,12 +68,16 @@ export async function venueReviews(ctx,venueId,filters={}) {
   await row(ctx,'venues','id',venueId);
   const cursor=filters.after?openCursor(ctx,'venue-reviews',filters.after):null;
   if(cursor)ensure(cursor.venueId===venueId&&Number.isSafeInteger(cursor.createdAt)&&typeof cursor.id==='string',400,'INVALID_CURSOR','Değerlendirme sayfası bu tesise ait değil.');
-  const params=[venueId,ctx.actor?.id??''];let where="r.venue_id=? AND (r.status='published' OR (r.user_id=? AND r.status='pending'))";
+  const params=[venueId,ctx.actor?.id??'',ctx.actor?.id??''];let where="r.venue_id=? AND (r.status='published' OR (r.user_id=? AND r.status='pending') OR (r.user_id=? AND r.status='rejected'))";
   if(ctx.actor){where+=' AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=? AND b.target_id=r.user_id) OR (b.user_id=r.user_id AND b.target_id=?))';params.push(ctx.actor.id,ctx.actor.id);}
   if(cursor){where+=' AND (r.created_at<? OR (r.created_at=? AND r.id<?))';params.push(cursor.createdAt,cursor.createdAt,cursor.id);}
   const size=Math.min(100,Math.max(1,Math.floor(Number(filters.limit)||50)));
   const rows=await ctx.db.all(`SELECT r.* FROM venue_reviews r JOIN users u ON u.id=r.user_id WHERE u.status='active' AND ${where} ORDER BY r.created_at DESC,r.id DESC LIMIT ?`,[...params,size+1]),selected=rows.slice(0,size),items=[];
-  for(const review of selected)items.push({id:review.id,authorId:review.user_id,authorName:(await publicPlayer(ctx,review.user_id)).name,rating:review.rating,comment:review.comment,status:review.status,createdAt:Number(review.created_at),own:ctx.actor?.id===review.user_id});
+  for(const review of selected){
+    let reason=null;
+    if(review.status==='rejected'&&ctx.actor?.id===review.user_id){const mod=await ctx.db.get("SELECT metadata FROM audit_log WHERE target_id=? AND action='admin.venue.review' ORDER BY created_at DESC,id DESC LIMIT 1",[review.id]);reason=mod?json(mod.metadata).reason??null:null;}
+    items.push({id:review.id,authorId:review.user_id,authorName:(await publicPlayer(ctx,review.user_id)).name,rating:review.rating,comment:review.comment,status:review.status,createdAt:Number(review.created_at),own:ctx.actor?.id===review.user_id,...(reason?{moderationReason:reason}:{})});
+  }
   const last=selected.at(-1);
   const reviewableBookings=[];
   if(ctx.actor){const venue=await row(ctx,'venues','id',venueId);for(const booking of await ctx.db.all("SELECT b.*,s.starts_at,s.payload FROM bookings b JOIN venue_slots s ON s.id=b.slot_id JOIN venue_payments p ON p.booking_id=b.id WHERE b.user_id=? AND s.venue_id=? AND b.status='completed' AND p.status='paid' ORDER BY b.created_at DESC,b.id DESC LIMIT 100",[ctx.actor.id,venueId]))reviewableBookings.push({id:booking.id,venue:json(venue.payload).name,description:`${json(booking.payload).court} · ${dateLabel(booking.starts_at)}`,amountMinor:Number(booking.amount_minor),amountTry:Math.ceil(booking.amount_minor/100),method:'Tesiste ödeme',time:dateLabel(booking.created_at),status:'PAID',bookingStatus:'completed',bookingKey:`${venueId}:${booking.slot_id}`});}
@@ -90,8 +94,8 @@ export const operationHandlers = {
     const next={...data,name:text(p.name,'Tesis adı',3,100),city:canonicalTurkishCity(text(p.city,'İl',2,60)),area:text(p.area,'Bölge',2,80),address:venueAddress(p.address===undefined?data.address:p.address),
       sports:p.sports.map(s=>choice(s,SPORTS,'Branş')),amenities:amenities.map(a=>text(a,'Olanak',1,60)),courts:integer(p.courts,'Saha sayısı',1,50),cancellationHours:integer(p.cancellationHours,'İptal süresi',0,168),
       approximateLocation:p.approximateLocation===undefined?data.approximateLocation:coarseMemoryLocation(p.approximateLocation),
-      phone:p.phone===undefined?(data.phone??''):text(p.phone,'Telefon',0,40),
-      description:p.description===undefined?(data.description??''):text(p.description,'Açıklama',0,1000),
+      phone:p.phone===undefined?(data.phone??''):p.phone===null?'':text(p.phone,'Telefon',0,40),
+      description:p.description===undefined?(data.description??''):p.description===null?'':text(p.description,'Açıklama',0,1000),
       photoUploadIds,
       version:(data.version??1)+1};
     const changesLocation=next.city!==data.city||next.area!==data.area||next.address!==(data.address??'')||next.courts!==data.courts||JSON.stringify([...next.sports].sort())!==JSON.stringify([...(data.sports??[])].sort());
@@ -150,14 +154,15 @@ export const operationHandlers = {
   },
   'venue.review.save': async (ctx, p) => {
     keys(p, ['bookingId', 'rating', 'comment', 'expectedVersion']);
-    const booking = await row(ctx, 'bookings', 'id', p.bookingId), slot = await row(ctx, 'venue_slots', 'id', booking.slot_id);
+    const booking = await row(ctx, 'bookings', 'id', p.bookingId), slot = await row(ctx, 'venue_slots', 'id', booking.slot_id), venue = await row(ctx, 'venues', 'id', slot.venue_id);
     ensure(booking.user_id === ctx.actor.id && booking.status === 'completed', 403, 'COMPLETED_BOOKING_REQUIRED', 'Yalnız kendi tamamlanmış rezervasyonunu değerlendirebilirsin.');
     const old = await ctx.db.get('SELECT * FROM venue_reviews WHERE booking_id=?', [booking.id]);
     if (old) ensure(p.expectedVersion === old.version, 409, 'VERSION_CONFLICT', 'Değerlendirme güncellendi. Yenileyip tekrar dene.');
-    const reviewId = old?.id ?? id(), rating = integer(p.rating, 'Puan', 1, 5), comment = text(p.comment ?? '', 'Yorum', 0, 1000);
+    const reviewId = old?.id ?? id(), nextVersion = (old?.version ?? 0) + 1, rating = integer(p.rating, 'Puan', 1, 5), comment = text(p.comment ?? '', 'Yorum', 0, 1000);
     await ctx.db.run(`INSERT INTO venue_reviews(id,booking_id,venue_id,user_id,rating,comment,status,version,created_at,updated_at) VALUES(?,?,?,?,?,?,'pending',1,?,?)
       ON CONFLICT(booking_id) DO UPDATE SET rating=?,comment=?,status='pending',version=venue_reviews.version+1,updated_at=?`,
     [reviewId, booking.id, slot.venue_id, ctx.actor.id, rating, comment, ctx.now, ctx.now, rating, comment, ctx.now]);
+    await notifyAdmins(ctx, 'social', 'Yeni tesis değerlendirmesi', `${json(venue.payload).name} · ${rating}/5 ★`, reviewId, `venue-review:${reviewId}:v${nextVersion}`, ctx.actor.id);
     await audit(ctx, 'venue.review.save', reviewId); return { id: reviewId, status: 'pending' };
   },
   'venue.review.delete': async (ctx, p) => {
@@ -168,9 +173,12 @@ export const operationHandlers = {
   },
   'admin.venue.review': async (ctx, p) => {
     adminRequired(ctx); keys(p, ['reviewId', 'approved', 'reason']); ensure(typeof p.approved === 'boolean');
-    const review = await row(ctx, 'venue_reviews', 'id', p.reviewId); ensure(review.status === 'pending', 409, 'INVALID_STATE', 'Değerlendirme işlendi.');
+    const review = await row(ctx, 'venue_reviews', 'id', p.reviewId), venue = await row(ctx, 'venues', 'id', review.venue_id);
+    ensure(review.status === 'pending', 409, 'INVALID_STATE', 'Değerlendirme işlendi.');
+    const reason = text(p.reason, 'Gerekçe', 10, 1000);
     await ctx.db.run('UPDATE venue_reviews SET status=?,version=version+1,updated_at=? WHERE id=?', [p.approved ? 'published' : 'rejected', ctx.now, review.id]);
-    await audit(ctx, 'admin.venue.review', review.id, { approved: p.approved, reason: text(p.reason, 'Gerekçe', 10, 1000) });
+    await notify(ctx, review.user_id, 'social', p.approved ? 'Tesis değerlendirmen yayınlandı ✓' : 'Tesis değerlendirmen yayınlanmadı', `${json(venue.payload).name} · ${reason}`, 'VENUES', review.venue_id, `venue-review-decision:${review.id}:v${review.version + 1}`);
+    await audit(ctx, 'admin.venue.review', review.id, { approved: p.approved, reason });
     return { approved: p.approved };
   },
   'booking.refund.record': async (ctx, p) => {
@@ -189,13 +197,21 @@ export const operationHandlers = {
     adminRequired(ctx); keys(p, ['userId', 'role', 'reason']); const user = await row(ctx, 'users', 'id', p.userId);
     ensure(user.status === 'active' && user.role !== 'admin', 403, 'FORBIDDEN', 'Aktif, yönetici olmayan kullanıcı seç.');
     const role = choice(p.role, ['user', 'venue_owner'], 'Yetki');
+    const reason = text(p.reason, 'Gerekçe', 10, 1000);
     await ctx.db.run('UPDATE users SET role=? WHERE id=?', [role, user.id]);
-    await audit(ctx, 'admin.operator.assign', user.id, { role, reason: text(p.reason, 'Gerekçe', 10, 1000) }); return { role };
+    await notify(ctx, user.id, 'social', role === 'venue_owner' ? 'Tesis işletmeci yetkin açıldı' : 'Tesis işletmeci yetkin kapatıldı', reason, role === 'venue_owner' ? 'VENUE_MANAGEMENT' : 'ACCOUNT', user.id, `operator-assign:${user.id}:${ctx.requestKey}`);
+    await audit(ctx, 'admin.operator.assign', user.id, { role, reason }); return { role };
   },
   'admin.outbox.retry': async (ctx, p) => {
     adminRequired(ctx); keys(p, ['outboxId']); const job = await row(ctx, 'outbox', 'id', p.outboxId);
     ensure(job.status === 'failed', 409, 'INVALID_STATE', 'Yalnız başarısız bildirim tekrar denenebilir.');
     await ctx.db.run("UPDATE outbox SET status='pending',attempts=0,next_at=? WHERE id=?", [ctx.now, job.id]);
     await audit(ctx, 'admin.outbox.retry', job.id); return { queued: true };
+  },
+  'admin.outbox.retry_all': async (ctx, p) => {
+    adminRequired(ctx); keys(p, []);
+    const result = await ctx.db.run("UPDATE outbox SET status='pending',attempts=0,next_at=? WHERE status='failed'", [ctx.now]);
+    await audit(ctx, 'admin.outbox.retry_all', ctx.requestKey, { queued: result.changes ?? 0 });
+    return { queued: result.changes ?? 0 };
   }
 };

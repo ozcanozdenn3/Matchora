@@ -32,4 +32,6 @@ export async function sendFcm(config,device,notification,fetcher=fetch){
  const response=await fetcher(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(config.fcmProjectId)}/messages:send`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({message:{token:device.token,notification:{title:notification.title,body:notification.body},data:{destination:notification.destination??'ACCOUNT',targetId:notification.targetId??'',notificationId:notification.notificationId??''},android:{notification:{channel_id:'matchora_activity'}}}}),signal:AbortSignal.timeout(8000),redirect:'error'});
  if(response.ok)return{sent:true};const error=await response.json().catch(()=>({}));if(error.error?.details?.some(d=>d.errorCode==='UNREGISTERED'))return{invalid:true};throw new Error(`FCM_${response.status}`);
 }
-export const nativePushConfigured=config=>!!(config.apnsKeyId&&config.apnsTeamId&&config.apnsPrivateKey&&config.apnsBundleId||config.fcmProjectId&&config.fcmClientEmail&&config.fcmPrivateKey);
+export const apnsConfigured=config=>!!(config.apnsKeyId&&config.apnsTeamId&&config.apnsPrivateKey&&config.apnsBundleId);
+export const fcmConfigured=config=>!!(config.fcmProjectId&&config.fcmClientEmail&&config.fcmPrivateKey);
+export const nativePushConfigured=config=>apnsConfigured(config)||fcmConfigured(config);

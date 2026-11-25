@@ -44,6 +44,7 @@ fun EventDetailSheet(
     isHost: Boolean = false,
     pendingRequest: JoinRequest? = null,
     pendingRequestsCount: Int = 0,
+    invitedPlayerIds: Set<String> = emptySet(),
     onDismiss: () -> Unit,
     onToggleJoin: () -> Unit,
     onToggleWaitlist: () -> Unit = {},
@@ -854,7 +855,7 @@ fun EventDetailSheet(
             rating = player.rating,
             rank = 0,
             player = player,
-            isInvitedToTeam = false,
+            isInvitedToTeam = player.id in invitedPlayerIds,
             sport = event.sport,
             onDismiss = { selectedPlayerProfile = null },
             onChallenge = onChallengePlayer?.let { cb ->

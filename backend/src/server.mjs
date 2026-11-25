@@ -1,5 +1,4 @@
 import { RealtimeHub } from './realtime.mjs';
-import { startEmailOtp, verifyEmailOtp } from './email-auth.mjs';
 import { startOAuth,finishOAuth } from './oauth.mjs';
 import { SupabaseMediaStore } from './storage.mjs';
 import { gzip } from 'node:zlib';
@@ -79,7 +78,7 @@ export function createApi(service,auth){
    if(req.method==='GET'&&url.pathname==='/v1/account/sessions'){send(200,await service.sessions(actor));return;}
    if(req.method==='GET'&&url.pathname==='/v1/operator/venues'){send(200,await service.operatorVenues(actor));return;}
    if(req.method==='GET'&&/^\/v1\/venues\/[a-fA-F0-9-]{36}\/reviews$/.test(url.pathname)){send(200,await service.venueReviews(actor,url.pathname.split('/')[3],Object.fromEntries(url.searchParams)));return;}
-   if(req.method==='GET'&&url.pathname==='/v1/admin/inbox'){send(200,await service.adminInbox(actor));return;}
+   if(req.method==='GET'&&url.pathname==='/v1/admin/inbox'){send(200,await service.adminInbox(actor,Object.fromEntries(url.searchParams)));return;}
    if(req.method==='GET'&&url.pathname.startsWith('/v1/media/')){const item=await service.mediaFile(actor,url.pathname.split('/').at(-1));res.writeHead(200,{'Content-Type':item.mime,'Content-Length':item.bytes.length,'Content-Disposition':'attachment; filename="photo"','Cache-Control':'private, max-age=60'});res.end(item.bytes);return;}
    if(req.method==='POST'&&url.pathname==='/v1/media'){const mime=req.headers['content-type']?.split(';')[0];ensure(['image/jpeg','image/png'].includes(mime),415,'INVALID_IMAGE','JPEG veya PNG gerekiyor.');send(201,await service.upload(actor,await readBody(req,5*1024*1024),mime,req.headers['idempotency-key']??null));return;}
    ensure(req.method==='POST',405,'METHOD_NOT_ALLOWED','İstek yöntemi desteklenmiyor.');ensure(req.headers['content-type']?.split(';')[0]==='application/json',415,'JSON_REQUIRED','JSON gövde gerekiyor.');let payload;try{payload=JSON.parse((await readBody(req)).toString('utf8'));}catch(error){if(error instanceof ApiError)throw error;throw new ApiError(400,'INVALID_JSON','JSON geçersiz.');}ensure(payload&&typeof payload==='object'&&!Array.isArray(payload));
@@ -92,15 +91,14 @@ export function createApi(service,auth){
    if(url.pathname==='/v1/auth/id-token'){await service.store.transaction(db=>rateLimit(db,`id-token:${bucket}`,service.clock(),30,60000));send(200,await auth.exchangeIdToken(payload));return;}
    if(url.pathname==='/v1/auth/contact/start'){ensure(actor,401,'UNAUTHENTICATED','Giriş gerekiyor.');send(200,await auth.startOtp(payload,bucket,actor));return;}
    if(url.pathname==='/v1/auth/contact/verify'){ensure(actor,401,'UNAUTHENTICATED','Giriş gerekiyor.');await auth.verifyContact(actor,payload);send(200,{snapshot:await service.bootstrap(actor,{city:url.searchParams.get('city')})});return;}
-   if(url.pathname==='/v1/auth/email/start'){send(200,await startEmailOtp(auth,payload,bucket));return;}
-   if(url.pathname==='/v1/auth/email/verify'){send(200,await verifyEmailOtp(auth,payload,bucket));return;}
+   if(url.pathname==='/v1/auth/contact/verify-id-token'){ensure(actor,401,'UNAUTHENTICATED','Giriş gerekiyor.');await auth.verifyContactWithIdToken(actor,payload);send(200,{snapshot:await service.bootstrap(actor,{city:url.searchParams.get('city')})});return;}
    if(url.pathname==='/v1/auth/otp/start'){send(200,await auth.startOtp(payload,bucket));return;}
    if(url.pathname==='/v1/auth/otp/verify'){send(200,await auth.verifyOtp(payload));return;}
    if(url.pathname==='/v1/auth/refresh'){send(200,await auth.refresh(payload));return;}
    if(url.pathname==='/v1/auth/logout'){ensure(actor,401,'UNAUTHENTICATED','Giriş gerekiyor.');keys(payload,['allDevices']);send(200,await auth.logout(actor,payload.allDevices===true));return;}
    const operation=url.pathname.startsWith('/v1/commands/')?url.pathname.slice('/v1/commands/'.length):null;ensure(operation,404,'NOT_FOUND','Bulunamadı.');const response=await service.command(actor,operation,payload,req.headers['idempotency-key'],{compact:req.headers.prefer==='return=changes',city:url.searchParams.get('city')});
    // Publishing a live hint must not turn an already committed command into a failed write.
-   void realtime.command(actor,operation,payload,response.result).catch(()=>{});
+   void realtime.command(actor,operation,payload,response.result).catch(error=>{console.error(JSON.stringify({level:'error',task:'realtime',operation,message:error?.message??String(error)}));});
    send(200,response);
   }catch(error){const known=error instanceof ApiError;send(known?error.status:500,{error:{code:known?error.code:'INTERNAL_ERROR',message:known?error.message:'İşlem tamamlanamadı. Tekrar dene.',requestId}});if(!known)console.error(JSON.stringify({level:'error',requestId,type:error.name,code:error.code??'internal'}));}
  });server.realtime=realtime;server.once('close',()=>realtime.close());server.requestTimeout=45000;server.headersTimeout=15000;server.keepAliveTimeout=5000;server.maxHeadersCount=50;server.maxRequestsPerSocket=100;return server;
@@ -121,7 +119,14 @@ export function createFetchHandler(service, auth) {
   const forwardedFor = reqHeaders['x-forwarded-for']?.split(',')[0]?.trim();
   const remoteAddress = reqHeaders['cf-connecting-ip'] || forwardedFor || 'edge-client';
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
+  const declaredLength = Number(reqHeaders['content-length'] ?? 0);
+  if (hasBody && Number.isFinite(declaredLength) && declaredLength > 6 * 1024 * 1024) {
+   return new Response(JSON.stringify({ code: 'PAYLOAD_TOO_LARGE', message: 'İstek boyutu sınırı aşıldı.' }), { status: 413, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
+  }
   const bodyBytes = hasBody ? Buffer.from(await request.arrayBuffer()) : Buffer.alloc(0);
+  if (bodyBytes.length > 6 * 1024 * 1024) {
+   return new Response(JSON.stringify({ code: 'PAYLOAD_TOO_LARGE', message: 'İstek boyutu sınırı aşıldı.' }), { status: 413, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
+  }
   const abortedListeners = [];
   const fireAborted = () => { while (abortedListeners.length) abortedListeners.shift()(); };
   request.signal?.addEventListener?.('abort', fireAborted, { once: true });

@@ -149,4 +149,5 @@ export async function migrate(store) {
   }
   await store.exec(await readFile(new URL('../migrations/011_indexes_and_sync.sql', import.meta.url), 'utf8'));
   await store.exec(await readFile(new URL('../migrations/012_discovery_history.sql', import.meta.url), 'utf8'));
+  await store.exec(await readFile(new URL('../migrations/015_admin_system.sql', import.meta.url), 'utf8'));
 }

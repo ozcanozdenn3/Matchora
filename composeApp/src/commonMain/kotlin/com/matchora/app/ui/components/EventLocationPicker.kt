@@ -46,6 +46,12 @@ fun EventLocationPicker(initialPoint: EventGeoPoint?, initialAddress: String, ci
             is LocationOutcome.Located -> {
                 DeviceLocationState.current.value = result.value
                 mapCenter = EventGeoPoint(result.value.latitude, result.value.longitude); point = mapCenter; pointChosen = true; resolving = false
+                if (address.isBlank()) {
+                    address = listOfNotNull(
+                        result.value.district?.trim()?.takeIf { it.isNotBlank() },
+                        result.value.city?.trim()?.takeIf { it.isNotBlank() }
+                    ).joinToString(", ")
+                }
             }
             is LocationOutcome.Failed -> locationError = result.message
         }

@@ -76,17 +76,20 @@ private suspend fun boundedGeocode(scope: CoroutineScope, timeoutMillis: Long = 
         }
     }
 
+private val androidRegionCenterCache = mutableMapOf<String, DeviceLocation>()
+
 @Composable
 actual fun rememberRegionCenter(city: String, district: String): DeviceLocation? {
     val context = LocalContext.current.applicationContext
     val geocodingScope = rememberCoroutineScope()
     val regionCity = city.trim()
     val regionDistrict = district.trim()
-    var center by remember(regionCity, regionDistrict) { mutableStateOf<DeviceLocation?>(null) }
+    val cacheKey = "${com.matchora.app.state.canonicalTurkishKey(regionCity)}|${com.matchora.app.state.canonicalTurkishKey(regionDistrict)}"
+    var center by remember(regionCity, regionDistrict) { mutableStateOf(androidRegionCenterCache[cacheKey]) }
     LaunchedEffect(regionCity, regionDistrict) {
-        if (regionCity.isBlank() || !Geocoder.isPresent()) return@LaunchedEffect
+        if (regionCity.isBlank() || center != null || !Geocoder.isPresent()) return@LaunchedEffect
         val query = listOf(regionDistrict, regionCity, "Türkiye").filter { it.isNotBlank() }.joinToString(", ")
-        center = try {
+        val resolved = try {
             val address = boundedGeocode(geocodingScope, 12000) {
                 @Suppress("DEPRECATION")
                 Geocoder(context, Locale("tr", "TR")).getFromLocationName(query, 1)?.firstOrNull()
@@ -98,6 +101,10 @@ actual fun rememberRegionCenter(city: String, district: String): DeviceLocation?
             throw cancelled
         } catch (_: Exception) {
             null
+        }
+        if (resolved != null) {
+            androidRegionCenterCache[cacheKey] = resolved
+            center = resolved
         }
     }
     return center
@@ -131,9 +138,8 @@ actual fun rememberLocationRequester(requestPermission: Boolean, onResult: (Loca
         if (providers.isEmpty()) callback(LocationOutcome.Failed("Konum alınamadı. Cihazın konum hizmetlerini kontrol et veya bölgeni elle seç.", true))
         else {
             var delivered = false
-            fun valid(location: Location): Boolean = freshLocationFix(location.latitude, location.longitude,
-                (android.os.SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1000000.0,
-                if (location.hasAccuracy()) location.accuracy.toDouble() else Double.NaN)
+            fun valid(location: Location): Boolean = validMapCoordinate(location.latitude, location.longitude) &&
+                (!location.hasAccuracy() || location.accuracy >= 0f)
             val deliver: (Location) -> Unit = { location ->
                 if (!delivered && generation == requestGeneration && valid(location)) {
                     delivered = true; stop()
@@ -143,7 +149,7 @@ actual fun rememberLocationRequester(requestPermission: Boolean, onResult: (Loca
                             Geocoder(context, Locale("tr", "TR")).getFromLocation(location.latitude, location.longitude, 1)?.firstOrNull()
                         } else null
                         if (generation == requestGeneration) callback(LocationOutcome.Located(DeviceLocation(location.latitude, location.longitude,
-                            canonicalRegionCity(address?.adminArea), address?.subAdminArea ?: address?.locality,
+                            canonicalRegionCity(address?.adminArea ?: address?.locality ?: address?.subAdminArea), address?.subAdminArea ?: address?.locality ?: address?.subLocality ?: "Merkez",
                             capturedAt = System.currentTimeMillis() - ((android.os.SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1000000L).coerceAtLeast(0))))
                     }
                 }
@@ -212,4 +218,77 @@ actual fun hasForegroundLocationPermission(): Boolean {
     val coarse = context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
     return ((fine || coarse) && runCatching { manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) }.getOrDefault(false)) ||
         (fine && runCatching { manager.isProviderEnabled(LocationManager.GPS_PROVIDER) }.getOrDefault(false))
+}
+
+private const val DEVICE_PREFS_NAME = "matchora_device_prefs"
+private const val INITIAL_NOTIFICATION_PROMPT_KEY = "initial_notification_prompted"
+private const val INITIAL_LOCATION_PROMPT_KEY = "initial_location_prompted"
+
+actual fun hasPromptedInitialNotificationPermission(): Boolean {
+    val context = runCatching { AndroidBackendRuntime.context }.getOrNull() ?: return false
+    return context.getSharedPreferences(DEVICE_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        .getBoolean(INITIAL_NOTIFICATION_PROMPT_KEY, false)
+}
+
+actual fun markInitialNotificationPermissionPrompted() {
+    val context = runCatching { AndroidBackendRuntime.context }.getOrNull() ?: return
+    context.getSharedPreferences(DEVICE_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        .edit().putBoolean(INITIAL_NOTIFICATION_PROMPT_KEY, true).apply()
+}
+
+actual fun hasPromptedInitialLocationPermission(): Boolean {
+    val context = runCatching { AndroidBackendRuntime.context }.getOrNull() ?: return false
+    return context.getSharedPreferences(DEVICE_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        .getBoolean(INITIAL_LOCATION_PROMPT_KEY, false)
+}
+
+actual fun markInitialLocationPermissionPrompted() {
+    val context = runCatching { AndroidBackendRuntime.context }.getOrNull() ?: return
+    context.getSharedPreferences(DEVICE_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        .edit().putBoolean(INITIAL_LOCATION_PROMPT_KEY, true).apply()
+}
+
+private const val REGION_CITY_KEY = "region_city"
+private const val REGION_DISTRICT_KEY = "region_district"
+private const val REGION_IS_GPS_KEY = "region_is_gps"
+private const val REGION_MANUAL_NON_GPS_KEY = "region_manual_non_gps"
+private const val REGION_HAS_COORDS_KEY = "region_has_coords"
+private const val REGION_LAT_KEY = "region_lat"
+private const val REGION_LON_KEY = "region_lon"
+
+actual fun loadPersistedRegionSelection(): PersistedRegionSelection? {
+    val context = runCatching { AndroidBackendRuntime.context }.getOrNull() ?: return null
+    val prefs = context.getSharedPreferences(DEVICE_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+    val city = prefs.getString(REGION_CITY_KEY, null)?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    val district = prefs.getString(REGION_DISTRICT_KEY, null)?.trim()?.takeIf { it.isNotBlank() } ?: "Merkez"
+    val isGps = prefs.getBoolean(REGION_IS_GPS_KEY, false)
+    val manualNonGps = prefs.getBoolean(REGION_MANUAL_NON_GPS_KEY, false)
+    val hasCoords = prefs.getBoolean(REGION_HAS_COORDS_KEY, false)
+    val lat = if (hasCoords) prefs.getString(REGION_LAT_KEY, null)?.toDoubleOrNull() else null
+    val lon = if (hasCoords) prefs.getString(REGION_LON_KEY, null)?.toDoubleOrNull() else null
+    return PersistedRegionSelection(
+        city = city,
+        district = district,
+        isGps = isGps,
+        manualNonGps = manualNonGps,
+        latitude = lat?.takeIf { validMapCoordinate(it, lon ?: 0.0) },
+        longitude = lon?.takeIf { validMapCoordinate(lat ?: 0.0, it) }
+    )
+}
+
+actual fun savePersistedRegionSelection(selection: PersistedRegionSelection) {
+    val context = runCatching { AndroidBackendRuntime.context }.getOrNull() ?: return
+    val editor = context.getSharedPreferences(DEVICE_PREFS_NAME, android.content.Context.MODE_PRIVATE).edit()
+        .putString(REGION_CITY_KEY, selection.city)
+        .putString(REGION_DISTRICT_KEY, selection.district)
+        .putBoolean(REGION_IS_GPS_KEY, selection.isGps)
+        .putBoolean(REGION_MANUAL_NON_GPS_KEY, selection.manualNonGps)
+    if (selection.latitude != null && selection.longitude != null && validMapCoordinate(selection.latitude, selection.longitude)) {
+        editor.putBoolean(REGION_HAS_COORDS_KEY, true)
+            .putString(REGION_LAT_KEY, selection.latitude.toString())
+            .putString(REGION_LON_KEY, selection.longitude.toString())
+    } else {
+        editor.putBoolean(REGION_HAS_COORDS_KEY, false)
+    }
+    editor.apply()
 }

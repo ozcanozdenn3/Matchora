@@ -1,9 +1,14 @@
 @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
 package com.matchora.app.data
 
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.suspendCancellableCoroutine
 import platform.AuthenticationServices.*
+import platform.CoreCrypto.CC_SHA256
+import platform.CoreCrypto.CC_SHA256_DIGEST_LENGTH
 import platform.Foundation.*
+import platform.Security.SecRandomCopyBytes
 import platform.UIKit.*
 import platform.darwin.NSObject
 import kotlin.coroutines.resume
@@ -18,22 +23,57 @@ private var activePresentationAnchor: ASPresentationAnchor? = null
 private var activeDelegate: NSObject? = null
 private var activePresentationContext: NSObject? = null
 
+private fun resolveAppleAnchor(): UIWindow? {
+    val activeScene = UIApplication.sharedApplication.connectedScenes
+        .filterIsInstance<UIWindowScene>()
+        .firstOrNull { it.activationState == UISceneActivationStateForegroundActive }
+        ?: UIApplication.sharedApplication.connectedScenes.filterIsInstance<UIWindowScene>().firstOrNull()
+    val sceneWindows = activeScene?.windows?.filterIsInstance<UIWindow>().orEmpty()
+    return sceneWindows.firstOrNull { it.isKeyWindow() }
+        ?: sceneWindows.firstOrNull()
+        ?: UIApplication.sharedApplication.keyWindow
+}
+
+private fun randomNonce(length: Int = 32): String {
+    val charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._"
+    val bytes = UByteArray(length)
+    bytes.usePinned { pinned ->
+        SecRandomCopyBytes(null, length.toULong(), pinned.addressOf(0))
+    }
+    return buildString(length) {
+        for (b in bytes) append(charset[(b.toInt() and 0xFF) % charset.length])
+    }
+}
+
+private fun sha256Hex(input: String): String {
+    val data = input.encodeToByteArray()
+    val digest = UByteArray(CC_SHA256_DIGEST_LENGTH)
+    data.usePinned { dataPinned ->
+        digest.usePinned { digestPinned ->
+            CC_SHA256(dataPinned.addressOf(0), data.size.toUInt(), digestPinned.addressOf(0))
+        }
+    }
+    return digest.joinToString("") { it.toString(16).padStart(2, '0') }
+}
+
 actual suspend fun performNativeAppleSignIn(): NativeAuthResult? = suspendCancellableCoroutine { continuation ->
-    val anchor = UIApplication.sharedApplication.keyWindow
+    val anchor = resolveAppleAnchor()
     if (anchor == null) {
         continuation.resume(null)
         return@suspendCancellableCoroutine
     }
     activePresentationAnchor = anchor
 
+    val rawNonce = randomNonce()
     val request = ASAuthorizationAppleIDProvider().createRequest()
     request.requestedScopes = listOf(ASAuthorizationScopeFullName, ASAuthorizationScopeEmail)
+    request.nonce = sha256Hex(rawNonce)
 
     val controller = ASAuthorizationController(listOf(request))
 
     val presentationContext = object : NSObject(), ASAuthorizationControllerPresentationContextProvidingProtocol {
         override fun presentationAnchorForAuthorizationController(controller: ASAuthorizationController): ASPresentationAnchor {
-            return activePresentationAnchor ?: UIApplication.sharedApplication.keyWindow!!
+            return activePresentationAnchor ?: resolveAppleAnchor()!!
         }
     }
 
@@ -56,7 +96,7 @@ actual suspend fun performNativeAppleSignIn(): NativeAuthResult? = suspendCancel
             val email = credential.email
 
             if (continuation.isActive) {
-                continuation.resume(NativeAuthResult(idToken = tokenString, fullName = fullName, email = email))
+                continuation.resume(NativeAuthResult(idToken = tokenString, fullName = fullName, email = email, nonce = rawNonce))
             }
             cleanup()
         }

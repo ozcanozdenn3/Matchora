@@ -261,4 +261,22 @@ class BackendClientTest {
         assertEquals("a+b/c=", callback["code"])
         assertEquals("İptal edildi", callback["error_description"])
     }
+    @Test fun adminSearchAndModerationReasonsSurviveClientBoundary() = runBlocking {
+        val snapshot = BackendSnapshot(apiPayload(
+            "memories" to listOf(mapOf("id" to "m1", "authorName" to "Ali", "status" to "rejected", "moderationReason" to "Yüz bulanık görünüyor")),
+            "reports" to listOf(mapOf("id" to "r1", "target" to "t1", "reason" to "Uygunsuz", "details" to "", "status" to "resolved", "resolutionReason" to "İçerik yayından kaldırıldı")),
+            "results" to listOf(mapOf("event_id" to "e1", "status" to "rejected", "payload" to mapOf("homeScore" to 1, "awayScore" to 2)))
+        ))
+        assertEquals("Yüz bulanık görünüyor", snapshot.memories.single().moderationReason)
+        assertEquals("İçerik yayından kaldırıldı", snapshot.reports.single().resolutionReason)
+        assertEquals("rejected", snapshot.results.getValue("e1").status)
+
+        val urls = mutableListOf<String>()
+        val repo = BackendRepository("https://api.example.invalid", "production", transport = { req ->
+            urls += req.url
+            response(200, apiPayload("counts" to mapOf("photos" to 1)))
+        }, persistence = MemorySession())
+        repo.adminInbox("mehmet toker")
+        assertEquals("https://api.example.invalid/v1/admin/inbox?q=mehmet%20toker", urls.single())
+    }
 }

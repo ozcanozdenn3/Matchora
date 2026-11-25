@@ -389,7 +389,7 @@ fun PlayerProfileSheet(
                                     }
                                     Spacer(modifier = Modifier.height(3.dp))
                                     Text(
-                                        text = "Tier: ${player.tier.label}",
+                                        text = "Seviye: ${player.tier.label}",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFFCFD6E0)

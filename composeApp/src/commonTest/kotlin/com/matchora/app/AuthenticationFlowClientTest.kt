@@ -13,10 +13,6 @@ class AuthenticationFlowClientTest {
         assertEquals(listOf("google", "phone"), supportedSignInProviders("android"))
         assertEquals(listOf("apple", "google", "phone"), supportedSignInProviders("ios"))
     }
-    @Test fun emailInputIsNormalizedAndPhoneOrControlCharactersCannotStartEmailLogin() {
-        assertEquals("person@example.com", normalizedAuthEmail(" Person@Example.COM "))
-        for (value in listOf("5321234567", "person@", "person\u0000@example.com", "person @example.com")) assertNull(normalizedAuthEmail(value))
-    }
     @Test fun countryPhonePickerNormalizesLocalAndInternationalNumbersWithoutManualCountryCode() {
         val turkey = defaultPhoneCountry
         assertEquals("+905350705672", normalizePhoneWithCountry(turkey, "5350705672"))
@@ -37,29 +33,31 @@ class AuthenticationFlowClientTest {
         val localized = formatFirebasePhoneAuthError("SMS unable to be sent until this region enabled by the app developer.")
         assertTrue(localized.contains("SMS region policy"))
     }
-    @Test fun emailCodeIsVerifiedBeforeAnySessionOrPassportIsAccepted() = runBlocking {
+    @Test fun phoneOtpIsVerifiedBeforeAnySessionOrPassportIsAccepted() = runBlocking {
         val storage = Storage(); val requests = mutableListOf<ApiHttpRequest>()
         val repository = BackendRepository("https://api.example.invalid", "production", transport = { request ->
             requests += request
             when {
-                request.url.endsWith("/email/start") -> response(value = apiPayload("sent" to true, "resendAfterSeconds" to 60))
-                request.url.endsWith("/email/verify") -> response(value = session)
-                else -> response(value = apiPayload("userId" to "user", "profile" to null))
+                request.url.endsWith("/otp/start") -> response(value = apiPayload("challengeId" to "chal-1", "expiresAt" to 9999999L))
+                request.url.endsWith("/otp/verify") -> response(value = session)
+                else -> response(value = apiPayload("userId" to "user", "role" to "user", "profile" to null))
             }
         }, persistence = storage)
-        repository.startEmailOtp(" Person@example.com "); assertFalse(repository.authenticated); assertNull(storage.value)
-        repository.verifyEmailOtp("person@example.com", "123456")
-        assertTrue(repository.authenticated); assertNull(BackendSnapshot(repository.snapshots.value!!).profile)
-        assertFalse(requests.any { it.url.contains("/otp/") || it.url.endsWith("/dev") })
-        val verify = requests.first { it.url.endsWith("/email/verify") }
+        repository.startPhoneOtp("+905551112233"); assertFalse(repository.authenticated); assertNull(storage.value)
+        repository.verifyPhoneOtp("chal-1", "123456")
+        assertTrue(repository.authenticated)
+        assertEquals("user", repository.snapshots.value?.s("role"))
+        assertNull(BackendSnapshot(repository.snapshots.value!!).profile)
+        assertFalse(requests.any { it.url.endsWith("/dev") })
+        val verify = requests.first { it.url.endsWith("/otp/verify") }
         assertNull(verify.headers["Authorization"]); assertFalse(storage.value!!.contains("123456"))
     }
-    @Test fun rejectedEmailCodeCannotUnlockAnAccountOrInventPreviewSuccess() = runBlocking {
+    @Test fun rejectedPhoneCodeCannotUnlockAnAccount() = runBlocking {
         val storage = Storage()
         val repository = BackendRepository("https://api.example.invalid", "production", transport = {
-            response(401, apiPayload("error" to mapOf("code" to "EMAIL_CODE_REJECTED", "message" to "Kod geçersiz")))
+            response(401, apiPayload("error" to mapOf("code" to "OTP_INVALID", "message" to "Kod geçersiz")))
         }, persistence = storage)
-        assertEquals("EMAIL_CODE_REJECTED", assertFailsWith<BackendFailure> { repository.verifyEmailOtp("person@example.com", "000000") }.code)
+        assertEquals("OTP_INVALID", assertFailsWith<BackendFailure> { repository.verifyPhoneOtp("chal-1", "000000") }.code)
         assertFalse(repository.authenticated); assertNull(storage.value); assertNull(repository.snapshots.value)
     }
     @Test fun socialButtonsUseRealPkceEvenInLocalModeAndNeverDevelopmentLogin() = runBlocking {

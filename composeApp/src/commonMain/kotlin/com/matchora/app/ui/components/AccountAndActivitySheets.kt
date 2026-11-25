@@ -121,7 +121,12 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
                             request.response?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MColors.Ink700) }
                         }
                     }
-                    reports.forEach { Text("${it.target}\n${it.reason} · ${when (it.status) { "resolved" -> "İşlendi"; "dismissed" -> "Kapandı"; else -> "İnceleniyor" }}", style = MaterialTheme.typography.bodySmall) }
+                    reports.forEach {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("${it.target}\n${it.reason} · ${when (it.status) { "resolved" -> "İşlendi"; "dismissed" -> "Kapandı"; else -> "İnceleniyor" }}", style = MaterialTheme.typography.bodySmall)
+                            it.resolutionReason?.let { res -> Text(res, style = MaterialTheme.typography.bodySmall, color = MColors.Ink700) }
+                        }
+                    }
                 }
             }
         }
@@ -330,7 +335,7 @@ fun MatchResultSheet(event: SportEvent, result: MatchResultDraft?, canSubmit: Bo
     ActivitySheet("Maç sonucu", event.title, onDismiss, Icons.Rounded.Scoreboard) {
         RatingStatusCard(event.id)
         if (result != null && !editingPending) {
-            MFeatureHeader("${result.homeScore} – ${result.awayScore}", when { result.status == "verified" -> "Sonuç doğrulandı"; result.disputed -> "İtiraz kaydı var · inceleme bekleniyor"; else -> "Sonuç bildirildi · doğrulama bekleniyor" }, Icons.Rounded.Scoreboard)
+            MFeatureHeader("${result.homeScore} – ${result.awayScore}", when { result.status == "verified" -> "Sonuç doğrulandı"; result.status == "rejected" -> "Sonuç reddedildi"; result.disputed -> "İtiraz kaydı var · inceleme bekleniyor"; else -> "Sonuç bildirildi · doğrulama bekleniyor" }, Icons.Rounded.Scoreboard)
             if (onConfirm != null && result.status == "pending" && result.submittedBy != DemoData.ME && meOnOpposingSide && isCheckedIn) MButton("Skoru onaylıyorum", onConfirm, icon = Icons.Rounded.Verified)
             if (result.status == "pending" && result.submittedBy == DemoData.ME && canSubmit) {
                 MPillActionButton("Skoru düzenle", { editingPending = true }, icon = Icons.Rounded.Edit, tone = MPillTone.NEUTRAL, compact = true)
@@ -395,9 +400,30 @@ fun ContactVerificationSheet(initialPhone: String, onRecordRequest: (String) -> 
                 MButton("Doğrulama koduna geç", {
                     val targetPhone = normalizedPhone ?: return@MButton
                     if (backend == null) step = 1 else scope.launch {
-                        busy = true
-                        try { val response = backend.startContactOtp(targetPhone); challengeId = response.getValue("challengeId").jsonPrimitive.content; previewCode = response["developmentCode"]?.jsonPrimitive?.contentOrNull; step = 1 }
-                        catch (e: Exception) { error = (e as? BackendFailure)?.message ?: "Doğrulama kodu gönderilemedi." }
+                        busy = true; error = null
+                        try {
+                            if (com.matchora.app.data.isNativePhoneAuthSupported) {
+                                val verification = com.matchora.app.data.startNativePhoneVerification(targetPhone)
+                                if (verification.verificationId.startsWith("instant:")) {
+                                    val nativeAuth = com.matchora.app.data.verifyNativePhoneCode(verification.verificationId, "")
+                                    backend.verifyContactWithIdToken(nativeAuth.idToken)
+                                    step = 2
+                                } else {
+                                    challengeId = verification.verificationId
+                                    previewCode = null
+                                    step = 1
+                                }
+                            } else {
+                                val response = backend.startContactOtp(targetPhone)
+                                challengeId = response.getValue("challengeId").jsonPrimitive.content
+                                previewCode = response["developmentCode"]?.jsonPrimitive?.contentOrNull
+                                step = 1
+                            }
+                        } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                        catch (e: Exception) {
+                            error = if (e is BackendFailure && e.code == "FIREBASE_PHONE_ERROR") com.matchora.app.data.formatFirebasePhoneAuthError(e.message)
+                            else (e as? BackendFailure)?.message ?: "Doğrulama kodu gönderilemedi."
+                        }
                         finally { busy = false }
                     }
                 }, enabled = normalizedPhone != null && !busy)
@@ -412,9 +438,20 @@ fun ContactVerificationSheet(initialPhone: String, onRecordRequest: (String) -> 
                         if (code != "2026") error = "Kod eşleşmedi. Tekrar dene."
                         else { onRecordRequest(normalizedPhone.orEmpty()); step = 2 }
                     } else scope.launch {
-                        busy = true
-                        try { backend.verifyContactOtp(challengeId, code); step = 2 }
-                        catch (e: Exception) { error = (e as? BackendFailure)?.message ?: "Kod doğrulanamadı." }
+                        busy = true; error = null
+                        try {
+                            if (com.matchora.app.data.isNativePhoneAuthSupported) {
+                                val nativeAuth = com.matchora.app.data.verifyNativePhoneCode(challengeId, code)
+                                backend.verifyContactWithIdToken(nativeAuth.idToken)
+                            } else {
+                                backend.verifyContactOtp(challengeId, code)
+                            }
+                            step = 2
+                        } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                        catch (e: Exception) {
+                            error = if (e is BackendFailure && e.code in setOf("INVALID_CODE", "FIREBASE_PHONE_ERROR")) com.matchora.app.data.formatFirebasePhoneAuthError(e.message)
+                            else (e as? BackendFailure)?.message ?: "Kod doğrulanamadı."
+                        }
                         finally { busy = false }
                     }
                 }, enabled = code.length == (if (backend == null) 4 else 6) && !busy)
@@ -429,21 +466,62 @@ fun ContactVerificationSheet(initialPhone: String, onRecordRequest: (String) -> 
 }
 
 @Composable
-fun PhotoVerificationSheet(profile: UserProfile, onPhotoRequest: (androidx.compose.ui.graphics.ImageBitmap, (Boolean) -> Unit) -> Unit, onDismiss: () -> Unit) {
+fun PhotoVerificationSheet(profile: UserProfile, onPhotoRequest: (androidx.compose.ui.graphics.ImageBitmap?, (Boolean) -> Unit) -> Unit, onDismiss: () -> Unit) {
+    val backend = LocalBackendRepository.current
+    val wire = if (backend != null) backend.snapshots.collectAsState().value else null
+    val existingAvatarUploadId = wire?.o("profile")?.s("avatarUploadId")?.ifBlank { null }
+    val photoRequests = wire?.a("supportRequests").orEmpty().filter { it.s("category") == "Fotoğraf doğrulaması" }
+    val openRequest = photoRequests.firstOrNull { it.s("status") == "open" }
+    val rejectedRequest = photoRequests.firstOrNull { it.s("status") == "rejected" }
     var photo by remember { mutableStateOf(profile.avatar) }
+    var pickedNewPhoto by remember { mutableStateOf(false) }
     var submitted by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
-    val pick = rememberGalleryPhotoPicker { photo = it; submitted = false }
+    val pick = rememberGalleryPhotoPicker { photo = it; pickedNewPhoto = true; submitted = false }
+    val hasPhotoSource = photo != null || existingAvatarUploadId != null
+    val blockedByPendingSamePhoto = openRequest != null && !pickedNewPhoto
     ActivitySheet("Fotoğraf doğrulaması", "Sporcu kartını güvenle tamamla", onDismiss, Icons.Rounded.VerifiedUser) {
         Text("Yüzünün net göründüğü, tek başına olduğun bir fotoğraf seç. Seçimin profil fotoğrafın olarak kaydedilir. İnceleme tamamlanmadan doğrulama rozeti verilmez.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink500)
-        photo?.let { androidx.compose.foundation.Image(it, "İncelemeye eklenecek fotoğraf", Modifier.fillMaxWidth().height(200.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit) }
+        if (openRequest != null && !pickedNewPhoto) {
+            MSubCard {
+                Text("Mevcut profil fotoğrafın için doğrulama talebi inceleme bekliyor. Farklı bir fotoğraf yüklemek istersen aşağıdan seçebilirsin.", style = MaterialTheme.typography.bodySmall, color = MColors.BrandDeep, modifier = Modifier.padding(12.dp))
+            }
+        } else if (rejectedRequest != null && !pickedNewPhoto) {
+            MSubCard {
+                val reason = rejectedRequest.s("response").ifBlank { null }
+                Text("Son doğrulama talebi reddedildi${reason?.let { ": $it" }.orEmpty()}. Yeni bir fotoğraf seçip gönderebilirsin.", style = MaterialTheme.typography.bodySmall, color = MColors.Rose, modifier = Modifier.padding(12.dp))
+            }
+        }
+        val localPhoto = photo
+        if (localPhoto != null) {
+            androidx.compose.foundation.Image(localPhoto, "İncelemeye eklenecek fotoğraf", Modifier.fillMaxWidth().height(200.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
+        } else if (existingAvatarUploadId != null) {
+            BackendPhoto(existingAvatarUploadId, "Mevcut profil fotoğrafı", Modifier.fillMaxWidth().height(200.dp))
+        }
         MPremiumMenuRow(
-            text = if (photo == null) "Fotoğraf seç" else "Fotoğrafı değiştir",
+            text = if (!hasPhotoSource) "Fotoğraf seç" else "Fotoğrafı değiştir",
             subtitle = "Kamerayla çek veya galeriden net bir portre seç",
             icon = Icons.Rounded.AddAPhoto,
             onClick = { if (!busy) pick() }
         )
-        MButton(if (busy) "Gönderiliyor…" else if (submitted) "İnceleme talebi kaydedildi" else "İnceleme talebi oluştur", { photo?.let { image -> busy = true; onPhotoRequest(image) { success -> submitted = success; busy = false } } }, enabled = photo != null && !submitted && !busy)
+        MButton(
+            when {
+                busy -> "Gönderiliyor…"
+                submitted -> "İnceleme talebi kaydedildi"
+                blockedByPendingSamePhoto -> "İnceleme bekleniyor"
+                else -> "İnceleme talebi oluştur"
+            },
+            {
+                if (hasPhotoSource) {
+                    busy = true
+                    onPhotoRequest(if (pickedNewPhoto) photo else profile.avatar ?: null) { success ->
+                        submitted = success
+                        busy = false
+                    }
+                }
+            },
+            enabled = hasPhotoSource && !blockedByPendingSamePhoto && !submitted && !busy
+        )
     }
 }
 

@@ -45,6 +45,12 @@ export async function notify(ctx, userId, category, title, body, destination, ta
   await ctx.db.run('INSERT INTO notifications(id,user_id,dedupe,category,payload,created_at) VALUES(?,?,?,?,?,?)', [notificationId, userId, dedupe, category, encode(payload), ctx.now]);
   await ctx.db.run('INSERT INTO outbox(id,user_id,kind,payload,status,next_at,created_at) VALUES(?,?,?,?,?,?,?)', [id(), userId, 'push', encode({ ...payload, notificationId }), 'pending', ctx.now, ctx.now]);
 }
+export async function notifyAdmins(ctx, category, title, body, targetId, dedupePrefix, excludeUserId = null) {
+  for (const admin of await ctx.db.all("SELECT id FROM users WHERE role='admin' AND status='active'")) {
+    if (excludeUserId && admin.id === excludeUserId) continue;
+    await notify(ctx, admin.id, category, title, body, 'MODERATION', targetId, `${dedupePrefix}:${admin.id}`);
+  }
+}
 export async function reward(ctx, userId, key, amount) {
   const old = await ctx.db.get('SELECT reward_key FROM rewards WHERE user_id=? AND reward_key=?', [userId, key]); if (old) return false;
   await ctx.db.run('INSERT INTO rewards(user_id,reward_key,created_at) VALUES(?,?,?)', [userId, key, ctx.now]);

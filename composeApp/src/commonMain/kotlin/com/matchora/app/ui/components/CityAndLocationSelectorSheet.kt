@@ -65,7 +65,10 @@ fun CityAndLocationSelectorSheet(
                     onDismiss()
                 }
             }
-            is LocationOutcome.Failed -> { DeviceLocationState.current.value = null; locationError = result }
+            is LocationOutcome.Failed -> {
+                if (!hasForegroundLocationPermission()) DeviceLocationState.current.value = null
+                locationError = result
+            }
         }
     }
     ModalBottomSheet(

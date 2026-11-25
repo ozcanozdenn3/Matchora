@@ -43,7 +43,7 @@ import com.matchora.app.ui.theme.MColors
 import com.matchora.app.ui.theme.MGradients
 import kotlinx.coroutines.delay
 
-enum class AuthStage { LOGIN_OPTIONS, PHONE_INPUT, PHONE_OTP, EMAIL_INPUT, EMAIL_OTP, PASSPORT_SETUP, LEGAL_REVIEW }
+enum class AuthStage { LOGIN_OPTIONS, PHONE_INPUT, PHONE_OTP, PASSPORT_SETUP, LEGAL_REVIEW }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,8 +70,6 @@ fun AuthAndOnboardingSheet(
     var selectedCountry by remember { mutableStateOf(defaultPhoneCountry) }
     var phone by remember { mutableStateOf("") }
     var sentPhone by remember { mutableStateOf("") }
-    var emailInput by remember { mutableStateOf("") }
-    var sentEmail by remember { mutableStateOf("") }
     var challengeId by remember { mutableStateOf("") }
     var resendSeconds by remember { mutableIntStateOf(0) }
     LaunchedEffect(resendSeconds) { if (resendSeconds > 0) { delay(1000); resendSeconds-- } }
@@ -82,14 +80,48 @@ fun AuthAndOnboardingSheet(
     var restoredProfile by remember { mutableStateOf(existingProfile) }
     var section by remember { mutableIntStateOf(0) }
     fun continueToPassport() {
-        val restored = backend?.snapshots?.value?.let(::BackendSnapshot)?.profile ?: existingProfile
-        if (restored != null) {
-            restoredProfile = restored
-            if (backend?.snapshots?.value?.b("legalAcceptanceRequired") == true) stage = AuthStage.LEGAL_REVIEW
-            else onCompletePassport(restored, provider)
+        val snap = backend?.snapshots?.value
+        val isAdminRole = snap?.s("role") == "admin"
+        val restored = snap?.let(::BackendSnapshot)?.profile ?: existingProfile
+        if (restored == null && !isAdminRole) {
+            backend?.profileHints?.let { hints ->
+                draft = draft.copy(
+                    name = draft.name.ifBlank { hints.s("name") },
+                    email = draft.email.ifBlank { hints.s("email") },
+                    phone = draft.phone.ifBlank { hints.s("phone") }
+                )
+            }
         }
-        else {
-            backend?.profileHints?.let { hints -> draft = draft.copy(name = draft.name.ifBlank { hints.s("name") }, email = draft.email.ifBlank { hints.s("email") }, phone = draft.phone.ifBlank { hints.s("phone") }) }
+        if (snap?.b("legalAcceptanceRequired") == true) {
+            restoredProfile = restored
+            stage = AuthStage.LEGAL_REVIEW
+        } else if (restored != null) {
+            restoredProfile = restored
+            onCompletePassport(restored, provider)
+        } else if (isAdminRole) {
+            onCompletePassport(
+                UserProfile(
+                    name = "Yönetici",
+                    city = currentCity,
+                    area = currentDistrict,
+                    bio = "",
+                    birthYear = 1990,
+                    phone = "",
+                    email = "",
+                    skills = emptyList(),
+                    verifications = setOf(VerificationLevel.BASIC),
+                    reliability = 100,
+                    fairPlay = 5f,
+                    verifiedMatches = 0,
+                    streakWeeks = 0,
+                    campus = null,
+                    company = null,
+                    dominantSide = "",
+                    availability = emptyList()
+                ),
+                provider
+            )
+        } else {
             stage = AuthStage.PASSPORT_SETUP
         }
     }
@@ -111,7 +143,7 @@ fun AuthAndOnboardingSheet(
                 if (providerLower == "apple" && isNativeAppleSignInSupported) {
                     val nativeResult = performNativeAppleSignIn()
                     if (nativeResult != null) {
-                        backend.exchangeIdToken("apple", nativeResult.idToken, nativeResult.fullName)
+                        backend.exchangeIdToken("apple", nativeResult.idToken, nativeResult.fullName, nativeResult.nonce)
                     } else {
                         backend.socialLogin("apple")
                     }
@@ -182,31 +214,6 @@ fun AuthAndOnboardingSheet(
             finally { busy = false }
         }
     }
-    fun sendEmailCode() {
-        if (busy || externallyBusy) return
-        val normalized = emailInput.trim().lowercase()
-        if (!normalized.contains('@') || !normalized.substringAfter('@').contains('.')) return
-        if (sentEmail == normalized && resendSeconds > 0) return
-        if (backend == null) { authError = "Giriş servisi henüz bağlanmadı."; return }
-        scope.launch {
-            busy = true; authError = null; otpError = null
-            try {
-                if (backend.configuration == null) backend.refreshConfiguration()
-                val response = backend.startEmailOtp(normalized)
-                sentEmail = normalized
-                resendSeconds = response.i("resendAfterSeconds", 60).coerceAtLeast(1)
-                code = ""
-                provider = "E-posta"
-                stage = AuthStage.EMAIL_OTP
-            } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-            catch (error: Exception) {
-                authError = when {
-                    error is BackendFailure && error.code == "CONFIGURATION_REQUIRED" -> "E-posta giriş servisi henüz bağlanmadı."
-                    else -> error.message
-                }
-            } finally { busy = false }
-        }
-    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -231,7 +238,19 @@ fun AuthAndOnboardingSheet(
                     }
                     MButton("Devam et", { if (!busy && !externallyBusy && backend != null) scope.launch {
                         busy = true; authError = null
-                        try { backend.acceptCurrentLegal(); (restoredProfile ?: backend.snapshots.value?.let(::BackendSnapshot)?.profile)?.let { onCompletePassport(it, provider) } }
+                        try {
+                            backend.acceptCurrentLegal()
+                            val snap = backend.snapshots.value
+                            val finalProfile = restoredProfile
+                                ?: snap?.let(::BackendSnapshot)?.profile
+                                ?: if (snap?.s("role") == "admin") UserProfile(
+                                    name = "Yönetici", city = currentCity, area = currentDistrict, bio = "", birthYear = 1990,
+                                    phone = "", email = "", skills = emptyList(), verifications = setOf(VerificationLevel.BASIC),
+                                    reliability = 100, fairPlay = 5f, verifiedMatches = 0, streakWeeks = 0,
+                                    campus = null, company = null, dominantSide = "", availability = emptyList()
+                                ) else null
+                            finalProfile?.let { onCompletePassport(it, provider) } ?: run { stage = AuthStage.PASSPORT_SETUP }
+                        }
                         catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
                         catch (e: Exception) { authError = e.message }
                         finally { busy = false }
@@ -239,7 +258,6 @@ fun AuthAndOnboardingSheet(
                 }
                 AuthStage.LOGIN_OPTIONS -> LoginOptionsView(
                     { enter("Apple") }, { enter("Google") }, { authError = null; stage = AuthStage.PHONE_INPUT },
-                    { authError = null; stage = AuthStage.EMAIL_INPUT },
                     { onContinueAsGuest() }, onDismiss, busy = busy || externallyBusy)
                 AuthStage.PHONE_INPUT -> PhoneInputView(
                     selectedCountry = selectedCountry,
@@ -276,36 +294,6 @@ fun AuthAndOnboardingSheet(
                             finally { busy = false }
                         }
                     }, busy = busy || externallyBusy, resendSeconds = resendSeconds, onResend = ::sendPhoneCode)
-                AuthStage.EMAIL_INPUT -> EmailInputView(
-                    email = emailInput,
-                    onChange = { emailInput = it; authError = null },
-                    onBack = { stage = AuthStage.LOGIN_OPTIONS; authError = null },
-                    onSend = ::sendEmailCode,
-                    busy = busy || externallyBusy,
-                    cooldown = if (emailInput.trim().lowercase() == sentEmail) resendSeconds else 0
-                )
-                AuthStage.EMAIL_OTP -> EmailOtpView(
-                    email = sentEmail,
-                    code = code,
-                    error = otpError,
-                    onCode = { code = it; otpError = null },
-                    onBack = { stage = AuthStage.EMAIL_INPUT; authError = null },
-                    onVerify = {
-                        if (!busy && !externallyBusy && backend != null) scope.launch {
-                            busy = true; authError = null
-                            try {
-                                backend.verifyEmailOtp(sentEmail, code)
-                                draft = draft.copy(email = sentEmail)
-                                continueToPassport()
-                            } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-                            catch (error: Exception) { otpError = error.message }
-                            finally { busy = false }
-                        }
-                    },
-                    busy = busy || externallyBusy,
-                    resendSeconds = resendSeconds,
-                    onResend = ::sendEmailCode
-                )
                 AuthStage.PASSPORT_SETUP -> PassportSetupView(draft, { draft = it }, photo, { photo = it },
                     section, { section = it }, provider, { stage = AuthStage.LOGIN_OPTIONS },
                     legalRequired = legalRequired, legalAccepted = legalAccepted, onLegalAccepted = { legalAccepted = it }, phoneLocked = backend != null, busy = busy || externallyBusy, onSave = {
@@ -325,7 +313,7 @@ fun AuthAndOnboardingSheet(
 
 @Composable
 private fun LoginOptionsView(onSelectApple: () -> Unit, onSelectGoogle: () -> Unit,
-    onSelectPhone: () -> Unit, onSelectEmail: () -> Unit, onContinueAsGuest: () -> Unit, onDismiss: () -> Unit, busy: Boolean) {
+    onSelectPhone: () -> Unit, onContinueAsGuest: () -> Unit, onDismiss: () -> Unit, busy: Boolean) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()
         .padding(horizontal = 22.dp).padding(bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         AuthHeader("Matchora’ya Giriş", "Sporcu pasaportunla sahadaki yerini al.", onDismiss)
@@ -334,9 +322,6 @@ private fun LoginOptionsView(onSelectApple: () -> Unit, onSelectGoogle: () -> Un
             ProviderButton("Google ile devam et", onSelectGoogle, Color.White, MColors.Ink900, enabled = !busy) { GoogleLogoIcon(Modifier.size(19.dp)) }
             ProviderButton("Telefon ile devam et", onSelectPhone, Color.White, MColors.Ink900, enabled = !busy) {
                 Icon(Icons.Rounded.PhoneAndroid, null, Modifier.size(20.dp), tint = MColors.BrandDeep)
-            }
-            ProviderButton("E-posta ile devam et", onSelectEmail, Color.White, MColors.Ink900, enabled = !busy) {
-                Icon(Icons.Rounded.Email, null, Modifier.size(20.dp), tint = MColors.BrandDeep)
             }
         }
         OutlinedButton(
@@ -534,34 +519,6 @@ private fun PhoneOtpView(phone: String, code: String, error: String?, onCode: (S
         AuthHeader("Numaranı doğrula", phone, onBack)
         Text("SMS ile gelen altı haneli doğrulama kodunu gir.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
         OutlinedTextField(code, { onCode(it.filter(Char::isDigit).take(6)) }, label = { Text("6 haneli SMS kodu") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), isError = error != null,
-            enabled = !busy, singleLine = true, colors = premiumTextFieldColors(), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
-        error?.let { Text(it, color = MColors.Rose, style = MaterialTheme.typography.bodySmall) }
-        TextButton(onClick = onResend, enabled = !busy && resendSeconds == 0) { Text(if (resendSeconds > 0) "Tekrar kod iste · $resendSeconds sn" else "Tekrar kod iste") }
-        MButton("Doğrula ve devam et", onVerify, enabled = !busy && code.length == 6)
-    }
-}
-
-@Composable
-private fun EmailInputView(email: String, onChange: (String) -> Unit, onBack: () -> Unit,
-    onSend: () -> Unit, busy: Boolean, cooldown: Int) {
-    val trimmed = email.trim()
-    val validEmail = trimmed.contains('@') && trimmed.substringAfter('@').contains('.')
-    Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(22.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        AuthHeader("E-posta ile devam et", "Tek kullanımlık 6 haneli doğrulama koduyla giriş veya kayıt.", onBack)
-        ProfileEditField("E-posta adresin", email, { onChange(it.take(254)) }, keyboardType = KeyboardType.Email)
-        Text("Adresine 6 haneli tek kullanımlık doğrulama kodu göndereceğiz.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
-        MButton(if (cooldown > 0) "Yeni kod için $cooldown sn bekle" else "Doğrulama kodu gönder", onSend, enabled = !busy && cooldown == 0 && validEmail, icon = Icons.Rounded.Email)
-    }
-}
-
-@Composable
-private fun EmailOtpView(email: String, code: String, error: String?, onCode: (String) -> Unit, onBack: () -> Unit,
-    onVerify: () -> Unit, busy: Boolean, resendSeconds: Int, onResend: () -> Unit) {
-    Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(22.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        AuthHeader("E-postanı doğrula", email, onBack)
-        Text("E-posta adresine gelen altı haneli doğrulama kodunu gir.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
-        OutlinedTextField(code, { onCode(it.filter(Char::isDigit).take(6)) }, label = { Text("6 haneli kod") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), isError = error != null,
             enabled = !busy, singleLine = true, colors = premiumTextFieldColors(), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
         error?.let { Text(it, color = MColors.Rose, style = MaterialTheme.typography.bodySmall) }

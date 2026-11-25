@@ -95,6 +95,8 @@ actual suspend fun verifyNativePhoneCode(verificationId: String, code: String): 
             ?: throw BackendFailure("TOKEN_FAILED", "Kimlik belirteci alınamadı.")
         val phone = user.phoneNumber.orEmpty()
         NativePhoneAuthResult(idToken = idToken, phoneNumber = phone)
+    } catch (cancel: kotlinx.coroutines.CancellationException) {
+        throw cancel
     } catch (e: Exception) {
         throw BackendFailure("INVALID_CODE", e.localizedMessage ?: "Geçersiz veya süresi dolmuş kod.")
     }

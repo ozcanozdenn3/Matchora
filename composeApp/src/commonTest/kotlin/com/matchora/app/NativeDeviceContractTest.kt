@@ -72,4 +72,14 @@ class NativeDeviceContractTest {
         assertEquals(0f, approximateDistanceKm(point, 0.0, 0.0))
         assertEquals(20015.086f, approximateDistanceKm(point, 0.0, 180.0), 1f)
     }
+
+    @Test fun regionMatchingRespectsCityDistrictAndGpsOverride() {
+        val besiktas = DeviceLocation(41.0422, 29.0083, "İstanbul", "Beşiktaş")
+        assertTrue(besiktas.matchesSelectedRegion("İstanbul", "Beşiktaş"))
+        assertTrue(besiktas.matchesSelectedRegion("istanbul", "BESIKTAS"))
+        assertTrue(besiktas.matchesSelectedRegion("İstanbul", "Merkez"))
+        assertFalse(besiktas.matchesSelectedRegion("İstanbul", "Kadıköy"))
+        assertFalse(besiktas.matchesSelectedRegion("Ankara", "Çankaya"))
+        assertTrue(besiktas.matchesSelectedRegion("Ankara", "Çankaya", isGpsActive = true))
+    }
 }

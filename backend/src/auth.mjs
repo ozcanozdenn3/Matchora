@@ -68,7 +68,8 @@ export class Auth {
     ensure(typeof identity.id === 'string' && identity.id.length <= 200, 401, 'PROVIDER_REJECTED', 'Kimlik doğrulanamadı.');
     if(expectedIdentity?.email)ensure(identity.email_confirmed_at&&typeof identity.email==='string'&&identity.email.toLowerCase()===expectedIdentity.email,401,'PROVIDER_REJECTED','Doğrulanan e-posta bu giriş isteğiyle eşleşmiyor.');
     const subject = `provider:${identity.id}`;
-    const verifiedPhone=identity.phone_confirmed_at&&typeof identity.phone==='string'&&/^(\+?90)?5\d{9}$/.test(identity.phone)?normalizePhone(identity.phone):null;
+    const cleanPhone=typeof identity.phone==='string'?identity.phone.replace(/[^\d]/g,''):'';
+    const verifiedPhone=identity.phone_confirmed_at&&cleanPhone.length>=7&&cleanPhone.length<=15?normalizePhone(identity.phone):null;
     const session=await this.store.transaction(async db => this.issue(db, await this.upsertIdentity(db, subject, verifiedPhone, identity.email_confirmed_at ? identity.email : null)));
     const name = overrideName || (identity.user_metadata?.full_name ?? identity.user_metadata?.name);
     return{...session,profileHints:{name:typeof name==='string'?name.trim().slice(0,40):'',email:identity.email_confirmed_at?identity.email??'':'',phone:verifiedPhone??''}};
@@ -212,6 +213,28 @@ export class Auth {
       await db.run('UPDATE auth_challenges SET consumed=1 WHERE id=?',[row.id]);return{verified:true};
     });
     if(result.error)fail(409,result.error,'Doğrulama tamamlanamadı. Yeni kod iste veya destekle iletişime geç.');return result;
+  }
+  async verifyContactWithIdToken(actor, payload) {
+    ensure(actor?.id, 401, 'UNAUTHENTICATED', 'Giriş yapmalısın.');
+    keys(payload, ['idToken']);
+    text(payload.idToken, 'Kimlik belirteci', 20, 10000);
+    const expectedProject = this.config.fcmProjectId || 'matchora-c5ddc';
+    const data = await this.verifyFirebaseIdToken(payload.idToken, expectedProject);
+    ensure(typeof data.phone_number === 'string' && data.phone_number.trim().length > 0, 400, 'INVALID_PHONE', 'Doğrulanmış telefon numarası bulunamadı.');
+    const phone = normalizePhone(data.phone_number);
+    await this.store.transaction(async db => {
+      const existing = await db.get('SELECT id FROM users WHERE phone=? AND id<>?', [phone, actor.id]);
+      ensure(!existing, 409, 'PHONE_ALREADY_LINKED', 'Bu telefon numarası başka bir Matchora hesabına kayıtlı.');
+      await db.run('UPDATE users SET phone=? WHERE id=?', [phone, actor.id]);
+      const profile = await db.get('SELECT payload FROM profiles WHERE user_id=?', [actor.id]);
+      if (profile) {
+        const p = JSON.parse(profile.payload);
+        p.phone = phone;
+        p.verifications = [...new Set([...(p.verifications ?? []), 'BASIC'])];
+        await db.run('UPDATE profiles SET payload=?,version=version+1,updated_at=? WHERE user_id=?', [JSON.stringify(p), this.clock(), actor.id]);
+      }
+    });
+    return { verified: true, phone };
   }
   async refresh(payload) {
     keys(payload, ['refreshToken']); text(payload.refreshToken, 'Yenileme tokenı', 64, 64);

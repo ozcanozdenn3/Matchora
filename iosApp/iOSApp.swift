@@ -64,11 +64,7 @@ final class MatchoraAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifica
         DeviceEventBridge.shared.phoneAuthDelegate = phoneAuthDelegate
 
         if DeviceEventBridge.shared.nativeServicesEnabled {
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
-                if granted {
-                    DispatchQueue.main.async { application.registerForRemoteNotifications() }
-                }
-            }
+            DispatchQueue.main.async { application.registerForRemoteNotifications() }
         }
         return true
     }

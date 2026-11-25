@@ -1,5 +1,12 @@
 import { randomBytes } from 'node:crypto';
-import { ensure } from './errors.mjs';
+import { ensure, ApiError } from './errors.mjs';
+function parseJsonMap(raw, key) {
+  if (!raw) return {};
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch { throw new ApiError(500, 'INVALID_CONFIGURATION', `${key} geçerli bir JSON nesnesi değil.`); }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new ApiError(500, 'INVALID_CONFIGURATION', `${key} JSON nesnesi olmalı.`);
+  return parsed;
+}
 export function configFromEnv(env = globalThis.process?.env ?? globalThis.Deno?.env?.toObject?.() ?? {}) {
   const production = env.MATCHORA_ENV === 'production';
   const config = {
@@ -19,13 +26,13 @@ export function configFromEnv(env = globalThis.process?.env ?? globalThis.Deno?.
     secret: env.CHECKIN_SECRET ?? (production ? '' : randomBytes(32).toString('hex')),
     billingSecret: env.BILLING_WEBHOOK_SECRET,
     revenueCatAppleKey:env.REVENUECAT_APPLE_PUBLIC_KEY,revenueCatGoogleKey:env.REVENUECAT_GOOGLE_PUBLIC_KEY,revenueCatSecretKey:env.REVENUECAT_SECRET_KEY,
-    revenueCatAppleProducts:env.REVENUECAT_APPLE_PRODUCT_IDS?JSON.parse(env.REVENUECAT_APPLE_PRODUCT_IDS):{},
-    revenueCatGoogleProducts:env.REVENUECAT_GOOGLE_PRODUCT_IDS?JSON.parse(env.REVENUECAT_GOOGLE_PRODUCT_IDS):{},
+    revenueCatAppleProducts:parseJsonMap(env.REVENUECAT_APPLE_PRODUCT_IDS,'REVENUECAT_APPLE_PRODUCT_IDS'),
+    revenueCatGoogleProducts:parseJsonMap(env.REVENUECAT_GOOGLE_PRODUCT_IDS,'REVENUECAT_GOOGLE_PRODUCT_IDS'),
     revenueCatAuthorization: env.REVENUECAT_WEBHOOK_AUTHORIZATION,
-    revenueCatProducts: env.REVENUECAT_PRODUCT_MAP ? JSON.parse(env.REVENUECAT_PRODUCT_MAP) : {},
+    revenueCatProducts: parseJsonMap(env.REVENUECAT_PRODUCT_MAP,'REVENUECAT_PRODUCT_MAP'),
     devAuth: !production && env.DEV_AUTH_ENABLED === 'true',
-    admins: new Set((env.ADMIN_SUBJECTS ?? '').split(',').filter(Boolean)),
-    corsOrigins: new Set((env.CORS_ORIGINS ?? '').split(',').filter(Boolean)),
+    admins: new Set((env.ADMIN_SUBJECTS ?? '').split(',').map(s => s.trim()).filter(Boolean)),
+    corsOrigins: new Set((env.CORS_ORIGINS ?? '').split(',').map(s => s.trim()).filter(Boolean)),
     privacyUrl: env.PRIVACY_URL, termsUrl: env.TERMS_URL, supportEmail: env.SUPPORT_EMAIL,
     termsIosUrl: env.TERMS_IOS_URL, termsAndroidUrl: env.TERMS_ANDROID_URL,
     privacyVersion: env.PRIVACY_VERSION, termsVersion: env.TERMS_VERSION,

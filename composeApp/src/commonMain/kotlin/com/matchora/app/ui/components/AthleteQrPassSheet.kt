@@ -168,8 +168,13 @@ fun AthleteQrPassSheet(
                                     modifier = Modifier.size(13.dp)
                                 )
                                 Spacer(modifier = Modifier.width(3.dp))
+                                val hasPendingPhotoReview = backendWire?.a("supportRequests")?.any { it.s("category") == "Fotoğraf doğrulaması" && it.s("status") == "open" } == true
                                 Text(
-                                    text = if (VerificationLevel.PHOTO in user.verifications) "FOTOĞRAF ONAYLI" else "DOĞRULAMA BEKLİYOR",
+                                    text = when {
+                                        VerificationLevel.PHOTO in user.verifications -> "FOTOĞRAF ONAYLI"
+                                        hasPendingPhotoReview -> "DOĞRULAMA BEKLİYOR"
+                                        else -> "FOTOĞRAF ONAYSIZ"
+                                    },
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (VerificationLevel.PHOTO in user.verifications) MColors.Mint else MColors.Ink600

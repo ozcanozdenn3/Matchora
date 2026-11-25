@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { audit,adminRequired } from './model.mjs';
+import { audit,adminRequired,notifyAdmins } from './model.mjs';
 import { ensure,keys,text } from './errors.mjs';
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -79,6 +79,7 @@ export async function processIdentityDeletions(service, request = fetch) {
         await db.run(`UPDATE identity_deletions SET status='pending',claim_token=NULL,attempts=attempts+1,
           last_error=?,next_at=? WHERE user_id=? AND status='processing' AND claim_token=?`,
         [failure,now+Math.min(3600000,60000*2**Math.min(job.attempts,6)),job.user_id,job.claimToken]);
+        await notifyAdmins({db,now},'social','Kimlik silme hatası',`${failure} (${job.user_id})`,job.user_id,`identity-del-fail:${job.user_id}:${job.attempts}`);
       } else {
         const result = await db.run(`UPDATE identity_deletions SET status='completed',provider_user_id=NULL,auth_origin='',
           claim_token=NULL,last_error='',completed_at=? WHERE user_id=? AND status='processing' AND claim_token=?`,

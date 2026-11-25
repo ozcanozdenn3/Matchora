@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>application-identifier</key>
-    <string>XV6VPKTQAS.com.matchora.app</string>
+    <string>XV6VPKTQAS.com.ozdentech.matchora</string>
     <key>com.apple.developer.team-identifier</key>
     <string>XV6VPKTQAS</string>
     <key>keychain-access-groups</key>
-    <array><string>XV6VPKTQAS.com.matchora.app</string></array>
+    <array><string>XV6VPKTQAS.com.ozdentech.matchora</string></array>
     <key>com.apple.developer.applesignin</key>
     <array>
         <string>Default</string>

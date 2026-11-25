@@ -158,16 +158,20 @@ async function mergeOwnCatalog(ctx,kind,publicItems,records){
 async function recentMemories(ctx) {
  ctx.publicPlayers ??= new Map();
  const memories=[];const blockedMemoryActors=ctx.actor?new Set((await ctx.db.all('SELECT target_id AS id FROM blocks WHERE user_id=? UNION SELECT user_id AS id FROM blocks WHERE target_id=?',[ctx.actor.id,ctx.actor.id])).map(r=>r.id)):null;
- const memoryRows=await ctx.db.all("SELECT * FROM memories WHERE status='approved' OR (author_id=? AND status='pending') ORDER BY created_at DESC LIMIT 50",[ctx.actor?.id??'']);
+ const memoryRows=await ctx.db.all("SELECT * FROM memories WHERE status='approved' OR (author_id=? AND status IN ('pending','rejected')) ORDER BY created_at DESC LIMIT 50",[ctx.actor?.id??'']);
  const visibleMemoryRows=memoryRows.filter(m=>!blockedMemoryActors?.has(m.author_id));
- const memoryLikeCounts=new Map(),likedMemories=new Set();
+ const memoryLikeCounts=new Map(),likedMemories=new Set(),rejectedReasons=new Map();
  if(visibleMemoryRows.length){
   await preloadPublicPlayers(ctx,visibleMemoryRows.map(m=>m.author_id));
   const mIds=visibleMemoryRows.map(m=>m.id),mq=mIds.map(()=>'?').join(',');
   for(const c of await ctx.db.all(`SELECT memory_id,COUNT(*) AS n FROM memory_likes WHERE memory_id IN (${mq}) GROUP BY memory_id`,mIds))memoryLikeCounts.set(c.memory_id,Number(c.n));
-  if(ctx.actor)for(const l of await ctx.db.all(`SELECT memory_id FROM memory_likes WHERE user_id=? AND memory_id IN (${mq})`,[ctx.actor.id,...mIds]))likedMemories.add(l.memory_id);
+  if(ctx.actor){
+   for(const l of await ctx.db.all(`SELECT memory_id FROM memory_likes WHERE user_id=? AND memory_id IN (${mq})`,[ctx.actor.id,...mIds]))likedMemories.add(l.memory_id);
+   const ownRejected=visibleMemoryRows.filter(m=>m.author_id===ctx.actor.id&&m.status==='rejected').map(m=>m.id);
+   if(ownRejected.length){const rq=ownRejected.map(()=>'?').join(',');for(const a of await ctx.db.all(`SELECT target_id,metadata FROM audit_log WHERE action='admin.memory.review' AND target_id IN (${rq}) ORDER BY created_at DESC,id DESC`,ownRejected))if(!rejectedReasons.has(a.target_id))rejectedReasons.set(a.target_id,json(a.metadata).reason??null);}
+  }
  }
- for(const m of visibleMemoryRows){const author=ctx.publicPlayers.get(m.author_id)??await publicPlayer(ctx,m.author_id);memories.push({...publicMemoryPayload(m.payload,blockedMemoryActors),id:m.id,authorId:m.author_id,authorName:author.name,authorAvatarUploadId:author.avatarUploadId??null,uploadId:m.upload_id,status:m.status,likes:memoryLikeCounts.get(m.id)??0,likedByMe:likedMemories.has(m.id),createdAt:Number(m.created_at)});}
+ for(const m of visibleMemoryRows){const author=ctx.publicPlayers.get(m.author_id)??await publicPlayer(ctx,m.author_id);const reason=rejectedReasons.get(m.id);memories.push({...publicMemoryPayload(m.payload,blockedMemoryActors),id:m.id,authorId:m.author_id,authorName:author.name,authorAvatarUploadId:author.avatarUploadId??null,uploadId:m.upload_id,status:m.status,likes:memoryLikeCounts.get(m.id)??0,likedByMe:likedMemories.has(m.id),createdAt:Number(m.created_at),...(reason?{moderationReason:reason}:{})});}
  return memories;
 }
 
@@ -230,10 +234,28 @@ export async function snapshot(ctx){
  const notificationFeed=await notificationPage(ctx,{limit:100});result.notifications=notificationFeed.items;result.nextNotificationCursor=notificationFeed.nextCursor;result.unreadNotificationCount=notificationFeed.unreadCount;
  for(const b of await ctx.db.all(`SELECT b.*,s.venue_id,s.payload,s.starts_at,p.status AS payment_status,v.payload AS venue_payload FROM bookings b JOIN venue_slots s ON s.id=b.slot_id JOIN venue_payments p ON p.booking_id=b.id JOIN venues v ON v.id=s.venue_id WHERE b.user_id=? AND (b.status IN ('pending','confirmed') OR b.id IN (SELECT id FROM bookings WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 100)) ORDER BY b.created_at DESC`,[userId,userId])){result.venuePayments.push({id:b.id,venue:json(b.venue_payload).name,description:`${json(b.payload).court} · ${dateLabel(b.starts_at)} ${timeLabel(b.starts_at)}`,amountMinor:b.amount_minor,amountTry:Math.ceil(b.amount_minor/100),method:'Tesiste ödeme',time:dateLabel(b.created_at),bookingStatus:b.status,status:b.payment_status==='refunded'?'REFUNDED':b.status==='cancelled'?'CANCELLED':b.payment_status==='paid'?'PAID':'PENDING',bookingKey:`${b.venue_id}:${b.slot_id}`,cancellationDeadline:Number(b.cancellation_deadline)});}
  result.venueReviews=await ctx.db.all('SELECT id,booking_id,rating,comment,status,version FROM venue_reviews WHERE user_id=?',[userId]);
+ if(result.venueReviews.some(r=>r.status==='rejected')){
+  const reviewReasons=new Map(),rejIds=result.venueReviews.filter(r=>r.status==='rejected').map(r=>r.id);
+  for(const a of await ctx.db.all(`SELECT target_id,metadata FROM audit_log WHERE action='admin.venue.review' AND target_id IN (${rejIds.map(()=>'?').join(',')}) ORDER BY created_at DESC,id DESC`,rejIds))if(!reviewReasons.has(a.target_id))reviewReasons.set(a.target_id,json(a.metadata).reason??null);
+  for(const review of result.venueReviews)if(reviewReasons.has(review.id))review.reason=reviewReasons.get(review.id);
+ }
  result.supportRequests=await ctx.db.all('SELECT id,subject,message,category,status FROM support_requests WHERE user_id=? ORDER BY created_at DESC LIMIT 100',[userId]);
  const replies=await ctx.db.all("SELECT a.target_id,a.metadata,a.created_at FROM audit_log a JOIN support_requests s ON s.id=a.target_id WHERE s.user_id=? AND a.action='admin.support.resolve' ORDER BY a.created_at DESC,a.id DESC",[userId]);
- for(const request of result.supportRequests){const reply=replies.find(r=>r.target_id===request.id);request.response=reply?json(reply.metadata).response:null;request.respondedAt=reply?Number(reply.created_at):null;}
+ const photoDecisions=await ctx.db.all("SELECT target_id,metadata,created_at FROM audit_log WHERE target_id=? AND action='admin.verification.photo' ORDER BY created_at DESC,id DESC LIMIT 50",[userId]);
+ for(const request of result.supportRequests){
+  const reply=replies.find(r=>r.target_id===request.id);
+  const photoReply=!reply&&request.category==='Fotoğraf doğrulaması'?photoDecisions.find(a=>{const m=json(a.metadata);return m.requestId===request.id||(m.uploadId&&request.message.includes(m.uploadId));}):null;
+  const decision=reply??photoReply;
+  const decisionMeta=decision?json(decision.metadata):null;
+  request.response=decisionMeta?(decisionMeta.response??decisionMeta.reason??null):null;
+  request.respondedAt=decision?Number(decision.created_at):null;
+ }
  result.reports=await ctx.db.all('SELECT id,target_id AS target,reason,details,status FROM reports WHERE user_id=? ORDER BY created_at DESC LIMIT 100',[userId]);
+ if(result.reports.length){
+  const reportDecisions=new Map(),repIds=result.reports.map(r=>r.id);
+  for(const a of await ctx.db.all(`SELECT target_id,metadata FROM audit_log WHERE action='admin.report.resolve' AND target_id IN (${repIds.map(()=>'?').join(',')}) ORDER BY created_at DESC,id DESC`,repIds))if(!reportDecisions.has(a.target_id))reportDecisions.set(a.target_id,json(a.metadata).reason??null);
+  for(const rep of result.reports)if(reportDecisions.has(rep.id))rep.resolutionReason=reportDecisions.get(rep.id);
+ }
  result.registeredTournamentIds=(await ctx.db.all("SELECT DISTINCT tournament_id FROM tournament_members tm JOIN team_members m ON m.team_id=tm.team_id WHERE m.user_id=? AND m.status='joined' AND tm.status='joined'",[userId])).map(r=>r.tournament_id);result.invitedPlayerIds=(await ctx.db.all("SELECT i.user_id FROM team_invites i JOIN teams t ON t.id=i.team_id WHERE t.captain_id=? AND i.status='pending'",[userId])).map(r=>r.user_id);
  const cm=await ctx.db.all('SELECT * FROM community_members WHERE user_id=?',[userId]);result.joinedCommunityIds=cm.filter(m=>m.status==='joined').map(m=>m.community_id);result.requestedCommunityIds=cm.filter(m=>m.status==='pending').map(m=>m.community_id);
  const challengeTeamIds=[...new Set(result.challenges.flatMap(c=>[c.from_team,c.to_team]))];

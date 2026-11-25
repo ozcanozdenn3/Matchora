@@ -256,7 +256,7 @@ fun PlayNowModalSheet(
     var adNetworkName by remember(draftOwnerKey) { mutableStateOf(restored.s("networkName")) }
     var adCalendarDate by remember(draftOwnerKey) { mutableStateOf(runCatching { LocalDate.parse(restored.s("date")) }.getOrElse { LocalDate.fromEpochDays(todayDate().toEpochDays() + 1) }) }
     val initialAutoPoint = remember(draftOwnerKey) {
-        val gpsMatch = deviceLocation?.takeIf { it.city.isNullOrBlank() || matchesTurkishPlace(it.city, currentCity) }
+        val gpsMatch = deviceLocation?.takeIf { it.matchesSelectedRegion(currentCity, currentArea) }
         gpsMatch?.let { EventGeoPoint(it.latitude, it.longitude) }
             ?: regionCenter?.let { EventGeoPoint(it.latitude, it.longitude) }
             ?: cityMapCenter(currentCity)
@@ -361,10 +361,14 @@ fun PlayNowModalSheet(
     val requestSearchLocation = rememberLocationRequester { result ->
         when (result) {
             is LocationOutcome.Located -> { DeviceLocationState.current.value = result.value; locationError = null; locationSettings = false }
-            is LocationOutcome.Failed -> { DeviceLocationState.current.value = null; locationError = result.message; locationSettings = result.settingsAvailable }
+            is LocationOutcome.Failed -> {
+                if (!hasForegroundLocationPermission()) DeviceLocationState.current.value = null
+                locationError = result.message
+                locationSettings = result.settingsAvailable
+            }
         }
     }
-    val origin = deviceLocation ?: regionCenter
+    val origin = deviceLocation?.takeIf { it.matchesSelectedRegion(currentCity, currentArea) } ?: regionCenter
     fun effectiveDistanceKm(event: SportEvent): Float? =
         origin?.let { ref -> event.approximateLocation?.let { pt -> approximateDistanceKm(ref, pt.latitude, pt.longitude) } }
             ?: event.distanceKm

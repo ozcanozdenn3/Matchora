@@ -24,7 +24,7 @@ export async function closeCommunityParticipation(ctx, community, userId) {
 export const communityManagementHandlers = {
   'community.archive': async (ctx,p) => {
     keys(p,['communityId']);const community=await row(ctx,'communities','id',p.communityId),data=json(community.payload);
-    ensure(community.owner_id===ctx.actor.id,403,'FORBIDDEN','Topluluk yöneticisi olmalısın.');
+    ensure(community.owner_id===ctx.actor.id||ctx.actor.role==='admin',403,'FORBIDDEN','Topluluk yöneticisi olmalısın.');
     ensure(!data.archived,409,'COMMUNITY_ARCHIVED','Bu topluluk zaten kapatıldı.');
     const events=await ctx.db.all("SELECT * FROM events WHERE ends_at>? AND status NOT IN ('CANCELLED','VERIFIED','ARCHIVED')",[ctx.now]);
     const privateEvents=events.filter(e=>{const p=json(e.payload);return p.communityId===community.id&&['CAMPUS','COMPANY'].includes(p.networkScope);});

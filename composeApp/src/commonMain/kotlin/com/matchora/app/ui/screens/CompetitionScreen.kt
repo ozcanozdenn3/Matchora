@@ -707,7 +707,7 @@ fun CompetitionScreen(
             rating = playerProf.rating,
             rank = playerProf.rank,
             player = targetPlayer,
-            isInvitedToTeam = !backendMode && targetPlayer.id in invitedPlayerIds,
+            isInvitedToTeam = targetPlayer.id in invitedPlayerIds,
             sport = selectedSport,
             onDismiss = { selectedPlayerForProfile = null },
             onChallenge = {

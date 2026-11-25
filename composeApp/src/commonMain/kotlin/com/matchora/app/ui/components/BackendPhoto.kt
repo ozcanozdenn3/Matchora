@@ -26,7 +26,12 @@ import com.matchora.app.ui.theme.MColors
 val LocalBackendRepository = staticCompositionLocalOf<BackendRepository?> { null }
 
 @Composable
-fun BackendPhoto(uploadId: String, description: String, modifier: Modifier = Modifier) {
+fun BackendPhoto(
+    uploadId: String,
+    description: String,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop
+) {
     val backend = LocalBackendRepository.current
     var image by remember(uploadId) { mutableStateOf<ImageBitmap?>(null) }
     var failed by remember(uploadId) { mutableStateOf(false) }
@@ -37,7 +42,7 @@ fun BackendPhoto(uploadId: String, description: String, modifier: Modifier = Mod
         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (_: Exception) { failed = true }
     }
-    if (image != null) Image(requireNotNull(image), description, modifier, contentScale = ContentScale.Crop)
+    if (image != null) Image(requireNotNull(image), description, modifier, contentScale = contentScale)
     else Box(modifier.background(MColors.SurfaceMuted), contentAlignment = Alignment.Center) {
         if (failed) TextButton(onClick = { attempt++ }) { Icon(Icons.Rounded.BrokenImage, description, Modifier.size(18.dp)); Text("Tekrar dene") }
         else CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)

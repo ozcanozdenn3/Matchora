@@ -65,6 +65,7 @@ actual fun NativeMapView(
     val safeLatitude = if (validMapCoordinate(latitude, longitude)) latitude.coerceIn(-85.0, 85.0) else 39.0
     val safeLongitude = if (validMapCoordinate(latitude, longitude)) longitude else 35.0
     val safeSpan = zoomMeters.takeIf { it.isFinite() && it > 0 }?.coerceIn(300.0, 20000000.0) ?: 4200.0
+    val currentLocation by DeviceLocationState.current.collectAsState()
     val callback by rememberUpdatedState(onPinSelected)
     val coordinator = remember {
         MapCoordinator(pins) { callback(it) }
@@ -88,7 +89,7 @@ actual fun NativeMapView(
                 val center = CLLocationCoordinate2DMake(safeLatitude, safeLongitude)
                 val region = MKCoordinateRegionMakeWithDistance(center, safeSpan, safeSpan)
                 setRegion(region, animated = false)
-                showsUserLocation = true
+                showsUserLocation = currentLocation != null || hasForegroundLocationPermission()
                 overrideUserInterfaceStyle = UIUserInterfaceStyle.UIUserInterfaceStyleLight
                 userInteractionEnabled = interactive
                 scrollEnabled = interactive
@@ -106,7 +107,7 @@ actual fun NativeMapView(
         },
         update = { mapView ->
             mapView.overrideUserInterfaceStyle = UIUserInterfaceStyle.UIUserInterfaceStyleLight
-            mapView.showsUserLocation = true
+            mapView.showsUserLocation = currentLocation != null || hasForegroundLocationPermission()
             coordinator.pins = pins
             mapView.delegate = coordinator
             mapView.userInteractionEnabled = interactive
@@ -128,7 +129,9 @@ actual fun NativeMapView(
                 val targetPin = pins.firstOrNull { it.id == selectedPinId }
                 if (targetPin != null) {
                     annotations.firstOrNull { it.pinId == targetPin.id }?.let { selectedAnn ->
-                        mapView.selectAnnotation(selectedAnn, animated = true)
+                        if (mapView.selectedAnnotations.none { it === selectedAnn }) {
+                            mapView.selectAnnotation(selectedAnn, animated = true)
+                        }
                     }
                 }
             } else {

@@ -73,6 +73,32 @@ fun NotificationPermissionButton() {
 
 expect fun hasForegroundLocationPermission(): Boolean
 
+expect fun hasPromptedInitialNotificationPermission(): Boolean
+expect fun markInitialNotificationPermissionPrompted()
+expect fun hasPromptedInitialLocationPermission(): Boolean
+expect fun markInitialLocationPermissionPrompted()
+
+data class PersistedRegionSelection(
+    val city: String,
+    val district: String,
+    val isGps: Boolean,
+    val manualNonGps: Boolean,
+    val latitude: Double? = null,
+    val longitude: Double? = null
+)
+
+expect fun loadPersistedRegionSelection(): PersistedRegionSelection?
+expect fun savePersistedRegionSelection(selection: PersistedRegionSelection)
+
+fun DeviceLocation.matchesSelectedRegion(city: String, district: String, isGpsActive: Boolean = false): Boolean {
+    if (isGpsActive) return true
+    if (this.city.isNullOrBlank() || !com.matchora.app.state.matchesTurkishPlace(this.city, city)) return false
+    val cleanDistrict = district.trim()
+    if (cleanDistrict.isBlank() || com.matchora.app.state.matchesTurkishPlace(cleanDistrict, "Merkez")) return true
+    val gpsDistrict = this.district?.trim()?.takeIf { it.isNotBlank() } ?: return false
+    return com.matchora.app.state.matchesTurkishPlace(gpsDistrict, cleanDistrict)
+}
+
 /** Refresh only an already granted foreground location; never opens a permission dialog. */
 @Composable
 fun rememberForegroundLocationRefresh(active: Boolean) {
@@ -82,7 +108,7 @@ fun rememberForegroundLocationRefresh(active: Boolean) {
     val request = rememberLocationRequester(requestPermission = false) { result ->
         DeviceLocationState.current.value = when (result) {
             is LocationOutcome.Located -> result.value
-            is LocationOutcome.Failed -> null
+            is LocationOutcome.Failed -> if (hasForegroundLocationPermission()) DeviceLocationState.current.value else null
         }
     }
     LaunchedEffect(active, location != null) {

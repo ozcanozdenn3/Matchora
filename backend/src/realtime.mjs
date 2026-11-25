@@ -119,6 +119,28 @@ export class RealtimeHub {
     if (threadId) for (const userId of await this.authorizedMembers(threadId)) recipients.add(userId);
     if (operation === 'user.block') recipients.add(payload.userId);
     if (operation === 'event.member.remove' || operation === 'team.member.remove') recipients.add(payload.userId);
+    if (payload.userId && ['admin.verification.photo', 'admin.user.status', 'admin.operator.assign'].includes(operation)) recipients.add(payload.userId);
+    if (['admin.feature.set', 'admin.legal.publish', 'admin.announcement.send', 'admin.content.remove'].includes(operation)) {
+      for (const userId of this.connections.keys()) recipients.add(userId);
+    }
+    if (['admin.support.resolve', 'admin.memory.review', 'admin.venue.review', 'admin.venue.application.review', 'admin.report.resolve', 'admin.result.resolve'].includes(operation)) {
+      const lookup = {
+        'admin.support.resolve': ['SELECT user_id FROM support_requests WHERE id=?', payload.requestId],
+        'admin.memory.review': ['SELECT author_id AS user_id FROM memories WHERE id=?', payload.memoryId],
+        'admin.venue.review': ['SELECT user_id FROM venue_reviews WHERE id=?', payload.reviewId],
+        'admin.venue.application.review': ['SELECT user_id FROM venue_applications WHERE id=?', payload.applicationId],
+        'admin.report.resolve': ['SELECT user_id FROM reports WHERE id=?', payload.reportId]
+      }[operation];
+      if (lookup?.[1]) {
+        const target = await this.service.store.get(lookup[0], [lookup[1]]);
+        if (target?.user_id) recipients.add(target.user_id);
+      } else if (operation === 'admin.result.resolve' && payload.eventId) {
+        for (const m of await this.service.store.all("SELECT user_id FROM event_members WHERE event_id=? AND status='joined'", [payload.eventId])) recipients.add(m.user_id);
+      }
+    }
+    if (['verification.photo', 'support.create', 'report.create', 'venue.review.save', 'venue.application.create', 'result.dispute', 'account.delete'].includes(operation) || (operation === 'memory.update' && result?.status === 'pending')) {
+      for (const admin of await this.service.store.all("SELECT id FROM users WHERE role='admin' AND status='active'")) recipients.add(admin.id);
+    }
     this.invalidate([...recipients], actor.sessionId, threadId);
   }
 
@@ -127,7 +149,11 @@ export class RealtimeHub {
     ensure(UUID.test(threadId), 400, 'INVALID_THREAD', 'Sohbet kimliği geçersiz.');
     keys(payload, ['typing']);
     ensure(typeof payload.typing === 'boolean', 400, 'INVALID_INPUT', 'Yazma durumu geçersiz.');
-    await this.service.store.read(db => assertThread(this.service.ctx(db, actor), threadId, true));
+    await this.service.store.read(async db => {
+      const flag = await db.get('SELECT enabled FROM feature_flags WHERE name=?', ['chat']);
+      ensure(!flag || flag.enabled, 503, 'FEATURE_UNAVAILABLE', 'Sohbet geçici olarak kullanılamıyor.');
+      await assertThread(this.service.ctx(db, actor), threadId, true);
+    });
     const now = this.service.clock(), key = `${actor.id}:${threadId}`;
     const previous = this.lastTyping.get(key);
     if (payload.typing && previous != null && now - previous < 800) return { sent: false };

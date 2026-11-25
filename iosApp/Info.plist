@@ -67,8 +67,6 @@
 	<string>Çektiğin veya düzenlediğin fotoğrafları galeriye kaydetmek için fotoğraf arşivine ekleme izni gereklidir.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>

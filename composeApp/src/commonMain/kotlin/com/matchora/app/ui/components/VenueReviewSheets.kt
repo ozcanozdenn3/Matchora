@@ -59,6 +59,11 @@ fun VenueReviewsSheet(venue: VenueInfo, onDismiss: () -> Unit, onReport: (String
                 Text("${review.s("authorName")} · ${review.i("rating")}/5", style = MaterialTheme.typography.titleSmall)
                 Text(review.s("comment"), style = MaterialTheme.typography.bodySmall)
                 if (review.s("status") == "pending") Text("İnceleme bekliyor", color = MColors.Ink500)
+                if (review.s("status") == "rejected") Text(
+                    review.s("moderationReason").takeIf { it.isNotBlank() }?.let { "Yayınlanmadı: $it" } ?: "Yayınlanmadı",
+                    color = MColors.Rose,
+                    style = MaterialTheme.typography.bodySmall
+                )
                 if (backend != null && !review.b("own")) {
                     MPillActionButton("Yorumu bildir", { report = review }, icon = Icons.Rounded.Flag, tone = MPillTone.DANGER, compact = true)
                 }
@@ -115,6 +120,13 @@ fun VenueReviewEditorSheet(payment: VenuePayment, onSaved: (() -> Unit)? = null,
     }
     ActivitySheet("Tesisi değerlendir", payment.venue, onDismiss, Icons.Rounded.StarOutline) {
         Text("Değerlendirmen kontrol edildikten sonra yayınlanır. Aynı rezervasyon için tek yorum kaydı tutulur.", style = MaterialTheme.typography.bodySmall)
+        if (original?.s("status") == "rejected") {
+            Text(
+                original.s("reason").takeIf { it.isNotBlank() }?.let { "Önceki değerlendirmen reddedildi: $it" } ?: "Önceki değerlendirmen yayınlanmadı. Düzenleyip yeniden gönderebilirsin.",
+                color = MColors.Rose,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
         MFloatingDropdownBox("Puanın", stars, (1..5).toList(), { "$it / 5" }, { stars = it })
         MPremiumTextField(comment, { comment = it.take(1000) }, label = "Deneyimini anlat", singleLine = false, minLines = 3, maxLines = 5)
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())

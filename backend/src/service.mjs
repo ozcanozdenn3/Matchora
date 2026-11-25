@@ -66,7 +66,7 @@ export class MatchoraService{
    }
    const operatorOperations=new Set(['venue.create','venue.update','venue.archive','venue.slot.create','venue.slot.bulk.create','venue.slot.update','venue.slot.reopen','venue.slot.cancel','booking.confirm','booking.payment.record','booking.complete','booking.refund.record']);
    if(operatorOperations.has(operation))ensure(['admin','venue_owner'].includes(ctx.actor.role),403,'FORBIDDEN','Güncel tesis yetkisi gerekiyor.');
-   const feature=operation.split('.')[0],flagMap={memory:'memories',tournament:'tournaments',venue:'venues',booking:'venues',chat:'chat'};if(flagMap[feature]&&!exitOperations.has(operation)){const flag=await db.get('SELECT enabled FROM feature_flags WHERE name=?',[flagMap[feature]]);ensure(!flag||flag.enabled,503,'FEATURE_UNAVAILABLE','Bu özellik geçici olarak kullanılamıyor.');}
+   const feature=operation.split('.')[0],flagMap={memory:'memories',tournament:'tournaments',venue:'venues',booking:'venues',chat:'chat',message:'chat'};if(flagMap[feature]&&!exitOperations.has(operation)){const flag=await db.get('SELECT enabled FROM feature_flags WHERE name=?',[flagMap[feature]]);ensure(!flag||flag.enabled,503,'FEATURE_UNAVAILABLE','Bu özellik geçici olarak kullanılamıyor.');}
    const result=await handlers[operation](ctx,payload);await db.run('INSERT INTO commands(user_id,operation,request_key,request_hash,response,created_at) VALUES(?,?,?,?,?,?)',[actor.id,operation,key,hash,encode(result),ctx.now]);if (scope.compact) {
      const changes = await commandChanges(ctx,operation,payload,result);
      if (changes) return {result,changes,replayed:false};
@@ -74,7 +74,7 @@ export class MatchoraService{
    return{result,snapshot:await snapshot(ctx),replayed:false};
   });}catch(error){if(error instanceof ApiError)throw error;if(error.code?.startsWith('SQLITE_CONSTRAINT')||error.code==='23505')throw new ApiError(409,'CONFLICT','Bu kayıt zaten var veya işlem mevcut duruma uygun değil.');throw error;}
  }
- async configuration(){return this.store.read(async db=>{const flag=await db.get('SELECT enabled FROM feature_flags WHERE name=?',['billing']),store=storeConfiguration(this.config);return{fees:{tournament:20,listing:10},ratingPolicy:RATING_POLICY,...await legalConfiguration(this.ctx(db)),auth:{social:oauthConfigured(this.config),email:oauthConfigured(this.config),phone:smsConfigured(this.config),development:this.config.devAuth},billing:!!this.config.billingSecret&&flag?.enabled!==0,store:{...store,enabled:store.enabled&&flag?.enabled!==0},supportEmail:this.config.supportEmail??null};});}
+ async configuration(){return this.store.read(async db=>{const flag=await db.get('SELECT enabled FROM feature_flags WHERE name=?',['billing']),store=storeConfiguration(this.config);return{fees:{tournament:20,listing:10},ratingPolicy:RATING_POLICY,...await legalConfiguration(this.ctx(db)),auth:{social:oauthConfigured(this.config),email:false,phone:smsConfigured(this.config),development:this.config.devAuth},billing:!!this.config.billingSecret&&flag?.enabled!==0,store:{...store,enabled:store.enabled&&flag?.enabled!==0},supportEmail:this.config.supportEmail??null};});}
  async searchPlayers(actor,filters){return this.store.read(db=>searchPlayers(this.ctx(db,actor),filters));}
  async personalHistory(actor,kind,filters){return this.store.read(db=>personalHistory(this.ctx(db,actor),kind,filters));}
  async player(actor,userId,sport){return this.store.read(db=>playerDetails(this.ctx(db,actor),userId,sport));}
@@ -136,20 +136,67 @@ export class MatchoraService{
  }
  async operatorVenues(actor){return this.store.read(async db=>{const current=actor?.id?await db.get('SELECT role,status FROM users WHERE id=?',[actor.id]):null;ensure(current?.status==='active'&&['admin','venue_owner'].includes(current.role),403,'FORBIDDEN','Güncel tesis yetkisi gerekiyor.');return operatorVenues(this.ctx(db,{...actor,role:current.role}));});}
  async venueReviews(actor,venueId,filters={}){return this.store.read(db=>venueReviews(this.ctx(db,actor),venueId,filters));}
- async adminInbox(actor){return this.store.read(async db=>{
+ async adminInbox(actor,filters={}){return this.store.read(async db=>{
   const current=actor?.id?await db.get('SELECT role,status FROM users WHERE id=?',[actor.id]):null;ensure(current?.role==='admin'&&current.status==='active',403,'FORBIDDEN','Yönetici yetkisi gerekiyor.');
-  const support=await db.all("SELECT * FROM support_requests WHERE status='open' ORDER BY created_at LIMIT 100");
-  const photos=[];for(const request of support.filter(r=>r.category==='Fotoğraf doğrulaması')){const photo=await db.get('SELECT payload FROM profiles WHERE user_id=?',[request.user_id]);const upload=request.message.match(/[a-f0-9-]{36}/)?.[0];photos.push({...request,uploadId:upload??'',stale:!photo||json(photo.payload).avatarUploadId!==upload});}
-  const reports=await db.all("SELECT * FROM reports WHERE status='open' ORDER BY created_at LIMIT 100");
-  const targets={event:'events',memory:'memories',message:'messages',team:'teams',venue:'venues',venue_review:'venue_reviews',thread:'threads'};
-  for(const report of reports){const table=targets[report.target_type];if(table){const target=await db.get(`SELECT * FROM ${table} WHERE id=?`,[report.target_id]);const data=target?.payload?json(target.payload):target;report.context=data?{title:data.title??data.name??data.subject??'Bildirilen kayıt',description:data.description??data.caption??data.comment??data.body??'',status:target?.status??''}:null;}}
-  return{identityDeletions:await db.all("SELECT user_id AS id,status,attempts,next_at,last_error,created_at FROM identity_deletions WHERE status<>'completed' ORDER BY created_at LIMIT 100"),venueApplications:(await db.all("SELECT a.*,p.payload AS applicant_payload FROM venue_applications a JOIN profiles p ON p.user_id=a.user_id WHERE a.status='pending' ORDER BY a.created_at LIMIT 100")).map(a=>({...a,...json(a.payload),applicantName:json(a.applicant_payload).name})),reports,support:support.filter(r=>r.category!=='Fotoğraf doğrulaması'),photos,
-   memories:await db.all("SELECT * FROM memories WHERE status='pending' LIMIT 100"),
-   results:await db.all("SELECT r.*,e.payload AS event_payload FROM results r JOIN events e ON e.id=r.event_id WHERE r.status='disputed' OR (r.status='pending' AND r.dispute_until<=?) ORDER BY r.created_at LIMIT 100",[this.clock()]),
-   reviews:await db.all("SELECT r.*,v.payload AS venue_payload FROM venue_reviews r JOIN venues v ON v.id=r.venue_id WHERE r.status='pending' ORDER BY r.created_at LIMIT 100"),
-   users:(await db.all("SELECT u.id,u.role,u.status,p.payload FROM users u JOIN profiles p ON p.user_id=u.id WHERE u.status IN ('active','suspended') ORDER BY u.created_at DESC LIMIT 200")).map(u=>({id:u.id,role:u.role,status:u.status,name:json(u.payload).name})),
-   announcements:(await db.all("SELECT metadata,created_at FROM audit_log WHERE action='admin.announcement.send' ORDER BY created_at DESC LIMIT 10")).map(row=>({...json(row.metadata),createdAt:Number(row.created_at)})),
-   outboxFailures:await db.all("SELECT id,user_id,kind,attempts FROM outbox WHERE status='failed' LIMIT 100")};
+  const photoRows=await db.all("SELECT s.*,p.payload AS profile_payload,u.phone AS user_phone FROM support_requests s LEFT JOIN profiles p ON p.user_id=s.user_id JOIN users u ON u.id=s.user_id WHERE s.category='Fotoğraf doğrulaması' AND s.status='open' ORDER BY s.created_at LIMIT 100");
+  const photos=photoRows.map(request=>{const photoData=request.profile_payload?json(request.profile_payload):null;const upload=request.message.match(/[a-f0-9-]{36}/)?.[0];const {profile_payload,user_phone,...base}=request;return{...base,uploadId:upload??'',stale:!photoData||photoData.avatarUploadId!==upload,requesterName:photoData?.name??'Sporcu',requesterCity:photoData?.city??'',requesterArea:photoData?.area??'',requesterPhone:user_phone??'',currentAvatarUploadId:photoData?.avatarUploadId??null,verifications:photoData?.verifications??[]};});
+  const supportRows=await db.all("SELECT s.*,p.payload AS profile_payload,u.phone AS user_phone,u.email AS user_email FROM support_requests s LEFT JOIN profiles p ON p.user_id=s.user_id JOIN users u ON u.id=s.user_id WHERE s.category<>'Fotoğraf doğrulaması' AND s.status='open' ORDER BY s.created_at LIMIT 100");
+  const support=supportRows.map(request=>{const data=request.profile_payload?json(request.profile_payload):null;const {profile_payload,user_phone,user_email,...base}=request;return{...base,requesterName:data?.name??'Sporcu',requesterPhone:user_phone??'',requesterEmail:user_email??''};});
+  const reports=await db.all("SELECT r.*,p.payload AS reporter_payload FROM reports r LEFT JOIN profiles p ON p.user_id=r.user_id WHERE r.status='open' ORDER BY r.created_at LIMIT 100");
+  const targets={event:'events',memory:'memories',message:'messages',team:'teams',venue:'venues',venue_review:'venue_reviews',thread:'threads',user:'users'};
+  for(const report of reports){
+   report.reporterName=report.reporter_payload?json(report.reporter_payload).name??'Sporcu':'Sporcu';
+   delete report.reporter_payload;
+   const table=targets[report.target_type];
+   if(table){
+    const target=await db.get(`SELECT * FROM ${table} WHERE id=?`,[report.target_id]);
+    if(report.target_type==='user'){
+     const targetProfile=await db.get('SELECT payload FROM profiles WHERE user_id=?',[report.target_id]);
+     const pData=targetProfile?json(targetProfile.payload):null;
+     report.context=target?{title:pData?.name??'Kullanıcı',description:[pData?.city,pData?.area,target.status].filter(Boolean).join(' · '),status:target.status??''}:null;
+     report.targetOwnerId=report.target_id;
+     report.targetUploadId=pData?.avatarUploadId??null;
+    }else{
+     const data=target?.payload?json(target.payload):target;
+     report.context=data?{title:data.title??data.name??data.subject??'Bildirilen kayıt',description:data.description??data.caption??data.comment??data.body??'',status:target?.status??''}:null;
+     report.targetOwnerId=target?.author_id??target?.sender_id??target?.host_id??target?.captain_id??target?.owner_id??target?.user_id??null;
+     report.targetUploadId=target?.upload_id??(Array.isArray(data?.photoUploadIds)?data.photoUploadIds[0]??null:null);
+     report.targetVersion=Number(target?.version??data?.version??1);
+     report.targetStatus=target?.status??'';
+     if(report.target_type==='message'&&target){
+      const msgMeta=await db.get('SELECT version,deleted_at FROM message_metadata WHERE message_id=?',[target.id]);
+      report.targetVersion=msgMeta?.version??1;
+      report.targetDeleted=!!msgMeta?.deleted_at;
+     }
+    }
+   }
+  }
+  const venueApplications=(await db.all("SELECT a.*,p.payload AS applicant_payload,u.phone AS applicant_phone FROM venue_applications a LEFT JOIN profiles p ON p.user_id=a.user_id JOIN users u ON u.id=a.user_id WHERE a.status='pending' ORDER BY a.created_at LIMIT 100")).map(a=>{const {applicant_payload,applicant_phone,...base}=a;const pData=applicant_payload?json(applicant_payload):null;return{...base,...json(a.payload),applicantName:pData?.name??'Başvuran',applicantPhone:applicant_phone??''};});
+  const memories=(await db.all("SELECT m.*,p.payload AS author_payload FROM memories m LEFT JOIN profiles p ON p.user_id=m.author_id WHERE m.status='pending' ORDER BY m.created_at LIMIT 100")).map(m=>{const d=json(m.payload),ap=m.author_payload?json(m.author_payload):null;const {author_payload,...base}=m;return{...base,authorName:ap?.name??'Sporcu',caption:d.caption??'',sport:d.sport??'',venue:d.venue??'',area:d.area??'',city:d.city??'',sceneTheme:d.sceneTheme??'NIGHT_TURF'};});
+  const results=[];
+  for(const r of await db.all("SELECT r.*,e.payload AS event_payload,e.status AS event_status FROM results r JOIN events e ON e.id=r.event_id WHERE r.status='disputed' OR (r.status='pending' AND r.dispute_until<=?) ORDER BY r.created_at LIMIT 100",[this.clock()])){
+   const ep=json(r.event_payload),rp=json(r.payload),dispute=await db.get("SELECT rep.details,p.payload AS rep_payload FROM reports rep LEFT JOIN profiles p ON p.user_id=rep.user_id WHERE rep.target_type='event' AND rep.target_id=? AND rep.reason='Skor itirazı' ORDER BY rep.created_at DESC LIMIT 1",[r.event_id]);
+   const subP=await db.get('SELECT payload FROM profiles WHERE user_id=?',[r.submitted_by]);
+   results.push({...r,eventTitle:ep.title??'Maç',homeScore:rp.homeScore??0,awayScore:rp.awayScore??0,submitterName:subP?json(subP.payload).name??'Sporcu':'Sporcu',disputeReason:dispute?.details??'',disputedByName:dispute?.rep_payload?json(dispute.rep_payload).name??'':'',eventStatus:r.event_status});
+  }
+  const reviews=(await db.all("SELECT r.*,v.payload AS venue_payload,p.payload AS reviewer_payload FROM venue_reviews r JOIN venues v ON v.id=r.venue_id LEFT JOIN profiles p ON p.user_id=r.user_id WHERE r.status='pending' ORDER BY r.created_at LIMIT 100")).map(r=>{const {reviewer_payload,...base}=r;return{...base,venueName:json(r.venue_payload).name??'Tesis',reviewerName:reviewer_payload?json(reviewer_payload).name??'Sporcu':'Sporcu'};});
+  const users=(await db.all("SELECT u.id,u.role,u.status,p.payload FROM users u JOIN profiles p ON p.user_id=u.id WHERE u.status IN ('active','suspended') ORDER BY u.created_at DESC LIMIT 200")).map(u=>({id:u.id,role:u.role,status:u.status,name:json(u.payload).name}));
+  const searchQuery=typeof filters.q==='string'?filters.q.trim().toLocaleLowerCase('tr'):'';
+  let userSql="SELECT u.id,u.role,u.status,u.phone,u.email,u.created_at,p.payload FROM users u LEFT JOIN profiles p ON p.user_id=u.id WHERE u.status IN ('active','suspended')";
+  const userParams=[];
+  if(searchQuery){const pat=`%${searchQuery}%`;userSql+=" AND (LOWER(COALESCE(p.payload,'')) LIKE ? OR LOWER(COALESCE(u.phone,'')) LIKE ? OR LOWER(COALESCE(u.email,'')) LIKE ? OR LOWER(u.id) LIKE ?)";userParams.push(pat,pat,pat,pat);}
+  userSql+=' ORDER BY u.created_at DESC LIMIT ?';userParams.push(searchQuery?100:200);
+  const userDirectory=(await db.all(userSql,userParams)).map(u=>{const p=u.payload?json(u.payload):{};return{id:u.id,role:u.role,status:u.status,name:p.name??'Yeni hesap',phone:u.phone??'',email:u.email??'',city:p.city??'',area:p.area??'',verifications:p.verifications??[],createdAt:Number(u.created_at)};});
+  const storedFlags=new Map((await db.all('SELECT name,enabled,updated_at FROM feature_flags')).map(f=>[f.name,f]));
+  const featureFlags=['billing','chat','memories','tournaments','venues'].map(name=>({name,enabled:storedFlags.get(name)?storedFlags.get(name).enabled!==0:true,updatedAt:Number(storedFlags.get(name)?.updated_at??0)}));
+  const legal=await legalConfiguration({db,config:this.config});
+  const deletionRequests=(await db.all("SELECT d.*,p.payload AS profile_payload,u.phone FROM deletion_requests d LEFT JOIN profiles p ON p.user_id=d.user_id JOIN users u ON u.id=d.user_id WHERE d.status='pending' ORDER BY d.execute_after LIMIT 100")).map(d=>({userId:d.user_id,name:d.profile_payload?json(d.profile_payload).name??'Sporcu':'Sporcu',phone:d.phone??'',executeAfter:Number(d.execute_after),createdAt:Number(d.created_at)}));
+  const outboxFailures=(await db.all("SELECT o.id,o.user_id,o.kind,o.attempts,o.payload,o.created_at,p.payload AS recipient_payload FROM outbox o LEFT JOIN profiles p ON p.user_id=o.user_id WHERE o.status='failed' ORDER BY o.created_at DESC LIMIT 100")).map(o=>{const op=o.payload?json(o.payload):{};const rp=o.recipient_payload?json(o.recipient_payload):null;return{id:o.id,user_id:o.user_id,kind:o.kind,attempts:o.attempts,title:op.title??'Bildirim',destination:op.destination??'',recipientName:rp?.name??o.user_id,createdAt:Number(o.created_at)};});
+  const identityDeletions=await db.all("SELECT user_id AS id,status,attempts,next_at,last_error,created_at FROM identity_deletions WHERE status<>'completed' ORDER BY created_at LIMIT 100");
+  const announcements=(await db.all("SELECT metadata,created_at FROM audit_log WHERE action='admin.announcement.send' ORDER BY created_at DESC LIMIT 10")).map(row=>({...json(row.metadata),createdAt:Number(row.created_at)}));
+  const recentAudit=(await db.all("SELECT a.id,a.actor_id,a.action,a.target_id,a.metadata,a.created_at,p.payload AS actor_payload FROM audit_log a LEFT JOIN profiles p ON p.user_id=a.actor_id WHERE a.action LIKE 'admin.%' OR a.action IN ('report.create','result.dispute','account.deletion.request','venue.application.create') ORDER BY a.created_at DESC LIMIT 40")).map(a=>({id:a.id,actorId:a.actor_id??'',actorName:a.actor_payload?json(a.actor_payload).name??'Sistem':'Sistem',action:a.action,targetId:a.target_id,createdAt:Number(a.created_at),summary:json(a.metadata)?.reason??json(a.metadata)?.response??json(a.metadata)?.status??''}));
+  return{identityDeletions,venueApplications,reports,support,photos,memories,results,reviews,users,userDirectory,featureFlags,legalDocuments:legal,deletionRequests,recentAudit,announcements,outboxFailures,
+   counts:{photos:photos.length,reports:reports.length,venueApplications:venueApplications.length,memories:memories.length,results:results.length,reviews:reviews.length,support:support.length,outboxFailures:outboxFailures.length,identityDeletions:identityDeletions.length,deletionRequests:deletionRequests.length}};
  });}
 
 }

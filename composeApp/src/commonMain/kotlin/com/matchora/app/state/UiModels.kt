@@ -600,7 +600,8 @@ data class MatchMemoryPost(
     val approximateLocation: EventGeoPoint? = null,
     val isShowcase: Boolean = true,
     val authorAvatarUploadId: String? = null,
-    val comments: List<MemoryComment> = emptyList()
+    val comments: List<MemoryComment> = emptyList(),
+    val moderationReason: String? = null
 )
 
 data class ChatMsg(

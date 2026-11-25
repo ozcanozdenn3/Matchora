@@ -185,7 +185,3 @@ fun formatFirebasePhoneAuthError(rawMessage: String?): String {
         else -> msg
     }
 }
-
-fun normalizedAuthEmail(value: String): String? = value.trim().lowercase().takeIf { email ->
-    email.length in 3..254 && email.none { it.code < 32 || it.code == 127 } && Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(email)
-}

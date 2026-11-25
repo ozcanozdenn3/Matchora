@@ -45,8 +45,8 @@ actual suspend fun performNativeGoogleSignIn(): NativeAuthResult? {
     } catch (cancel: GetCredentialCancellationException) {
         throw BackendFailure("AUTH_CANCELLED", "Google ile giriş iptal edildi.")
     } catch (e: GetCredentialException) {
-        throw BackendFailure("GOOGLE_AUTH_ERROR", e.message ?: "Google ile giriş tamamlanamadı.")
+        throw BackendFailure("GOOGLE_AUTH_FAILED", e.message ?: "Google ile giriş tamamlanamadı.")
     } catch (e: Exception) {
-        throw BackendFailure("GOOGLE_AUTH_ERROR", e.message ?: "Google ile giriş tamamlanamadı.")
+        throw BackendFailure("GOOGLE_AUTH_FAILED", e.message ?: "Google ile giriş tamamlanamadı.")
     }
 }

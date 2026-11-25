@@ -3,7 +3,7 @@ import { legalConfiguration } from './legal.mjs';
 import { id } from './auth.mjs';
 import { SPORTS } from './sports.mjs';
 import { canonicalTurkishCity } from './turkish-locale.mjs';
-import { row, profile, reward, encode, audit } from './model.mjs';
+import { row, profile, reward, encode, audit, notifyAdmins } from './model.mjs';
 const editable = ['name','city','area','bio','birthYear','phone','email','skills','campus','company','dominantSide','availability','jerseyNumber','avatarUploadId','expectedVersion'];
 function editableProfile(p, now) {
   keys(p, editable); const year = new Date(now).getUTCFullYear();
@@ -74,7 +74,20 @@ export const identityHandlers = {
   'discovery.save':async(ctx,p)=>{keys(p,['city','district','travelMode']);ensure(typeof p.travelMode==='boolean');const old=await ctx.db.get('SELECT payload FROM discovery_preferences WHERE user_id=?',[ctx.actor.id]),previous=old?json(old.payload):{};const value={city:text(p.city,'İl',2,60),district:text(p.district,'İlçe',2,60),travelMode:p.travelMode,...(previous.location?.expiresAt>ctx.now?{location:previous.location}:{})};await ctx.db.run('INSERT INTO discovery_preferences(user_id,payload,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET payload=?,updated_at=?',[ctx.actor.id,encode(value),ctx.now,encode(value),ctx.now]);return value;},
   'support.create': async (ctx,p) => {
     keys(p, ['subject','message','category']); const requestId = id();
-    await ctx.db.run('INSERT INTO support_requests(id,user_id,category,subject,message,status,created_at) VALUES(?,?,?,?,?,?,?)', [requestId, ctx.actor.id, choice(p.category, ['Teknik sorun','Hesap','Ödeme','Maç ve güvenlik','Fotoğraf doğrulaması'], 'Kategori'), text(p.subject,'Başlık',3,100),text(p.message,'Açıklama',10,1000),'open',ctx.now]); return { id: requestId };
+    const category = choice(p.category, ['Teknik sorun','Hesap','Ödeme','Maç ve güvenlik','Fotoğraf doğrulaması'], 'Kategori');
+    const subject = text(p.subject,'Başlık',3,100), message = text(p.message,'Açıklama',10,1000);
+    await ctx.db.run('INSERT INTO support_requests(id,user_id,category,subject,message,status,created_at) VALUES(?,?,?,?,?,?,?)', [requestId, ctx.actor.id, category, subject, message, 'open', ctx.now]);
+    const senderRow = await ctx.db.get('SELECT payload FROM profiles WHERE user_id=?', [ctx.actor.id]);
+    const senderName = senderRow ? json(senderRow.payload).name : 'Bir sporcu';
+    await notifyAdmins(
+      ctx, 'social',
+      category === 'Fotoğraf doğrulaması' ? 'Yeni fotoğraf doğrulama talebi' : `Yeni destek talebi · ${category}`,
+      category === 'Fotoğraf doğrulaması' ? `${senderName} profil fotoğrafı için doğrulama talep etti.` : `${senderName}: ${subject}`,
+      requestId,
+      category === 'Fotoğraf doğrulaması' ? `photo-verify-req:${requestId}` : `support-req:${requestId}`,
+      ctx.actor.id
+    );
+    return { id: requestId };
   },
   'verification.photo': async (ctx,p) => {
     keys(p,['uploadId']); const upload = await row(ctx, 'uploads','id',p.uploadId); ensure(upload.owner_id === ctx.actor.id && upload.status === 'ready',403,'FORBIDDEN','Fotoğraf sana ait olmalı.');
@@ -84,7 +97,10 @@ export const identityHandlers = {
   'account.delete': async (ctx,p) => {
     keys(p,[]);
     const pending = await ctx.db.get("SELECT * FROM deletion_requests WHERE user_id=? AND status='pending'",[ctx.actor.id]);
-    if (!pending) await ctx.db.run('INSERT INTO deletion_requests(user_id,status,execute_after,created_at) VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET status=?,execute_after=?', [ctx.actor.id,'pending',ctx.now+ctx.config.deletionDelay,ctx.now,'pending',ctx.now+ctx.config.deletionDelay]);
+    if (!pending) {
+      await ctx.db.run('INSERT INTO deletion_requests(user_id,status,execute_after,created_at) VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET status=?,execute_after=?', [ctx.actor.id,'pending',ctx.now+ctx.config.deletionDelay,ctx.now,'pending',ctx.now+ctx.config.deletionDelay]);
+      await notifyAdmins(ctx, 'social', 'Yeni hesap silme talebi', 'Bir kullanıcı hesabının silinmesini talep etti.', ctx.actor.id, `deletion-req:${ctx.actor.id}:${ctx.now}`, ctx.actor.id);
+    }
     await audit(ctx,'account.deletion.request',ctx.actor.id); return {status:'pending',executeAfter: pending ? Number(pending.execute_after) : ctx.now+ctx.config.deletionDelay};
   },
   'account.delete.cancel': async (ctx,p) => { keys(p,[]); await ctx.db.run("UPDATE deletion_requests SET status='cancelled' WHERE user_id=? AND status='pending'",[ctx.actor.id]); return {status:'cancelled'}; },

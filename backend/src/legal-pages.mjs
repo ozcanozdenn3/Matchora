@@ -174,7 +174,7 @@ export function privacyHtml(config = {}) {
     <ul>
       <li><strong>Verilere Erişim ve Dışa Aktarma:</strong> Uygulama içi Ayarlar menüsünden "Hesabı Dışa Aktar" seçeneğiyle tüm verilerinizi JSON formatında indirebilirsiniz.</li>
       <li><strong>Düzeltme:</strong> Profil bilgilerinizi dilediğiniz an güncelleyebilirsiniz.</li>
-      <li><strong>Hesap ve Veri Silme (Unutulma Hakkı):</strong> Uygulama içindeki "Ayarlar -> Hesabı Sil" seçeneğiyle veya <a href="/deletion">Hesap Silme sayfamızdan</a> hesabınızı ve tüm kişisel verilerinizi kalıcı olarak silebilirsiniz.</li>
+      <li><strong>Hesap ve Veri Silme (Unutulma Hakkı):</strong> Uygulama içindeki "Ayarlar -> Hesabı Sil" seçeneğiyle veya <a href="deletion">Hesap Silme sayfamızdan</a> hesabınızı ve tüm kişisel verilerinizi kalıcı olarak silebilirsiniz.</li>
       <li><strong>Bildirim Tercihleri:</strong> Ayarlar ekranından dilediğiniz bildirim kategorisini (Maçlar, Acil Çağrılar, Sosyal vb.) açıp kapatabilirsiniz.</li>
     </ul>
 

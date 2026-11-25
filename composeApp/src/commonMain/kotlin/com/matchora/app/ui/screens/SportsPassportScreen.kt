@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -23,6 +24,8 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import com.matchora.app.ui.components.LocalBackendRepository
+import com.matchora.app.data.a
+import com.matchora.app.data.s
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -362,8 +365,15 @@ fun SportsPassportScreen(
                                 label = if (VerificationLevel.BASIC in effectiveUser.verifications) "İletişim onaylı" else "İletişimi doğrula",
                                 verified = VerificationLevel.BASIC in effectiveUser.verifications,
                                 onClick = if (!isLoggedIn) onOpenAuth else (if (VerificationLevel.BASIC in effectiveUser.verifications) null else onVerifyContact))
+                            val backendRepo = LocalBackendRepository.current
+                            val passportWire = if (backendRepo != null) backendRepo.snapshots.collectAsState().value else null
+                            val photoPending = passportWire?.a("supportRequests")?.any { it.s("category") == "Fotoğraf doğrulaması" && it.s("status") == "open" } == true
                             VerificationChip(
-                                label = if (VerificationLevel.PHOTO in effectiveUser.verifications) "Fotoğraf onaylı" else "Fotoğrafı doğrula",
+                                label = when {
+                                    VerificationLevel.PHOTO in effectiveUser.verifications -> "Fotoğraf onaylı"
+                                    photoPending -> "Doğrulama bekliyor"
+                                    else -> "Fotoğrafı doğrula"
+                                },
                                 verified = VerificationLevel.PHOTO in effectiveUser.verifications,
                                 onClick = if (!isLoggedIn) onOpenAuth else (if (VerificationLevel.PHOTO in effectiveUser.verifications) null else onVerifyPhoto))
                         }
@@ -917,7 +927,7 @@ private fun ProfileEditorSheet(
                             selectedSport = sportsSkills.firstOrNull()?.sport,
                             onSelect = { picked ->
                                 if (picked != null && sportsSkills.none { it.sport == picked }) {
-                                    sportsSkills = sportsSkills + SportSkill(picked, SkillLevel.INTERMEDIATE, 1200, 0, 0, null, null)
+                                    sportsSkills = sportsSkills + SportSkill(picked, SkillLevel.INTERMEDIATE, 1200, 0, 0, null, com.matchora.app.state.positionsForSport(picked).firstOrNull())
                                 }
                             },
                             allowAll = false
@@ -953,6 +963,27 @@ private fun ProfileEditorSheet(
                                                     label = { Text(lvl.label, fontSize = 10.sp, maxLines = 1) },
                                                     colors = premiumChoiceChipColors()
                                                 )
+                                            }
+                                        }
+                                        val positions = remember(skill.sport) { com.matchora.app.state.positionsForSport(skill.sport) }
+                                        if (positions.isNotEmpty()) {
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                                            ) {
+                                                positions.forEach { pos ->
+                                                    val selPos = skill.position == pos
+                                                    FilterChip(
+                                                        selected = selPos,
+                                                        onClick = {
+                                                            sportsSkills = sportsSkills.map {
+                                                                if (it.sport == skill.sport) it.copy(position = if (selPos) null else pos) else it
+                                                            }
+                                                        },
+                                                        label = { Text(pos, fontSize = 10.sp, maxLines = 1) },
+                                                        colors = premiumChoiceChipColors()
+                                                    )
+                                                }
                                             }
                                         }
                                     }

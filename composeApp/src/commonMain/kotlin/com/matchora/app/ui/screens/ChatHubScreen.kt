@@ -1465,7 +1465,14 @@ private fun GridMemoryExploreTile(
                     color = Color.Black.copy(alpha = 0.58f)
                 ) {
                     Text(
-                        text = "📍 ${post.area}${post.distanceKm?.let { " · ≈$it km" }.orEmpty()}",
+                        text = buildString {
+                            append("📍 ${post.area}")
+                            post.distanceKm?.let { append(" · ≈$it km") }
+                            when (post.status) {
+                                "pending" -> append(" · ⏳")
+                                "rejected" -> append(" · Red")
+                            }
+                        },
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
@@ -1944,7 +1951,9 @@ private fun MemoryDetailSheet(
                 if (post.status != "approved") {
                     Surface(shape = RoundedCornerShape(10.dp), color = MColors.SurfaceSunken, border = BorderStroke(1.dp, MColors.Line), modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            if (post.status == "rejected") "Bu paylaşım yayınlanmadı. Düzenleyip yeniden incelemeye gönderebilirsin." else "Paylaşımın içerik incelemesi bekliyor.",
+                            if (post.status == "rejected") {
+                                "Bu paylaşım yayınlanmadı${post.moderationReason?.let { ": $it" }.orEmpty()}. Düzenleyip yeniden incelemeye gönderebilirsin."
+                            } else "Paylaşımın içerik incelemesi bekliyor.",
                             style = MaterialTheme.typography.bodySmall, color = MColors.Ink600, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
                         )
                     }

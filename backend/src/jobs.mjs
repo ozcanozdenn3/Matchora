@@ -3,7 +3,7 @@ import { queueIdentityDeletion,processIdentityDeletions } from './identity-delet
 import { finalizeCompletedTournaments } from './competition.mjs';
 import { settleResult } from './rating.mjs';
 import { cleanMedia,queueStorageDeletion } from './storage.mjs';
-import { nativePushConfigured,sendApns,sendFcm } from './push.mjs';
+import { nativePushConfigured,apnsConfigured,fcmConfigured,sendApns,sendFcm } from './push.mjs';
 import { grantProgressRewards } from './progression.mjs';
 import { scheduleReminders } from './reminders.mjs';
 import { grantSubscriptionMonths } from './billing.mjs';
@@ -150,8 +150,8 @@ export async function runJobs(service){
    if(service.config.pushUrl){const response=await fetch(service.config.pushUrl,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${service.config.pushToken}`,'Idempotency-Key':job.id},body:JSON.stringify({devices:job.devices,notification:job.payload}),signal:AbortSignal.timeout(8000),redirect:'error'});if(!response.ok)throw new Error('Push delivery rejected');}
    else {let attempted=0,accepted=0,lost=false;for(const device of job.devices){let result;
     if(!await renewPush(service,job)){lost=true;break;}
-    if(device.platform==='ios'&&service.config.apnsPrivateKey)result=await sendApns(service.config,device,job.payload,job.id);
-    else if(device.platform==='android'&&service.config.fcmPrivateKey)result=await sendFcm(service.config,device,job.payload);
+    if(device.platform==='ios'&&apnsConfigured(service.config))result=await sendApns(service.config,device,job.payload,job.id);
+    else if(device.platform==='android'&&fcmConfigured(service.config))result=await sendFcm(service.config,device,job.payload);
     else continue;
     attempted++;if(result.sent)accepted++;if(result.invalid)await service.store.transaction(db=>db.run('DELETE FROM push_devices WHERE token=? AND user_id=?',[device.token,job.user_id]));
    }if(lost)continue;if(!accepted){await finishPush(service,job,'skipped',{attempt:attempted>0});continue;}}

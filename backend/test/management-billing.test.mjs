@@ -91,3 +91,28 @@ test('moderators can inspect pending showcase photos without granting access to 
  assert.ok((await f.service.mediaFile(f.admin,upload)).bytes.length>0);
  await assert.rejects(f.service.mediaFile(f.guest,upload),e=>e.code==='NOT_FOUND');
 });
+test('optional null fields clear on update and billing accepts minor clock skew',async t=>{
+ const f=await fixture(t);await f.grant(f.host);
+ const ev=(await f.cmd(f.host,'event.create',{...f.event(),sport:'ESPORTS_VALORANT',mode:'SOCIAL',gamePlatform:'PC',gameServer:'TR',voiceChannel:'Discord',hostGameTag:'tag#1'})).result.id;
+ await f.cmd(f.host,'event.update',{eventId:ev,expectedVersion:1,description:null,gamePlatform:null,gameServer:null,voiceChannel:null,hostGameTag:null});
+ const updatedEv=(await f.service.bootstrap(f.host)).events.find(e=>e.id===ev);
+ assert.equal(updatedEv.gamePlatform,'');assert.equal(updatedEv.description,'');
+
+ const team=(await f.cmd(f.host,'team.create',{name:'Yıldız FK',sport:'FOOTBALL',area:'Kadıköy',homeVenue:'Fenerbahçe'})).result.id;
+ await f.cmd(f.host,'team.update',{teamId:team,homeVenue:null,description:null});
+ assert.equal((await f.service.bootstrap(f.host)).teams.find(x=>x.id===team).homeVenue,'');
+
+ await f.cmd(f.admin,'admin.operator.assign',{userId:f.host.id,role:'venue_owner',reason:'Saha sahibi yetkisi verildi.'});
+ const venue=(await f.cmd(f.host,'venue.create',{name:'Arena',city:'İstanbul',area:'Kadıköy',address:'Moda Caddesi No 12',phone:'+905551112233',description:'Test',sports:['FOOTBALL'],amenities:['Duş'],courts:1,cancellationHours:12,photoUploadIds:[]})).result.id;
+ await f.cmd(f.host,'venue.update',{venueId:venue,expectedVersion:1,name:'Arena',city:'İstanbul',area:'Kadıköy',sports:['FOOTBALL'],courts:1,cancellationHours:12,phone:null,description:null});
+ const updatedVenue=(await f.service.bootstrap(f.host)).venues.find(v=>v.id===venue);
+ assert.equal(updatedVenue.phone,'');assert.equal(updatedVenue.description,'');
+
+ const tId=(await f.cmd(f.host,'tournament.create',{name:'Kupam',sport:'FOOTBALL',format:'Eleme',capacity:4,dates:'Hafta sonu',venue:'Saha 1',prizeToken:'10 TKN',prizeCash:'500 TL'})).result.id;
+ await f.cmd(f.host,'tournament.update',{tournamentId:tId,venue:null,prizeToken:null,prizeCash:null});
+ const updatedT=(await f.service.bootstrap(f.host)).tournaments.find(x=>x.id===tId);
+ assert.equal(updatedT.venue,'');assert.equal(updatedT.prizeToken,'');assert.equal(updatedT.prizeCash,'');
+
+ const raw=Buffer.from(JSON.stringify({eventId:'skew-1',type:'purchase',userId:f.host.id,transactionId:'skew-tx',originalTransactionId:'skew-orig',productId:'pro_monthly',platform:'apple',purchasedAt:f.clock()+30000,expiresAt:f.clock()+28*86400000}));
+ await f.service.webhook(raw,{'x-matchora-timestamp':String(f.clock()),'x-matchora-signature':sign(f.config.billingSecret,`${f.clock()}.${raw}`)});
+});

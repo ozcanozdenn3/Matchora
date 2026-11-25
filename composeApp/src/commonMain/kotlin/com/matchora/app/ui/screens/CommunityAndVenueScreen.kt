@@ -74,7 +74,7 @@ fun CommunityAndVenueScreen(
     var showCommunityCityPicker by remember { mutableStateOf(false) }
     var pendingWithdrawApp by remember { mutableStateOf<kotlinx.serialization.json.JsonObject?>(null) }
     val withdrawCommand = rememberBackendAction()
-    val venueOrigin = deviceLocation ?: rememberRegionCenter(currentCity, currentDistrict)
+    val venueOrigin = deviceLocation?.takeIf { it.matchesSelectedRegion(currentCity, currentDistrict) } ?: rememberRegionCenter(currentCity, currentDistrict)
     var detailCommunity by remember { mutableStateOf<CommunityInfo?>(null) }
     var leaveCommunityConfirm by remember { mutableStateOf<CommunityInfo?>(null) }
     var consumedFocusId by remember { mutableStateOf<String?>(null) }

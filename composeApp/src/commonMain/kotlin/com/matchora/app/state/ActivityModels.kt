@@ -17,7 +17,7 @@ data class MatchResultDraft(
 )
 
 data class SupportRequest(val id: String, val subject: String, val message: String, val category: String, val status: String = "open", val response: String? = null)
-data class ModerationReport(val id: String, val target: String, val reason: String, val details: String, val status: String = "open")
+data class ModerationReport(val id: String, val target: String, val reason: String, val details: String, val status: String = "open", val resolutionReason: String? = null)
 
 
 fun formatTryMinor(amount: Int): String {

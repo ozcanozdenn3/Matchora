@@ -25,8 +25,8 @@ object AppLinkDefaults {
     val termsOfUseIos: String = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
     val termsOfUseAndroid: String = "https://doc-hosting.flycricket.io/matchora-terms-of-use/d26b97eb-4228-41b8-80f2-b853c7ec2148/privacy"
     val termsOfUse: String get() = if (storePlatform == "android") termsOfUseAndroid else termsOfUseIos
-    val communityGuidelines: String? = null
-    val accountDeletion: String? = null
+    val communityGuidelines: String? = "https://rqtppytkoetwnjyfxulw.supabase.co/functions/v1/matchora-api/v1/legal/guidelines"
+    val accountDeletion: String? = "https://rqtppytkoetwnjyfxulw.supabase.co/functions/v1/matchora-api/v1/legal/deletion"
     val supportEmail: String? = "ozden9865@gmail.com"
 }
 enum class AppLink(val key: String, val title: String, val missing: String) {

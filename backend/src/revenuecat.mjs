@@ -22,9 +22,11 @@ export async function revenueCatWebhook(ctx,raw,headers){
  // A subscription cancellation or refund does not necessarily end access immediately.
  // Entitlements remain active until an authoritative expiry, never until a guessed date.
  if(type){
-  const normalized=Buffer.from(JSON.stringify({eventId:`rc-normalized:${e.id}`,type,userId,transactionId:String(e.transaction_id??e.original_transaction_id),originalTransactionId:String(e.original_transaction_id??e.transaction_id),productId,platform:e.store==='APP_STORE'?'apple':e.store==='PLAY_STORE'?'google':'unsupported',expiresAt:e.expiration_at_ms,...(Number.isSafeInteger(e.purchased_at_ms)?{purchasedAt:e.purchased_at_ms}:{})}));
+  const rawTx=e.transaction_id??e.original_transaction_id??e.id;
+  const rawOrig=e.original_transaction_id??e.transaction_id??e.id;
+  const normalized=Buffer.from(JSON.stringify({eventId:`rc-normalized:${e.id}`,type,userId,transactionId:String(rawTx),originalTransactionId:String(rawOrig),productId,platform:e.store==='APP_STORE'?'apple':e.store==='PLAY_STORE'?'google':'unsupported',expiresAt:e.expiration_at_ms,...(Number.isSafeInteger(e.purchased_at_ms)?{purchasedAt:e.purchased_at_ms}:{})}));
   await billingWebhook(ctx,normalized,{'x-matchora-timestamp':String(ctx.now),'x-matchora-signature':sign(ctx.config.billingSecret,`${ctx.now}.${normalized}`)});
- }else if(['CANCELLATION','UNCANCELLATION','BILLING_ISSUE','SUBSCRIPTION_PAUSED','PRODUCT_CHANGE','SUBSCRIPTION_EXTENDED','REFUND_REVERSED','TRANSFER'].includes(e.type)){
+ }else if(['CANCELLATION','UNCANCELLATION','BILLING_ISSUE','SUBSCRIPTION_PAUSED','PRODUCT_CHANGE','SUBSCRIPTION_EXTENDED','REFUND_REVERSED'].includes(e.type)){
   await audit(ctx,'billing.reconciliation.required',e.id,{type:e.type,userId,productId});
   // Retain a durable operator task; unsupported lifecycle changes are not silently acknowledged and lost.
   await ctx.db.run('INSERT INTO support_requests(id,user_id,category,subject,message,status,created_at) VALUES(?,?,?,?,?,?,?)',[`rc-review:${e.id}`,userId,'Ödeme','Mağaza hakları uzlaştırması',JSON.stringify({type:e.type,productId,transactionId:e.transaction_id,expiresAt:e.expiration_at_ms,...(Number.isSafeInteger(e.purchased_at_ms)?{purchasedAt:e.purchased_at_ms}:{})}),'open',ctx.now]);

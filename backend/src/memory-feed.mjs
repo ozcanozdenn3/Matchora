@@ -75,9 +75,14 @@ export async function memoryFeed(ctx,filters={}) {
   const mIds=selected.map(m=>m.id),q=mIds.map(()=>'?').join(',');
   for(const l of await ctx.db.all(`SELECT memory_id FROM memory_likes WHERE user_id=? AND memory_id IN (${q})`,[ctx.actor.id,...mIds]))likedSet.add(l.memory_id);
  }
+ const rejectedReasons=new Map();
+ if(ctx.actor){
+  const ownRejected=selected.filter(m=>m.author_id===ctx.actor.id&&m.status==='rejected').map(m=>m.id);
+  if(ownRejected.length){const rq=ownRejected.map(()=>'?').join(',');for(const a of await ctx.db.all(`SELECT target_id,metadata FROM audit_log WHERE action='admin.memory.review' AND target_id IN (${rq}) ORDER BY created_at DESC,id DESC`,ownRejected))if(!rejectedReasons.has(a.target_id))rejectedReasons.set(a.target_id,json(a.metadata).reason??null);}
+ }
  for(const memory of selected){
-  const data=profilesById.get(memory.author_id)??{};
-  items.push({...publicMemoryPayload(memory.payload,blockedIds),id:memory.id,authorId:memory.author_id,authorName:data.name??'Sporcu',authorAvatarUploadId:data.avatarUploadId??null,uploadId:memory.upload_id,status:memory.status,likes:Number(memory.like_count),likedByMe:likedSet.has(memory.id),createdAt:Number(memory.created_at),distanceKm:memory.distance_rank<1000000000?Math.round(memory.distance_rank*10)/10:null});
+  const data=profilesById.get(memory.author_id)??{},reason=rejectedReasons.get(memory.id);
+  items.push({...publicMemoryPayload(memory.payload,blockedIds),id:memory.id,authorId:memory.author_id,authorName:data.name??'Sporcu',authorAvatarUploadId:data.avatarUploadId??null,uploadId:memory.upload_id,status:memory.status,likes:Number(memory.like_count),likedByMe:likedSet.has(memory.id),createdAt:Number(memory.created_at),distanceKm:memory.distance_rank<1000000000?Math.round(memory.distance_rank*10)/10:null,...(reason?{moderationReason:reason}:{})});
  }
  const last=selected.at(-1);
  return {items,mode,seed,serverTime:ctx.now,locationBasis:latitude!=null?'gps':city?'region':'unknown',nextCursor:rows.length>size?sealCursor(ctx,'memory-feed',{scope,seed,watermark,last:columns.map(([column])=>column==='id'?last[column]:Number(last[column]))}):null};

@@ -15,7 +15,14 @@ private var currentAuthPresentation: ASWebAuthenticationPresentationContextProvi
 
 actual suspend fun authenticateInBrowser(url: String): String = withTimeout(5 * 60 * 1000L) {
     suspendCancellableCoroutine { continuation ->
-        val anchor = UIApplication.sharedApplication.keyWindow
+        val activeScene = UIApplication.sharedApplication.connectedScenes
+            .filterIsInstance<UIWindowScene>()
+            .firstOrNull { it.activationState == UISceneActivationStateForegroundActive }
+            ?: UIApplication.sharedApplication.connectedScenes.filterIsInstance<UIWindowScene>().firstOrNull()
+        val sceneWindows = activeScene?.windows?.filterIsInstance<UIWindow>().orEmpty()
+        val anchor = sceneWindows.firstOrNull { it.isKeyWindow() }
+            ?: sceneWindows.firstOrNull()
+            ?: UIApplication.sharedApplication.keyWindow
         val endpoint = NSURL.URLWithString(url)
         if (anchor == null || endpoint?.scheme != "https") {
             continuation.resumeWithException(BackendFailure("BROWSER_UNAVAILABLE", "Giriş penceresi açılamadı."))

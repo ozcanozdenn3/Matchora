@@ -1140,7 +1140,7 @@ private fun LiveMiniRadarView(
     val regionCenter = rememberRegionCenter(currentCity, currentDistrict)
     val deviceLocation by DeviceLocationState.current.collectAsState()
     val selectedRegionLocation = deviceLocation?.takeIf {
-        it.city.isNullOrBlank() || matchesTurkishPlace(it.city, currentCity)
+        it.matchesSelectedRegion(currentCity, currentDistrict)
     }
     val previewPins = remember(events, backendMode) {
         events.filterNot { it.area.contains("online", ignoreCase = true) }

@@ -1,5 +1,5 @@
 import { keys,ensure,json,text,choice } from './errors.mjs';
-import { row,audit,encode } from './model.mjs';
+import { row,audit,encode,notifyAdmins } from './model.mjs';
 import { SPORTS } from './sports.mjs';
 import { indexMemory, coarseMemoryLocation } from './memory-feed.mjs';
 export const memoryManagementHandlers={
@@ -18,6 +18,7 @@ export const memoryManagementHandlers={
   await indexMemory(ctx,old.id,next);
   const nextStatus=old.status==='rejected'?'pending':'approved';
   await ctx.db.run('UPDATE memories SET payload=?,upload_id=?,status=? WHERE id=?',[encode(next),p.uploadId??old.upload_id,nextStatus,old.id]);
+  if(nextStatus==='pending')await notifyAdmins(ctx,'social','Düzenlenen anı inceleme bekliyor',next.caption||`${next.venue} · ${next.area}`,old.id,`memory-resubmit:${old.id}:${next.version}`,ctx.actor.id);
   await audit(ctx,'memory.update',old.id);return{updated:true,status:nextStatus};
  }
 };

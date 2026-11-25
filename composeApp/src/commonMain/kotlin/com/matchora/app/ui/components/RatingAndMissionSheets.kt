@@ -48,26 +48,31 @@ fun RatingStatusCard(eventId: String) {
     MSubCard {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (rating != null) {
-                val reason = when (rating.s("reason")) {
-                    "SOCIAL_MATCH" -> "Sosyal maç · MMR değişmez"
-                    "CHECKIN_REQUIRED" -> "Katılım kaydın yok · MMR değişmez"
-                    "OPPONENT_CHECKIN_REQUIRED" -> "Rakip katılım kaydı eksik · MMR değişmez"
-                    "PROFILE_SPORT_REQUIRED" -> "Bu branş pasaportunda bulunmuyor"
-                    "SIDES_REQUIRED" -> "Maç tarafları tamamlanmalı"
-                    "DISPUTED" -> "İtiraz inceleniyor · puan beklemede"
-                    "PENDING_CONFIRMATION" -> "Rakip onayı bekleniyor"
-                    "VERIFIED" -> "Sonuç kesinleşti"
-                    else -> "İtiraz süresinin bitmesi bekleniyor"
+                val reason = when {
+                    rating.s("status") == "rejected" -> "Skor incelemesi reddedildi"
+                    else -> when (rating.s("reason")) {
+                        "SOCIAL_MATCH" -> "Sosyal maç · MMR değişmez"
+                        "CHECKIN_REQUIRED" -> "Katılım kaydın yok · MMR değişmez"
+                        "OPPONENT_CHECKIN_REQUIRED" -> "Rakip katılım kaydı eksik · MMR değişmez"
+                        "PROFILE_SPORT_REQUIRED" -> "Bu branş pasaportunda bulunmuyor"
+                        "SIDES_REQUIRED" -> "Maç tarafları tamamlanmalı"
+                        "DISPUTED" -> "İtiraz inceleniyor · puan beklemede"
+                        "PENDING_CONFIRMATION" -> "Rakip onayı bekleniyor"
+                        "VERIFIED" -> "Sonuç kesinleşti"
+                        else -> "İtiraz süresinin bitmesi bekleniyor"
+                    }
                 }
                 Text(reason, style = MaterialTheme.typography.titleSmall)
                 if (rating.s("status") == "verified") {
                     val delta = rating.i("delta")
                     Text("Bu maç: ${if (delta > 0) "+" else ""}$delta MMR", color = MColors.BrandDeep)
+                } else if (rating.s("status") == "rejected") {
+                    Text("Operatör kararıyla geçersiz sayıldı · taahhütler serbest", style = MaterialTheme.typography.bodySmall, color = MColors.Rose)
                 } else {
                     Text("Rakip onayı ${rating.i("confirmed")}/${rating.i("required", 1)} · ${if (rating.s("status") == "disputed") "operatör incelemesi" else "24 saatlik itiraz süresi"}", style = MaterialTheme.typography.bodySmall)
                 }
             } else Text("Pasaport için saha check-in, skor ve sonuç doğrulaması gerekir. MMR rekabetçi maçlarda hesaplanır.", style = MaterialTheme.typography.bodySmall)
-            if (rating?.s("status") != "verified") Text("Skor bildiriminden başlayan 24 saatlik itiraz süresi dolduğunda, rakip onayı tamamlanmış sonuç maç, seri ve görevlerini günceller.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
+            if (rating?.s("status") !in setOf("verified", "rejected")) Text("Skor bildiriminden başlayan 24 saatlik itiraz süresi dolduğunda, rakip onayı tamamlanmış sonuç maç, seri ve görevlerini günceller.", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
             RatingPolicyButton()
         }
     }

@@ -232,6 +232,21 @@ CREATE INDEX IF NOT EXISTS reports_user_history ON reports(user_id,created_at DE
 CREATE INDEX IF NOT EXISTS audit_support_reply ON audit_log(target_id,action,created_at DESC,id DESC);
 INSERT INTO schema_migrations(version,applied_at) VALUES(14,0) ON CONFLICT(version) DO NOTHING;
 
+-- 015_admin_system.sql
+CREATE INDEX IF NOT EXISTS support_requests_open_queue ON support_requests(status, category, created_at);
+CREATE INDEX IF NOT EXISTS reports_open_queue ON reports(status, created_at);
+CREATE INDEX IF NOT EXISTS reports_target_status ON reports(target_type, target_id, status);
+CREATE INDEX IF NOT EXISTS venue_applications_pending_queue ON venue_applications(status, created_at);
+CREATE INDEX IF NOT EXISTS venue_reviews_pending_queue ON venue_reviews(status, created_at);
+CREATE INDEX IF NOT EXISTS results_moderation_queue ON results(status, dispute_until, created_at);
+CREATE INDEX IF NOT EXISTS deletion_requests_pending_queue ON deletion_requests(status, execute_after);
+CREATE INDEX IF NOT EXISTS outbox_status_created ON outbox(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS users_role_status ON users(role, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_log_recent ON audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS memories_upload_lookup ON memories(upload_id);
+CREATE INDEX IF NOT EXISTS messages_upload_lookup ON messages(upload_id);
+INSERT INTO schema_migrations(version, applied_at) VALUES(15, 0) ON CONFLICT(version) DO NOTHING;
+
 -- 002_postgres_security.sql
 -- Private server-owned schema. Mobile clients use the authenticated API, never direct table writes.
 DO $$ DECLARE t RECORD; BEGIN

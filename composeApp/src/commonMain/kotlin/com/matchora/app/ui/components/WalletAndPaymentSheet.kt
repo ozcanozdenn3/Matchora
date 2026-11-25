@@ -101,8 +101,13 @@ fun TokenWalletSheet(
         }
     }
     fun price(sku: String, preview: String): String = if (!remoteStorePending) preview else catalog.find { it.sku == sku }?.price ?: "Mağaza bekleniyor"
+    val storeReady = !remoteStorePending || (backend?.configuration?.o("store")?.b("enabled") == true && catalog.isNotEmpty())
     fun storeAction(sku: String? = null) {
         if (loading || storeBusy || backend == null) return
+        if (remoteStorePending && !storeReady) {
+            storeNotice = "Mağaza ürünleri henüz aktif değil."
+            return
+        }
         storeBusy = true; loading = true
         scope.launch {
             try {

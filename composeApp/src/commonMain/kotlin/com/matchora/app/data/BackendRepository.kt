@@ -241,7 +241,7 @@ class BackendRepository(val baseUrl: String = BackendBuildConfig.BASE_URL, val m
                     sendPending(owner, item, attempts)
                 } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
                 catch (error: Exception) {
-                    val retryable = error is BackendFailure && (error.code == "OFFLINE" || error.status in listOf(408,429,500,502,503,504))
+                    val retryable = error is BackendFailure && error.code !in setOf("FEATURE_UNAVAILABLE", "LEGAL_DOCUMENTS_PENDING") && (error.code == "OFFLINE" || error.status in listOf(408,429,500,502,503,504))
                     sendQueue.change(owner, item.id, "state" to if (retryable && attempts < 8) "queued" else "failed",
                         "attempts" to attempts, "error" to (error.message ?: "Gönderilemedi."),
                         "errorCode" to (error as? BackendFailure)?.code,
@@ -719,8 +719,8 @@ class BackendRepository(val baseUrl: String = BackendBuildConfig.BASE_URL, val m
         saveSession(request("/v1/auth/exchange", "POST", apiPayload("providerToken" to providerToken), authenticatedRequest = false))
         applyServerSnapshot(request("/v1/bootstrap"))
     }
-    suspend fun exchangeIdToken(provider: String, idToken: String, fullName: String? = null) = requestMutex.withLock {
-        saveSession(request("/v1/auth/id-token", "POST", apiPayload("provider" to provider.lowercase(), "idToken" to idToken, "fullName" to fullName), authenticatedRequest = false))
+    suspend fun exchangeIdToken(provider: String, idToken: String, fullName: String? = null, nonce: String? = null) = requestMutex.withLock {
+        saveSession(request("/v1/auth/id-token", "POST", apiPayload("provider" to provider.lowercase(), "idToken" to idToken, "fullName" to fullName, "nonce" to nonce), authenticatedRequest = false))
         applyServerSnapshot(request("/v1/bootstrap"))
     }
     suspend fun socialLogin(provider: String, browserAuth: suspend (String) -> String = ::authenticateInBrowser) {
@@ -737,14 +737,9 @@ class BackendRepository(val baseUrl: String = BackendBuildConfig.BASE_URL, val m
         }
     }
     suspend fun startPhoneOtp(phone: String): JsonObject = request("/v1/auth/otp/start", "POST", apiPayload("phone" to phone), authenticatedRequest = false)
-    suspend fun startEmailOtp(email: String): JsonObject = request("/v1/auth/email/start", "POST", apiPayload("email" to email.trim()), authenticatedRequest = false)
-    suspend fun verifyEmailOtp(email: String, code: String) = requestMutex.withLock {
-        saveSession(request("/v1/auth/email/verify", "POST", apiPayload("email" to email.trim(), "code" to code), authenticatedRequest = false))
-        applyServerSnapshot(request("/v1/bootstrap"))
-    }
     suspend fun verifyPassport(code: String): JsonObject =
         request("/v1/passports/verify?code=${queryValue(code.trim())}", authenticatedRequest = false)
-    suspend fun adminInbox(): JsonObject = request("/v1/admin/inbox")
+    suspend fun adminInbox(query: String = ""): JsonObject = request("/v1/admin/inbox" + (query.trim().takeIf { it.isNotEmpty() }?.let { "?q=${queryValue(it)}" } ?: ""))
     suspend fun operatorVenues(): JsonObject = request("/v1/operator/venues")
     suspend fun venueReviews(venueId: String, after: String? = null): JsonObject {
         require(Regex("[a-fA-F0-9-]{36}").matches(venueId))
@@ -763,6 +758,10 @@ class BackendRepository(val baseUrl: String = BackendBuildConfig.BASE_URL, val m
     suspend fun startContactOtp(phone: String): JsonObject = request("/v1/auth/contact/start", "POST", apiPayload("phone" to phone))
     suspend fun verifyContactOtp(challengeId: String, code: String) = requestMutex.withLock {
         val result = request("/v1/auth/contact/verify", "POST", apiPayload("challengeId" to challengeId, "code" to code))
+        applyServerSnapshot(result.getValue("snapshot").jsonObject)
+    }
+    suspend fun verifyContactWithIdToken(idToken: String) = requestMutex.withLock {
+        val result = request("/v1/auth/contact/verify-id-token", "POST", apiPayload("idToken" to idToken))
         applyServerSnapshot(result.getValue("snapshot").jsonObject)
     }
     suspend fun command(operation: String, payload: JsonObject, requestKey: String, expectedOwner: String? = null, expectedSendId: String? = null): JsonObject {

@@ -49,6 +49,17 @@ import kotlinx.coroutines.launch
 private var nextIdCounter = 1000L
 private fun nextUniqueId(prefix: String = "id"): String = "${prefix}_${++nextIdCounter}"
 
+private fun adminTabForAlert(title: String, body: String): Int {
+    val text = "$title $body".lowercase()
+    return when {
+        "fotoğraf" in text || "destek" in text -> 0
+        "şikâyet" in text || "anı" in text || "yayından" in text -> 1
+        "tesis" in text || "skor" in text || "itiraz" in text || "değerlendirme" in text -> 2
+        "kimlik" in text || "silme" in text || "hata" in text -> 3
+        else -> 0
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MATCHORA SPORTS OPERATING SYSTEM (SPORTS NETWORK OS)
 // Pure Light Mode · Sports Flow Background (Gri Tenis Kortu, Kale, Pota, Emojiler)
@@ -66,7 +77,7 @@ fun App() {
     MatchoraTheme {
         Box(modifier = Modifier.fillMaxSize()) {
             SportsFlowBackground(animate = !showSplash) {
-                MainAppShell(backend, authBackend)
+                MainAppShell(backend, authBackend, splashFinished = !showSplash)
             }
 
             if (showSplash) {
@@ -80,7 +91,7 @@ fun App() {
 }
 
 @Composable
-private fun MainAppShell(backend: BackendRepository, authBackend: BackendRepository) {
+private fun MainAppShell(backend: BackendRepository, authBackend: BackendRepository, splashFinished: Boolean) {
     val authWire by authBackend.snapshots.collectAsState()
     val backendWire by backend.snapshots.collectAsState()
     val live = remember(backendWire) { backendWire?.let(::BackendSnapshot) }
@@ -102,14 +113,24 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     var competitionFocusId by remember { mutableStateOf<String?>(null) }
     var networkEntryTab by remember { mutableIntStateOf(0) }
     var networkTargetId by remember { mutableStateOf<String?>(null) }
-    var currentCity by remember { mutableStateOf("İstanbul") }
-    var currentDistrict by remember { mutableStateOf("Kadıköy") }
-    var browseRegionSelected by remember(live?.userId) { mutableStateOf(false) }
-    var manualNonGpsRegion by remember { mutableStateOf(false) }
+    val persistedRegion = remember {
+        loadPersistedRegionSelection()?.also { saved ->
+            if (saved.isGps && saved.latitude != null && saved.longitude != null && DeviceLocationState.current.value == null) {
+                DeviceLocationState.current.value = DeviceLocation(saved.latitude, saved.longitude, saved.city, saved.district)
+            }
+        }
+    }
+    var currentCity by remember { mutableStateOf(persistedRegion?.city ?: "İstanbul") }
+    var currentDistrict by remember { mutableStateOf(persistedRegion?.district ?: "Kadıköy") }
+    var browseRegionSelected by remember { mutableStateOf(persistedRegion != null) }
+    var manualNonGpsRegion by remember { mutableStateOf(persistedRegion?.manualNonGps ?: false) }
     var initialListingScope by remember { mutableStateOf(EventNetworkScope.CITY) }
-    var isGpsLocationActive by remember { mutableStateOf(false) }
-    val requestNotifications = rememberNotificationPermissionRequester { }
-    val requestAutoLocation = rememberLocationRequester(requestPermission = true) { result ->
+    var isGpsLocationActive by remember { mutableStateOf(persistedRegion?.isGps ?: false) }
+    var notificationPromptGate by remember { mutableStateOf<kotlinx.coroutines.CompletableDeferred<Boolean>?>(null) }
+    val requestNotifications = rememberNotificationPermissionRequester { granted ->
+        notificationPromptGate?.complete(granted)
+    }
+    val handleAutoLocationResult: (LocationOutcome) -> Unit = { result ->
         if (result is LocationOutcome.Located) {
             DeviceLocationState.current.value = result.value
             if (!manualNonGpsRegion) {
@@ -126,31 +147,68 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                         currentDistrict = "Merkez"
                     }
                 }
+                savePersistedRegionSelection(
+                    PersistedRegionSelection(
+                        city = currentCity,
+                        district = currentDistrict,
+                        isGps = true,
+                        manualNonGps = false,
+                        latitude = result.value.latitude,
+                        longitude = result.value.longitude
+                    )
+                )
             }
         }
     }
-    LaunchedEffect(Unit) {
-        requestNotifications()
-        requestAutoLocation()
+    val requestAutoLocationWithPrompt = rememberLocationRequester(requestPermission = true, onResult = handleAutoLocationResult)
+    val requestAutoLocationSilent = rememberLocationRequester(requestPermission = false, onResult = handleAutoLocationResult)
+    LaunchedEffect(splashFinished) {
+        if (!splashFinished) return@LaunchedEffect
+        if (!hasPromptedInitialNotificationPermission()) {
+            markInitialNotificationPermissionPrompted()
+            val gate = kotlinx.coroutines.CompletableDeferred<Boolean>()
+            notificationPromptGate = gate
+            try {
+                requestNotifications()
+                kotlinx.coroutines.withTimeoutOrNull(60000L) { gate.await() }
+            } finally {
+                if (notificationPromptGate === gate) notificationPromptGate = null
+            }
+            delay(300)
+        }
+        if (!hasPromptedInitialLocationPermission()) {
+            markInitialLocationPermissionPrompted()
+            requestAutoLocationWithPrompt()
+        } else if (hasForegroundLocationPermission()) {
+            requestAutoLocationSilent()
+        }
     }
     LaunchedEffect(currentDeviceLocation) {
         val loc = currentDeviceLocation
         if (loc != null) {
             if (!manualNonGpsRegion) {
                 isGpsLocationActive = true
-                if (!browseRegionSelected) {
-                    browseRegionSelected = true
-                    loc.city?.trim()?.takeIf { it.isNotBlank() }?.let { foundCity ->
-                        val matchedCity = turkeyCities.firstOrNull { matchesTurkishPlace(it, foundCity) } ?: foundCity
-                        currentCity = matchedCity
-                        val foundDistrict = loc.district?.trim()?.takeIf { it.isNotBlank() }
-                        if (foundDistrict != null) {
-                            currentDistrict = foundDistrict
-                        } else if (!matchesTurkishPlace(currentCity, "İstanbul")) {
-                            currentDistrict = "Merkez"
-                        }
+                browseRegionSelected = true
+                loc.city?.trim()?.takeIf { it.isNotBlank() }?.let { foundCity ->
+                    val matchedCity = turkeyCities.firstOrNull { matchesTurkishPlace(it, foundCity) } ?: foundCity
+                    currentCity = matchedCity
+                    val foundDistrict = loc.district?.trim()?.takeIf { it.isNotBlank() }
+                    if (foundDistrict != null) {
+                        currentDistrict = foundDistrict
+                    } else if (!matchesTurkishPlace(currentCity, "İstanbul")) {
+                        currentDistrict = "Merkez"
                     }
                 }
+                savePersistedRegionSelection(
+                    PersistedRegionSelection(
+                        city = currentCity,
+                        district = currentDistrict,
+                        isGps = true,
+                        manualNonGps = false,
+                        latitude = loc.latitude,
+                        longitude = loc.longitude
+                    )
+                )
             }
         } else if (backend.enabled) {
             isGpsLocationActive = false
@@ -173,6 +231,10 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     var showAccountSettings by remember { mutableStateOf(false) }
     var showVenueOperator by remember { mutableStateOf(false) }
     var showModeration by remember { mutableStateOf(false) }
+    var adminTab by remember { mutableIntStateOf(0) }
+    var adminRefreshSignal by remember { mutableIntStateOf(0) }
+    val isAdminAccount = backend.enabled && backend.authenticated && !sessionLeaving && (live?.wire?.s("role") == "admin" || authWire?.s("role") == "admin")
+    val isAdminSession = isAdminAccount && authWire?.b("legalAcceptanceRequired") != true
     var showMyActivity by remember { mutableStateOf(false) }
     var feedbackEvent by remember { mutableStateOf<SportEvent?>(null) }
     var resultEvent by remember { mutableStateOf<SportEvent?>(null) }
@@ -460,19 +522,25 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
         } }
         execute(); return true
     }
-    fun remotePhotoVerification(image: androidx.compose.ui.graphics.ImageBitmap, after: (Boolean) -> Unit): Boolean {
+    fun remotePhotoVerification(image: androidx.compose.ui.graphics.ImageBitmap?, after: (Boolean) -> Unit): Boolean {
         if (!backend.enabled) return false
         val key = backend.requestKey("verification")
-        var uploadId: String? = null
+        val existingUploadId = live?.avatarUploadId
+        var uploadId: String? = if (image == null || image === profile.avatar) existingUploadId else null
         var savedPayload: JsonObject? = null
         lateinit var execute: () -> Unit
         execute = { demoScope.launch {
             backendBusy++
             try {
-                if (uploadId == null) uploadId = backend.uploadPhoto(image)
-                if (savedPayload == null) savedPayload = profile.toApiPayload(backend.profileVersion, uploadId)
-                backend.command("profile.save", requireNotNull(savedPayload), "$key-profile")
-                backend.command("verification.photo", apiPayload("uploadId" to uploadId), "$key-review")
+                if (uploadId == null) {
+                    val bmp = image ?: throw BackendFailure("PHOTO_REQUIRED", "Doğrulama için bir profil fotoğrafı seç.")
+                    uploadId = backend.uploadPhoto(bmp)
+                }
+                if (uploadId != existingUploadId) {
+                    if (savedPayload == null) savedPayload = profile.toApiPayload(backend.profileVersion, uploadId)
+                    backend.command("profile.save", requireNotNull(savedPayload), "$key-profile")
+                }
+                backend.command("verification.photo", apiPayload("uploadId" to requireNotNull(uploadId)), "$key-review")
                 showPhotoVerification = false; backendError = null; after(true)
                 showToast("Fotoğraf doğrulama talebi iletildi", "✓")
             } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
@@ -492,7 +560,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             try { authBackend.logout() } catch (_: Exception) { }
             finally { sessionLeaving = false }
             isLoggedIn = false; hasCompletedPassport = false; activeChatThreadId = null; profile = guestProfile
-            showAccountSettings = false; currentTab = 0; showAuthSheet = false
+            adminTab = 0; showAccountSettings = false; currentTab = 0; showAuthSheet = false
             showToast("Çıkış yapıldı · Misafir modundasın", "ℹ️")
             if (backend.enabled) runCatching { backend.reload() }
         }
@@ -518,12 +586,13 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
         execute = { completingAuthentication = true; demoScope.launch {
             backendBusy++
             try {
-                if (authBackend.profileVersion == 0) {
+                val isAdminSnap = authBackend.snapshots.value?.s("role") == "admin"
+                if (authBackend.profileVersion == 0 && !isAdminSnap) {
                     if (uploaded == null && newProfile.avatar != null) uploaded = authBackend.uploadPhoto(newProfile.avatar)
                     authBackend.command("profile.save", newProfile.toApiPayload(0, uploaded), key)
                 }
                 val saved = authBackend.snapshots.value?.let(::BackendSnapshot)?.profile
-                    ?: throw BackendFailure("PASSPORT_REQUIRED", "Sporcu pasaportun kaydedilemedi.")
+                    ?: if (isAdminSnap) newProfile else throw BackendFailure("PASSPORT_REQUIRED", "Sporcu pasaportun kaydedilemedi.")
                 finishAuthentication(saved); backendError = null; backendRetry = null
             } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
             catch (error: Exception) {
@@ -734,7 +803,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
         }
     }
     LaunchedEffect(isLoggedIn) {
-        if (isLoggedIn) requestAutoLocation()
+        if (isLoggedIn && hasForegroundLocationPermission()) requestAutoLocationSilent()
     }
     rememberForegroundLocationRefresh(appActive && backend.enabled && isLoggedIn && hasCompletedPassport)
     LaunchedEffect(backend, live?.userId, isLoggedIn, currentDeviceLocation, appActive) {
@@ -764,9 +833,10 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             runCatching { backend.command("device.register", apiPayload("platform" to device.platform, "token" to device.token), backend.requestKey("device")) }
         }
     }
-    LaunchedEffect(incomingNavigation, isLoggedIn, appActive) {
+    LaunchedEffect(incomingNavigation, isLoggedIn, hasCompletedPassport, authWire, appActive) {
         val navigation = incomingNavigation
         if (navigation != null && appActive) {
+            if (backend.enabled && backend.authenticated && authWire == null) return@LaunchedEffect
             if (!isLoggedIn || !hasCompletedPassport || authWire?.b("legalAcceptanceRequired") == true) showAuthSheet = true
             else {
                 try {
@@ -807,7 +877,15 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                             focusedMemoryId = navigation.targetId.takeIf { it.isNotBlank() }
                             currentTab = 4
                         }
-                        "MODERATION" -> showModeration = true
+                        "MODERATION" -> {
+                            if (isAdminAccount) {
+                                val matchedNotif = notifications.firstOrNull { it.id == navigation.notificationId || it.targetId == navigation.targetId }
+                                adminTab = adminTabForAlert(matchedNotif?.title.orEmpty(), matchedNotif?.body.orEmpty())
+                                adminRefreshSignal++
+                            } else {
+                                showToast("Bu bildirim yönetici paneline özeldir.", "ℹ️")
+                            }
+                        }
                         "RESERVATIONS" -> showMyActivity = true
                         "VENUE_MANAGEMENT" -> showVenueOperator = true
                     }
@@ -891,15 +969,17 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             }
             return@LaunchedEffect
         }
-        isLoggedIn = !sessionLeaving && backend.authenticated && data.profile != null
-        hasCompletedPassport = data.profile != null
+        val serverIsAdmin = data.wire.s("role") == "admin"
+        isLoggedIn = !sessionLeaving && backend.authenticated && (data.profile != null || serverIsAdmin)
+        hasCompletedPassport = data.profile != null || serverIsAdmin
         data.profile?.let {
             if (!browseRegionSelected && (profile.city != it.city || profile.area != it.area)) { currentCity = it.city; currentDistrict = it.area }
             profile = it
         }
         if (!browseRegionSelected) data.wire.o("discovery").takeIf { it.isNotEmpty() }?.let { currentCity = it.s("city"); currentDistrict = it.s("district") }
         tokenBalance = data.balance; lockedTokens = data.locked
-        events = data.events.map { event -> event.approximateLocation?.let { point -> currentDeviceLocation?.let { location -> event.copy(distanceKm = approximateDistanceKm(location, point.latitude, point.longitude)) } } ?: event }; joinedEventIds = data.joinedIds; checkedInEventIds = data.checkedInIds; waitlistedEventIds = data.waitlistedIds
+        val activeDistanceLocation = currentDeviceLocation?.takeIf { it.matchesSelectedRegion(currentCity, currentDistrict, isGpsLocationActive) }
+        events = data.events.map { event -> event.approximateLocation?.let { point -> activeDistanceLocation?.let { location -> event.copy(distanceKm = approximateDistanceKm(location, point.latitude, point.longitude)) } } ?: event }; joinedEventIds = data.joinedIds; checkedInEventIds = data.checkedInIds; waitlistedEventIds = data.waitlistedIds
         joinRequests = data.joinRequests; teamJoinRequests = data.teamRequests; teams = data.teams; tournaments = data.tournaments; challenges = data.challenges
         threads = data.threads; memoryPosts = data.memories; notifications = data.notifications; ledger = data.ledger
         venuePayments = data.venuePayments; bookedSlotIds = data.bookedSlotIds; activeProPlan = data.activePlan
@@ -908,7 +988,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
         registeredTournamentIds = data.registeredTournamentIds; invitedPlayerIds = data.invitedIds
         joinedCommunityIds = data.joinedCommunityIds; requestedCommunityIds = data.requestedCommunityIds
         remotePlayers = data.players; remoteCommunities = data.communities; remoteVenues = data.venues.map { venue ->
-            venue.approximateLocation?.let { point -> currentDeviceLocation?.let { location -> venue.copy(distanceKm = approximateDistanceKm(location, point.latitude, point.longitude)) } } ?: venue
+            venue.approximateLocation?.let { point -> activeDistanceLocation?.let { location -> venue.copy(distanceKm = approximateDistanceKm(location, point.latitude, point.longitude)) } } ?: venue
         }
         if (selectedDetailEvent != null) selectedDetailEvent = data.events.firstOrNull { it.id == selectedDetailEvent?.id } ?: selectedDetailEvent
         if (showManageJoinRequestsForEvent != null) showManageJoinRequestsForEvent = data.events.firstOrNull { it.id == showManageJoinRequestsForEvent?.id }
@@ -1240,8 +1320,22 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
 
     val featuresLocked = sessionLeaving || !isLoggedIn || !hasCompletedPassport || authWire?.b("legalAcceptanceRequired") == true
     val pendingRequestEventIds = if (!isLoggedIn) emptySet() else joinRequests.filter { it.player.id == DemoData.ME && it.status == JoinRequestStatus.PENDING }.map { it.eventId }.toSet()
+    LaunchedEffect(isAdminSession, notifications.firstOrNull()?.id, showVenueOperator) {
+        if (isAdminSession && !showVenueOperator) adminRefreshSignal++
+    }
     Box(Modifier.fillMaxSize()) {
     Box(Modifier.fillMaxSize()) {
+    if (isAdminSession) {
+        AdminConsoleScreen(
+            selectedTab = adminTab,
+            onSelectTab = { adminTab = it },
+            unreadNotificationsCount = unreadNotificationsCount,
+            refreshSignal = adminRefreshSignal,
+            onOpenNotifications = { showNotificationsSheet = true },
+            onOpenVenueOperator = { showVenueOperator = true },
+            onLogout = { remoteLogout() }
+        )
+    } else {
     Scaffold(
         containerColor = Color.Transparent, // Şeffaf zemin: Arkadaki akıcı spor desenleri görünür!
         topBar = {
@@ -1757,6 +1851,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
         }
         }
     }
+    } // end if (!isAdminSession)
 
     }
     }
@@ -1776,7 +1871,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
 
     LaunchedEffect(featuresLocked) {
         if (featuresLocked) {
-            if (authBackend.authenticated && (authWire?.b("legalAcceptanceRequired") == true || (authWire != null && authWire?.let(::BackendSnapshot)?.profile == null))) {
+            if (authBackend.authenticated && (authWire?.b("legalAcceptanceRequired") == true || (authWire != null && authWire?.s("role") != "admin" && authWire?.let(::BackendSnapshot)?.profile == null))) {
                 showAuthSheet = true
             }
             selectedDetailEvent = null; selectedDetailPlayers = emptyList(); activeChatThreadId = null
@@ -1812,6 +1907,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             isHost = isHost,
             pendingRequest = pendingRequest,
             pendingRequestsCount = pendingRequestsCount,
+            invitedPlayerIds = invitedPlayerIds,
             isRemovedByHost = if (backend.enabled) ev.id in live?.wire?.ss("removedEventIds").orEmpty() else DemoData.ME in previewRemovedEventMembers[ev.id].orEmpty(),
             removedPlayers = if (backend.enabled) remotePlayers.filter { player -> live?.wire?.a("removedEventMembers")?.any { it.s("event_id") == ev.id && it.s("user_id") == backend.serverUserId(player.id) } == true } else DemoData.players.filter { it.id in previewRemovedEventMembers[ev.id].orEmpty() },
             onRemoveParticipant = { player -> requireAccount {
@@ -2288,7 +2384,14 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                         focusedMemoryId = notif.targetId?.takeIf { it.isNotBlank() }
                         currentTab = 4
                     }
-                    NotificationDestination.MODERATION -> requireAccount { showModeration = true }
+                    NotificationDestination.MODERATION -> requireAccount {
+                        if (isAdminAccount) {
+                            adminTab = adminTabForAlert(notif.title, notif.body)
+                            adminRefreshSignal++
+                        } else {
+                            showToast("Bu bildirim yönetici paneline özeldir.", "ℹ️")
+                        }
+                    }
                     NotificationDestination.RESERVATIONS -> requireAccount { showMyActivity = true }
                     NotificationDestination.VENUE_MANAGEMENT -> requireAccount { showVenueOperator = true }
                 }
@@ -2350,9 +2453,12 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             targetName = reportTargetName!!,
             onDismiss = { reportTargetName = null },
             onSubmitReport = { reason, details ->
-                if (!remote("report.create", apiPayload("targetType" to reportTargetType, "targetId" to reportTargetId, "reason" to reason, "details" to details)))
+                if (!remote("report.create", apiPayload("targetType" to reportTargetType, "targetId" to reportTargetId, "reason" to reason, "details" to details), after = {
+                    showToast("Bildirim kaydın Hesap → Destek bölümünde", "🛡️")
+                })) {
                     moderationReports = listOf(ModerationReport(nextUniqueId("report"), reportTargetName.orEmpty(), reason, details)) + moderationReports
-                showToast("Bildirim kaydın Hesap → Destek bölümünde", "🛡️")
+                    showToast("Bildirim kaydın Hesap → Destek bölümünde", "🛡️")
+                }
             }
         )
     }
@@ -2399,6 +2505,16 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 currentCity = newCity
                 currentDistrict = newDistrict
                 isGpsLocationActive = isGps
+                savePersistedRegionSelection(
+                    PersistedRegionSelection(
+                        city = newCity,
+                        district = newDistrict,
+                        isGps = isGps,
+                        manualNonGps = !isGps,
+                        latitude = if (isGps) DeviceLocationState.current.value?.latitude else null,
+                        longitude = if (isGps) DeviceLocationState.current.value?.longitude else null
+                    )
+                )
                 if (backend.enabled && isLoggedIn) remote("discovery.save", apiPayload("city" to newCity, "district" to newDistrict, "travelMode" to false), silent = true)
                 val msg = if (isGps) {
                     "Güncel konum seçildi: $newDistrict, $newCity"
@@ -2460,7 +2576,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
         }, onDismiss = { showContactVerification = false })
     if (showPhotoVerification) PhotoVerificationSheet(profile,
         onPhotoRequest = { photo, completed -> if (!remotePhotoVerification(photo, completed)) {
-            profile = profile.copy(avatar = photo)
+            profile = profile.copy(avatar = photo ?: profile.avatar)
             supportRequests = listOf(SupportRequest(nextUniqueId("photo_verify"), "Fotoğraf doğrulaması", "Fotoğraf inceleme talebi", "Hesap")) + supportRequests
             showToast("Fotoğraf doğrulama talebin kaydedildi", "✓")
             completed(true)
@@ -2503,8 +2619,10 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
         canSubmit = (event.id in joinedEventIds || event.hostId == DemoData.ME) && (!backend.enabled || event.id in checkedInEventIds) && event.status in setOf(EventStatus.IN_PROGRESS, EventStatus.COMPLETED, EventStatus.VERIFIED, EventStatus.DISPUTED),
         onSubmit = { result -> if (!remote("result.submit", apiPayload("eventId" to event.id, "homeScore" to result.homeScore, "awayScore" to result.awayScore, "note" to result.note, "sides" to mapOf("home" to result.homeParticipantIds.map(backend::serverUserId), "away" to result.awayParticipantIds.map(backend::serverUserId))))) { matchResults = matchResults + (event.id to result); showToast("Sonuç kaydedildi · doğrulama bekleniyor", "✓") } },
         onDispute = { reason ->
-            if (!remote("result.dispute", apiPayload("eventId" to event.id, "reason" to reason))) matchResults[event.id]?.let { matchResults = matchResults + (event.id to it.copy(disputed = true, disputeReason = reason)) }
-            moderationReports = listOf(ModerationReport(nextUniqueId("result_dispute"), event.title, "Skor itirazı", reason)) + moderationReports
+            if (!remote("result.dispute", apiPayload("eventId" to event.id, "reason" to reason))) {
+                matchResults[event.id]?.let { matchResults = matchResults + (event.id to it.copy(disputed = true, disputeReason = reason)) }
+                moderationReports = listOf(ModerationReport(nextUniqueId("result_dispute"), event.title, "Skor itirazı", reason)) + moderationReports
+            }
         }, onDismiss = { resultEvent = null },
         onConfirm = {
             if (!remote("result.confirm", apiPayload("eventId" to event.id))) {

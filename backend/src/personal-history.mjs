@@ -68,7 +68,7 @@ export async function personalHistory(ctx, kind, filters = {}) {
       WHERE b.user_id=? AND b.created_at<=?`;
   } else if (kind==='support') {
     stamp='s.created_at';identifier='s.id';
-    sql=`SELECT s.*,(SELECT a.metadata FROM audit_log a WHERE a.target_id=s.id AND a.action='admin.support.resolve'
+    sql=`SELECT s.*,(SELECT a.metadata FROM audit_log a WHERE ((a.target_id=s.id AND a.action='admin.support.resolve') OR (s.category='Fotoğraf doğrulaması' AND a.target_id=s.user_id AND a.action='admin.verification.photo'))
       ORDER BY a.created_at DESC,a.id DESC LIMIT 1) AS reply_payload FROM support_requests s WHERE s.user_id=? AND s.created_at<=?`;
   } else {
     stamp='r.created_at';identifier='r.id';
@@ -89,7 +89,8 @@ export async function personalHistory(ctx, kind, filters = {}) {
     if (kind==='reservations') return reservationItem(record);
     if (kind==='support') {
       const {reply_payload,...request}=record;
-      return {...request,response:reply_payload?json(reply_payload).response:null,createdAt:Number(record.created_at)};
+      const replyMeta=reply_payload?json(reply_payload):null;
+      return {...request,response:replyMeta?(replyMeta.response??replyMeta.reason??null):null,createdAt:Number(record.created_at)};
     }
     if (kind==='reports') return {...record,createdAt:Number(record.created_at)};
     return {id:record.id,type:record.kind,amount:record.amount,lockedDelta:record.locked_delta,description:record.description,
