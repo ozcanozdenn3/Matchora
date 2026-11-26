@@ -36,6 +36,11 @@ class NativeDeviceContractTest {
         assertEquals("Şanlıurfa", canonicalRegionCity("Sanliurfa"))
         assertEquals("İzmir", canonicalRegionCity("IZMIR"))
         assertNull(canonicalRegionCity(" "))
+        assertEquals("Kadıköy", canonicalRegionDistrict(" Kadikoy "))
+        assertEquals("Beşiktaş", canonicalRegionDistrict("BESIKTAS"))
+        assertEquals("Üsküdar", canonicalRegionDistrict("Uskudar"))
+        assertEquals("Çankaya", canonicalRegionDistrict("Cankaya"))
+        assertNull(canonicalRegionDistrict(" "))
     }
 
     @Test fun onlineMeetingsHaveNoPhysicalDirectionsWhileLanAndPhysicalMeetingsDo() {

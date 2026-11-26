@@ -139,7 +139,7 @@ export class Auth {
       const session = await this.store.transaction(async db => this.issue(db, await this.upsertIdentity(db, identityKey, phone, null)));
       return { ...session, profileHints: { name: fullName || '', email: '', phone: phone || '' } };
     }
-    ensure(this.config.userInfoUrl, 503, 'AUTH_NOT_CONFIGURED', 'Giriş servisi henüz bağlanmadı.');
+    ensure(this.config.userInfoUrl && this.config.authPublicKey, 503, 'AUTH_NOT_CONFIGURED', 'Giriş servisi henüz bağlanmadı.');
     const tokenUrl = this.config.userInfoUrl.replace(/user$/, 'token?grant_type=id_token');
     let response;
     try {
@@ -199,7 +199,7 @@ export class Auth {
     if (result.error) fail(401, result.error, 'Kod geçersiz veya süresi dolmuş.'); return result;
   }
   async verifyContact(actor,payload) {
-    ensure(actor?.id,401,'UNAUTHENTICATED','Giriş yapmalısın.');keys(payload,['challengeId','code']);ensure(/^\d{6}$/.test(payload.code));
+    ensure(actor?.id,401,'UNAUTHENTICATED','Giriş yapmalısın.');keys(payload,['challengeId','code']);text(payload.challengeId,'Challenge',10,100);ensure(/^\d{6}$/.test(payload.code));
     const result=await this.store.transaction(async db=>{
       const row=await db.get('SELECT * FROM auth_challenges WHERE id=?',[payload.challengeId]);
       if(!row||row.user_id!==actor.id||row.consumed||Number(row.expires_at)<=this.clock()||row.attempts>=5)return{error:'OTP_EXPIRED'};

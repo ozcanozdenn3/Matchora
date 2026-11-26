@@ -164,7 +164,7 @@ private class IosLocationRequest(
                     val place = placemarks?.firstOrNull() as? CLPlacemark
                     val rawCity = place?.administrativeArea ?: place?.locality ?: place?.subAdministrativeArea ?: place?.name
                     val rawDistrict = place?.subAdministrativeArea ?: place?.locality ?: place?.subLocality ?: "Merkez"
-                    finish(LocationOutcome.Located(DeviceLocation(latitude, longitude, canonicalRegionCity(rawCity), rawDistrict, capturedAt)))
+                    finish(LocationOutcome.Located(DeviceLocation(latitude, longitude, canonicalRegionCity(rawCity), canonicalRegionDistrict(rawDistrict) ?: "Merkez", capturedAt)))
                 }
             }
         }
@@ -236,8 +236,10 @@ private const val REGION_LON_KEY = "matchora.region.lon"
 
 actual fun loadPersistedRegionSelection(): PersistedRegionSelection? {
     val defaults = NSUserDefaults.standardUserDefaults
-    val city = defaults.stringForKey(REGION_CITY_KEY)?.trim()?.takeIf { it.isNotBlank() } ?: return null
-    val district = defaults.stringForKey(REGION_DISTRICT_KEY)?.trim()?.takeIf { it.isNotBlank() } ?: "Merkez"
+    val rawCity = defaults.stringForKey(REGION_CITY_KEY)?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    val city = canonicalRegionCity(rawCity) ?: rawCity
+    val rawDistrict = defaults.stringForKey(REGION_DISTRICT_KEY)?.trim()?.takeIf { it.isNotBlank() } ?: "Merkez"
+    val district = canonicalRegionDistrict(rawDistrict) ?: rawDistrict
     val isGps = defaults.boolForKey(REGION_IS_GPS_KEY)
     val manualNonGps = defaults.boolForKey(REGION_MANUAL_NON_GPS_KEY)
     val hasCoords = defaults.boolForKey(REGION_HAS_COORDS_KEY)
@@ -255,8 +257,10 @@ actual fun loadPersistedRegionSelection(): PersistedRegionSelection? {
 
 actual fun savePersistedRegionSelection(selection: PersistedRegionSelection) {
     val defaults = NSUserDefaults.standardUserDefaults
-    defaults.setObject(selection.city, forKey = REGION_CITY_KEY)
-    defaults.setObject(selection.district, forKey = REGION_DISTRICT_KEY)
+    val cleanCity = canonicalRegionCity(selection.city) ?: selection.city.trim()
+    val cleanDistrict = canonicalRegionDistrict(selection.district) ?: selection.district.trim().ifBlank { "Merkez" }
+    defaults.setObject(cleanCity, forKey = REGION_CITY_KEY)
+    defaults.setObject(cleanDistrict, forKey = REGION_DISTRICT_KEY)
     defaults.setBool(selection.isGps, forKey = REGION_IS_GPS_KEY)
     defaults.setBool(selection.manualNonGps, forKey = REGION_MANUAL_NON_GPS_KEY)
     if (selection.latitude != null && selection.longitude != null && validMapCoordinate(selection.latitude, selection.longitude)) {

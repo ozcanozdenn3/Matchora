@@ -96,7 +96,7 @@ actual fun NativeMapView(
                 zoomEnabled = interactive
                 pitchEnabled = interactive
                 rotateEnabled = interactive
-                if (interactive) {
+                if (interactive && pins.size > 1) {
                     layoutMargins = UIEdgeInsetsMake(100.0, 0.0, 190.0, 0.0)
                 } else {
                     layoutMargins = UIEdgeInsetsMake(0.0, 0.0, 0.0, 0.0)
@@ -115,6 +115,11 @@ actual fun NativeMapView(
             mapView.zoomEnabled = interactive
             mapView.rotateEnabled = interactive
             mapView.pitchEnabled = interactive
+            mapView.layoutMargins = if (interactive && pins.size > 1) {
+                UIEdgeInsetsMake(100.0, 0.0, 190.0, 0.0)
+            } else {
+                UIEdgeInsetsMake(0.0, 0.0, 0.0, 0.0)
+            }
             if (appliedPins != pins) {
                 mapView.removeAnnotations(mapView.annotations)
                 annotations.forEach { mapView.addAnnotation(it) }

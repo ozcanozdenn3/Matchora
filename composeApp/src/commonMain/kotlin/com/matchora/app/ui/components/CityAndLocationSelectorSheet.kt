@@ -54,10 +54,10 @@ fun CityAndLocationSelectorSheet(
         when (result) {
             is LocationOutcome.Located -> {
                 DeviceLocationState.current.value = result.value
-                val foundCity = result.value.city
+                val foundCity = canonicalRegionCity(result.value.city)
                 if (foundCity.isNullOrBlank()) locationError = LocationOutcome.Failed("Konum alındı ancak il ve ilçe çözümlenemedi. Bölgeni elle seçebilirsin.")
                 else {
-                    val foundDistrict = result.value.district?.trim()?.takeIf { it.isNotBlank() } ?: "Merkez"
+                    val foundDistrict = canonicalRegionDistrict(result.value.district) ?: "Merkez"
                     city = foundCity
                     district = foundDistrict
                     gpsSelected = true
@@ -141,7 +141,12 @@ value = if (expanded) query else city, onValueChange = { query = it },
                     textStyle = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                     value = district, onValueChange = { district = it; gpsSelected = false }, label = { Text("İlçe / bölge") }, singleLine = true,
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp))
-            MButton("$city için uygula", { onSelectLocation(city, district.trim().ifBlank { "Merkez" }, gpsSelected); onDismiss() }, icon = Icons.Rounded.Check)
+            MButton("$city için uygula", {
+                val cleanCity = canonicalRegionCity(city) ?: city.trim()
+                val cleanDistrict = canonicalRegionDistrict(district) ?: "Merkez"
+                onSelectLocation(cleanCity, cleanDistrict, gpsSelected)
+                onDismiss()
+            }, icon = Icons.Rounded.Check)
         }
     }
     locationError?.let { failure -> AlertDialog(onDismissRequest = { locationError = null },

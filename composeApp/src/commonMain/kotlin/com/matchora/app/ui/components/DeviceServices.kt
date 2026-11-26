@@ -14,14 +14,12 @@ internal fun freshLocationFix(latitude: Double, longitude: Double, ageMillis: Do
     validMapCoordinate(latitude, longitude) && ageMillis.isFinite() && ageMillis in -5000.0..120000.0 &&
         accuracyMeters.isFinite() && accuracyMeters >= 0
 
-/** Native geocoders can return an English spelling even when the app uses Turkish city names. */
-internal fun canonicalRegionCity(value: String?): String? {
-    val city = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
-    fun key(text: String) = text.replace('İ', 'i').replace('ı', 'i').replace('Ş', 's').replace('ş', 's')
-        .replace('Ğ', 'g').replace('ğ', 'g').replace('Ü', 'u').replace('ü', 'u')
-        .replace('Ö', 'o').replace('ö', 'o').replace('Ç', 'c').replace('ç', 'c').lowercase()
-    return com.matchora.app.state.turkeyCities.firstOrNull { key(it) == key(city) } ?: city
-}
+/** Native geocoders can return an English spelling even when the app uses Turkish city/district names. */
+internal fun canonicalRegionCity(value: String?): String? =
+    value?.trim()?.takeIf { it.isNotBlank() }?.let { com.matchora.app.state.canonicalTurkishCityName(it) }
+
+internal fun canonicalRegionDistrict(value: String?): String? =
+    value?.trim()?.takeIf { it.isNotBlank() }?.let { com.matchora.app.state.canonicalTurkishDistrictName(it) }
 
 fun approximateDistanceKm(from: DeviceLocation, latitude: Double, longitude: Double): Float {
     val radians = kotlin.math.PI / 180.0

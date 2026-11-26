@@ -74,6 +74,32 @@ android {
         versionName = "1.1"
     }
 
+    signingConfigs {
+        val storeFilePath = providers.gradleProperty("matchora.release.storeFile")
+            .orElse(providers.environmentVariable("MATCHORA_RELEASE_STORE_FILE"))
+            .orNull
+        if (!storeFilePath.isNullOrBlank()) {
+            create("release") {
+                storeFile = file(storeFilePath)
+                storePassword = providers.gradleProperty("matchora.release.storePassword")
+                    .orElse(providers.environmentVariable("MATCHORA_RELEASE_STORE_PASSWORD")).orNull
+                keyAlias = providers.gradleProperty("matchora.release.keyAlias")
+                    .orElse(providers.environmentVariable("MATCHORA_RELEASE_KEY_ALIAS")).orNull
+                keyPassword = providers.gradleProperty("matchora.release.keyPassword")
+                    .orElse(providers.environmentVariable("MATCHORA_RELEASE_KEY_PASSWORD")).orNull
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = false
+            isShrinkResources = false
+            signingConfig = signingConfigs.findByName("release")?.takeIf { it.storeFile?.exists() == true }
+                ?: signingConfigs.getByName("debug")
+        }
+    }
+
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
@@ -87,11 +113,13 @@ compose.resources {
 val matchoraMode = providers.gradleProperty("matchora.mode").orElse(providers.environmentVariable("MATCHORA_MODE")).orElse("preview")
 val matchoraApi = providers.gradleProperty("matchora.apiUrl").orElse(providers.environmentVariable("MATCHORA_API_URL")).orElse(providers.provider { if (matchoraMode.get() == "local") "http://127.0.0.1:8787" else "" })
 val matchoraMapStyle = providers.gradleProperty("matchora.mapStyleUrl").orElse(providers.environmentVariable("MATCHORA_MAP_STYLE_URL")).orElse("")
+val matchoraGoogleWebClientId = providers.gradleProperty("matchora.googleWebClientId").orElse(providers.environmentVariable("MATCHORA_GOOGLE_WEB_CLIENT_ID")).orElse("")
 val generateBackendConfig by tasks.registering {
     val output = layout.buildDirectory.dir("generated/backendConfig")
     inputs.property("mode", matchoraMode)
     inputs.property("apiUrl", matchoraApi)
     inputs.property("mapStyleUrl", matchoraMapStyle)
+    inputs.property("googleWebClientId", matchoraGoogleWebClientId)
     val firebaseFile = layout.projectDirectory.file("google-services.json").asFile
     inputs.property("firebaseConfig", providers.provider { if (firebaseFile.exists()) firebaseFile.readText() else "" })
     outputs.dir(output)
@@ -112,10 +140,19 @@ val generateBackendConfig by tasks.registering {
         } ?: emptyMap<Any, Any>()
         val info = client["client_info"] as? Map<*, *> ?: emptyMap<Any, Any>()
         val apiKey = ((client["api_key"] as? List<*>)?.firstOrNull() as? Map<*, *>)?.get("current_key")?.toString().orEmpty()
+        val directOauthClients = (client["oauth_client"] as? List<*>)?.filterIsInstance<Map<*, *>>().orEmpty()
+        val servicesMap = client["services"] as? Map<*, *>
+        val appInviteMap = servicesMap?.get("appinvite_service") as? Map<*, *>
+        val otherOauthClients = (appInviteMap?.get("other_platform_oauth_client") as? List<*>)?.filterIsInstance<Map<*, *>>().orEmpty()
+        val jsonWebClientId = (directOauthClients + otherOauthClients)
+            .firstOrNull { (it["client_type"] as? Number)?.toInt() == 3 }
+            ?.get("client_id")?.toString().orEmpty()
+        val googleWebClientId = matchoraGoogleWebClientId.get().trim().ifEmpty { jsonWebClientId }
         fun literal(value: Any?) = "\"" + value?.toString().orEmpty().replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\""
         file.writeText("package com.matchora.app.data\nobject BackendBuildConfig { const val MODE = ${literal(mode)}; const val BASE_URL = ${literal(endpoint)}; " +
             "const val FIREBASE_APP_ID = ${literal(info["mobilesdk_app_id"])}; const val FIREBASE_API_KEY = ${literal(apiKey)}; " +
-            "const val FIREBASE_PROJECT_ID = ${literal(project["project_id"])}; const val FIREBASE_SENDER_ID = ${literal(project["project_number"])}; const val MAP_STYLE_URL = ${literal(mapStyle)} }\n")
+            "const val FIREBASE_PROJECT_ID = ${literal(project["project_id"])}; const val FIREBASE_SENDER_ID = ${literal(project["project_number"])}; " +
+            "const val MAP_STYLE_URL = ${literal(mapStyle)}; const val GOOGLE_WEB_CLIENT_ID = ${literal(googleWebClientId)} }\n")
     }
 }
 kotlin.sourceSets.commonMain { kotlin.srcDir(layout.buildDirectory.dir("generated/backendConfig")) }

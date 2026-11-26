@@ -5,7 +5,7 @@ import { runJobs } from '../../../backend/src/jobs.mjs';
 import { createFetchHandler } from '../../../backend/src/server.mjs';
 import { MatchoraService } from '../../../backend/src/service.mjs';
 import { SupabaseMediaStore } from '../../../backend/src/storage.mjs';
-import { PostgresStore } from '../../../backend/src/store.mjs';
+import { PostgresStore, ensureProductionRuntimeSchema } from '../../../backend/src/store.mjs';
 
 interface RuntimeState {
   service: InstanceType<typeof MatchoraService>;
@@ -23,6 +23,7 @@ async function getRuntime(): Promise<RuntimeState> {
       const env = Deno.env.toObject();
       const config = configFromEnv(env);
       const store = await PostgresStore.open(config.databaseUrl);
+      await ensureProductionRuntimeSchema(store, config);
       const media = new SupabaseMediaStore(config.supabaseUrl, config.storageServiceKey, config.storageBucket);
       const service = new MatchoraService(store, config, media);
       const auth = new Auth(store, config);

@@ -116,12 +116,17 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
     val persistedRegion = remember {
         loadPersistedRegionSelection()?.also { saved ->
             if (saved.isGps && saved.latitude != null && saved.longitude != null && DeviceLocationState.current.value == null) {
-                DeviceLocationState.current.value = DeviceLocation(saved.latitude, saved.longitude, saved.city, saved.district)
+                DeviceLocationState.current.value = DeviceLocation(
+                    saved.latitude,
+                    saved.longitude,
+                    canonicalTurkishCityName(saved.city),
+                    canonicalTurkishDistrictName(saved.district)
+                )
             }
         }
     }
-    var currentCity by remember { mutableStateOf(persistedRegion?.city ?: "İstanbul") }
-    var currentDistrict by remember { mutableStateOf(persistedRegion?.district ?: "Kadıköy") }
+    var currentCity by remember { mutableStateOf(canonicalTurkishCityName(persistedRegion?.city).ifBlank { "İstanbul" }) }
+    var currentDistrict by remember { mutableStateOf(canonicalTurkishDistrictName(persistedRegion?.district).ifBlank { "Kadıköy" }) }
     var browseRegionSelected by remember { mutableStateOf(persistedRegion != null) }
     var manualNonGpsRegion by remember { mutableStateOf(persistedRegion?.manualNonGps ?: false) }
     var initialListingScope by remember { mutableStateOf(EventNetworkScope.CITY) }
@@ -138,10 +143,9 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 browseRegionSelected = true
                 val foundCity = result.value.city?.trim()?.takeIf { it.isNotBlank() }
                 if (foundCity != null) {
-                    val matchedCity = turkeyCities.firstOrNull { matchesTurkishPlace(it, foundCity) } ?: foundCity
-                    currentCity = matchedCity
-                    val foundDistrict = result.value.district?.trim()?.takeIf { it.isNotBlank() }
-                    if (foundDistrict != null) {
+                    currentCity = canonicalTurkishCityName(foundCity)
+                    val foundDistrict = canonicalTurkishDistrictName(result.value.district)
+                    if (foundDistrict.isNotBlank()) {
                         currentDistrict = foundDistrict
                     } else if (!matchesTurkishPlace(currentCity, "İstanbul")) {
                         currentDistrict = "Merkez"
@@ -190,10 +194,9 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 isGpsLocationActive = true
                 browseRegionSelected = true
                 loc.city?.trim()?.takeIf { it.isNotBlank() }?.let { foundCity ->
-                    val matchedCity = turkeyCities.firstOrNull { matchesTurkishPlace(it, foundCity) } ?: foundCity
-                    currentCity = matchedCity
-                    val foundDistrict = loc.district?.trim()?.takeIf { it.isNotBlank() }
-                    if (foundDistrict != null) {
+                    currentCity = canonicalTurkishCityName(foundCity)
+                    val foundDistrict = canonicalTurkishDistrictName(loc.district)
+                    if (foundDistrict.isNotBlank()) {
                         currentDistrict = foundDistrict
                     } else if (!matchesTurkishPlace(currentCity, "İstanbul")) {
                         currentDistrict = "Merkez"
@@ -844,7 +847,14 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                         notifications = notifications.map { if (it.id == navigation.notificationId) it.copy(read = true) else it }
                         if (backend.enabled) remote("notification.read", apiPayload("notificationId" to navigation.notificationId), silent = true)
                     }
-                    when (navigation.destination) {
+                    if (isAdminSession && navigation.destination in setOf(
+                            "CHALLENGES", "TEAM", "TOURNAMENT", "RANKING", "PASSPORT", "CHAT", "NETWORK", "VENUES", "MEMORIES"
+                        )
+                    ) {
+                        val matchedNotif = notifications.firstOrNull { it.id == navigation.notificationId || it.targetId == navigation.targetId }
+                        adminTab = adminTabForAlert(matchedNotif?.title.orEmpty(), matchedNotif?.body.orEmpty())
+                        adminRefreshSignal++
+                    } else when (navigation.destination) {
                         "EVENT" -> openEventById(navigation.targetId)
                         "CHAT" -> {
                             activeChatThreadId = navigation.targetId
@@ -1453,8 +1463,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     onSelectEvent = { selectedDetailEvent = it },
                     onQuickJoin = { ev -> requireAccount {
                         if (ev.approvalRequired) {
-                            selectedDetailEvent = ev
-                            showToast("Bu maç organizatör onayı gerektiriyor. Detaydan başvuru gönder.", "ℹ️")
+                            showSubmitJoinSheetForEvent = ev
                         } else joinEventImmediately(ev, "Taahhüt")
                      }},
                     onToggleWaitlist = { ev -> if (!remote("event.waitlist", apiPayload("eventId" to ev.id, "action" to live?.waitlistAction(ev.id)))) { requireAccount {
@@ -1506,7 +1515,9 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     onApproveTeamJoinRequest = { requireAccount { approveTeamJoinRequest(it)  }},
                     onRejectTeamJoinRequest = { requireAccount { rejectTeamJoinRequest(it)  }},
                     onOpenDirectChat = { requireAccount { openDirectChatWithPlayer(it)  }},
-                    onInvitePlayerToTeam = { player, team -> if (!(remote("team.invite", apiPayload("teamId" to team.id, "userId" to backend.serverUserId(player.id))))) { requireAccount {
+                    onInvitePlayerToTeam = { player, team -> if (!(remote("team.invite", apiPayload("teamId" to team.id, "userId" to backend.serverUserId(player.id))) {
+                        invitedPlayerIds = invitedPlayerIds + player.id
+                    })) { requireAccount {
                         invitedPlayerIds = invitedPlayerIds + player.id
                         val teamName = team.name
                         showToast("${player.name}, $teamName kadrosuna davet edildi", "🛡️")
@@ -2139,9 +2150,12 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 requireAccount {
                     val myTeam = teams.firstOrNull { it.captainId == DemoData.ME && it.sport == ev.sport }
                     if (myTeam != null) {
-                        invitedPlayerIds = invitedPlayerIds + player.id
-                        remote("team.invite", apiPayload("teamId" to myTeam.id, "userId" to backend.serverUserId(player.id)))
-                        showToast("${player.name}, ${myTeam.name} kadrosuna davet edildi", "🛡️")
+                        if (!remote("team.invite", apiPayload("teamId" to myTeam.id, "userId" to backend.serverUserId(player.id))) {
+                                invitedPlayerIds = invitedPlayerIds + player.id
+                            }) {
+                            invitedPlayerIds = invitedPlayerIds + player.id
+                            showToast("${player.name}, ${myTeam.name} kadrosuna davet edildi", "🛡️")
+                        }
                     } else {
                         selectedDetailEvent = null
                         competitionEntryTab = 2
@@ -2254,8 +2268,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 playNowInitialVenue = null
                 playNowInitialTime = null
                 if (ev.approvalRequired) {
-                    selectedDetailEvent = ev
-                    showToast("Bu maç organizatör onayı gerektiriyor. Detaydan başvuru gönder.", "ℹ️")
+                    showSubmitJoinSheetForEvent = ev
                 } else {
                     joinEventImmediately(ev, "Hızlı katılım")
                 }
@@ -2351,7 +2364,21 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                 if (backend.enabled) remote("notification.read", apiPayload("notificationId" to notif.id))
                 notifications = notifications.map { if (it.id == notif.id) it.copy(read = true) else it }
                 showNotificationsSheet = false
-                when (notif.destination) {
+                if (isAdminSession && notif.destination in setOf(
+                        NotificationDestination.CHALLENGES,
+                        NotificationDestination.TEAM,
+                        NotificationDestination.TOURNAMENT,
+                        NotificationDestination.RANKING,
+                        NotificationDestination.PASSPORT,
+                        NotificationDestination.CHAT,
+                        NotificationDestination.NETWORK,
+                        NotificationDestination.VENUES,
+                        NotificationDestination.MEMORIES
+                    )
+                ) {
+                    adminTab = adminTabForAlert(notif.title, notif.body)
+                    adminRefreshSignal++
+                } else when (notif.destination) {
                     NotificationDestination.EVENT -> {
                         (notif.eventId ?: notif.targetId)?.let { openEventById(it) } ?: showToast("Bu bildirimin maç bağlantısı bulunamadı", "ℹ️")
                     }
@@ -2500,26 +2527,28 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             isGpsActive = isGpsLocationActive,
             onDismiss = { showCityLocationSheet = false },
             onSelectLocation = { newCity, newDistrict, isGps ->
+                val cleanCity = canonicalTurkishCityName(newCity).ifBlank { currentCity }
+                val cleanDistrict = canonicalTurkishDistrictName(newDistrict).ifBlank { "Merkez" }
                 browseRegionSelected = true
                 manualNonGpsRegion = !isGps
-                currentCity = newCity
-                currentDistrict = newDistrict
+                currentCity = cleanCity
+                currentDistrict = cleanDistrict
                 isGpsLocationActive = isGps
                 savePersistedRegionSelection(
                     PersistedRegionSelection(
-                        city = newCity,
-                        district = newDistrict,
+                        city = cleanCity,
+                        district = cleanDistrict,
                         isGps = isGps,
                         manualNonGps = !isGps,
                         latitude = if (isGps) DeviceLocationState.current.value?.latitude else null,
                         longitude = if (isGps) DeviceLocationState.current.value?.longitude else null
                     )
                 )
-                if (backend.enabled && isLoggedIn) remote("discovery.save", apiPayload("city" to newCity, "district" to newDistrict, "travelMode" to false), silent = true)
+                if (backend.enabled && isLoggedIn) remote("discovery.save", apiPayload("city" to cleanCity, "district" to cleanDistrict, "travelMode" to false), silent = true)
                 val msg = if (isGps) {
-                    "Güncel konum seçildi: $newDistrict, $newCity"
+                    "Güncel konum seçildi: $cleanDistrict, $cleanCity"
                 } else {
-                    "Bölge seçildi: $newCity · $newDistrict (Maç ağı güncellendi)"
+                    "Bölge seçildi: $cleanCity · $cleanDistrict (Maç ağı güncellendi)"
                 }
                 showToast(msg, "📍")
             }

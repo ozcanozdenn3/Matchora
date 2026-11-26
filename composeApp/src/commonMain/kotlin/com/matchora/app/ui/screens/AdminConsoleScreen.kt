@@ -665,9 +665,46 @@ fun AdminConsoleScreen(
                         }
                         items(deletionRequests, key = { "delreq_${it.s("userId")}" }) { req ->
                             MCard {
-                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text("Bekleyen hesap silme talebi · ${req.s("name")}", fontWeight = FontWeight.Bold)
-                                    Text("İnfaz: ${formatAdminTimestamp(req.l("executeAfter"))} · ${req.s("phone")}", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
+                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text("Bekleyen hesap silme talebi · ${req.s("name")}", fontWeight = FontWeight.Bold)
+                                        Text("İnfaz: ${formatAdminTimestamp(req.l("executeAfter"))} · ${req.s("phone")}", style = MaterialTheme.typography.bodySmall, color = MColors.Ink600)
+                                    }
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        MPillActionButton(
+                                            "Hemen Sil",
+                                            {
+                                                activeAction = AdminActionSpec(
+                                                    title = "Hesabı Hemen Sil",
+                                                    operation = "admin.deletion.resolve",
+                                                    payload = apiPayload("userId" to req.s("userId"), "approve" to true),
+                                                    minimum = 3,
+                                                    message = "Bekleyen hesap silme talebi bekleme süresi dolmadan hemen işlenir.",
+                                                    destructive = true
+                                                )
+                                            },
+                                            icon = Icons.Rounded.DeleteForever,
+                                            tone = MPillTone.DANGER,
+                                            compact = true,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        MPillActionButton(
+                                            "Talebi İptal Et",
+                                            {
+                                                activeAction = AdminActionSpec(
+                                                    title = "Silme Talebini İptal Et",
+                                                    operation = "admin.deletion.resolve",
+                                                    payload = apiPayload("userId" to req.s("userId"), "approve" to false),
+                                                    minimum = 3,
+                                                    message = "Kullanıcının bekleyen hesap silme talebi iptal edilir."
+                                                )
+                                            },
+                                            icon = Icons.Rounded.Close,
+                                            tone = MPillTone.NEUTRAL,
+                                            compact = true,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1217,7 +1254,7 @@ private fun AdminLegalDocumentsCard(legalDocs: JsonObject, onPublished: () -> Un
                     catch (e: Exception) { toast?.invoke((e as? BackendFailure)?.message ?: "Yayınlanamadı.", "⚠️") }
                     finally { busy = false }
                 }
-            }, enabled = !busy && version.isNotBlank() && url.startsWith("https://"))
+            }, enabled = !busy && version.trim().isNotEmpty() && url.trim().let { it.length >= 8 && it.startsWith("https://") && !it.contains("localhost") && !it.contains("127.0.0.1") })
         }
     }
 }

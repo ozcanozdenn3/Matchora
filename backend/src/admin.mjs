@@ -3,6 +3,7 @@ import { ensure,text,choice,keys,json } from './errors.mjs';
 import { adminRequired,row,profile,audit,encode,notify,release,cancelEvent,ACTIVE_EVENTS } from './model.mjs';
 import { ensureChatMetadata,bumpChatRevision } from './chat-state.mjs';
 import { settleResult } from './rating.mjs';
+import { processDeletions } from './jobs.mjs';
 export const adminHandlers={
  'admin.report.resolve':async(ctx,p)=>{
   adminRequired(ctx);keys(p,['reportId','status','reason']);
@@ -112,7 +113,7 @@ export const adminHandlers={
   ensure(report.status==='open',409,'INVALID_STATE','Bildirim zaten sonuçlandırıldı.');
   const reason=text(p.reason,'Gerekçe',10,1000);
   let targetOwnerId=null;
-  let destination='HOME';
+  let destination='ACCOUNT';
   let removedTitle='İçerik moderasyon tarafından kaldırıldı';
   if(report.target_type==='memory'){
    const m=await row(ctx,'memories','id',report.target_id);
@@ -140,12 +141,12 @@ export const adminHandlers={
    await bumpChatRevision(ctx,t.id);
   }else if(report.target_type==='event'){
    const e=await row(ctx,'events','id',report.target_id);
-   targetOwnerId=e.host_id;destination='DISCOVER';removedTitle='Etkinliğin moderasyon tarafından iptal edildi';
+   targetOwnerId=e.host_id;destination='EVENT';removedTitle='Etkinliğin moderasyon tarafından iptal edildi';
    if(ACTIVE_EVENTS.includes(e.status)||e.status==='IN_PROGRESS')await cancelEvent(ctx,e);
    else await ctx.db.run("UPDATE events SET status='CANCELLED',version=version+1 WHERE id=?",[e.id]);
   }else if(report.target_type==='team'){
    const t=await row(ctx,'teams','id',report.target_id);
-   targetOwnerId=t.captain_id;destination='COMPETITION';removedTitle='Takım kaydın moderasyon tarafından arşivlendi';
+   targetOwnerId=t.captain_id;destination='TEAM';removedTitle='Takım kaydın moderasyon tarafından arşivlendi';
    for(const ch of await ctx.db.all("SELECT * FROM challenges WHERE (from_team=? OR to_team=?) AND status='PENDING'",[t.id,t.id])){
     await ctx.db.run("UPDATE challenges SET status='DECLINED' WHERE id=?",[ch.id]);
     await release(ctx,ch.created_by,`challenge:${ch.id}`);
@@ -181,5 +182,23 @@ export const adminHandlers={
   }
   await audit(ctx,'admin.content.remove',report.target_id,{reportId:report.id,targetType:report.target_type,reason});
   return{removed:true,targetType:report.target_type,targetId:report.target_id};
+ },
+ 'admin.deletion.resolve':async(ctx,p)=>{
+  adminRequired(ctx);keys(p,['userId','approve','reason']);
+  ensure(typeof p.approve==='boolean');
+  const userId=text(p.userId,'Hesap',1,200);
+  ensure(userId!==ctx.actor.id,409,'SELF_MODERATION','Kendi hesabına bu işlemi uygulayamazsın.');
+  const reason=text(p.reason,'Gerekçe',3,500);
+  const req=await ctx.db.get("SELECT * FROM deletion_requests WHERE user_id=? AND status='pending'",[userId]);
+  ensure(req,404,'NOT_FOUND','Bekleyen hesap silme talebi bulunamadı.');
+  if(p.approve){
+   await ctx.db.run("UPDATE deletion_requests SET execute_after=? WHERE user_id=? AND status='pending'",[ctx.now,userId]);
+   await processDeletions(ctx);
+  }else{
+   await ctx.db.run("UPDATE deletion_requests SET status='cancelled' WHERE user_id=? AND status='pending'",[userId]);
+   await notify(ctx,userId,'social','Hesap silme talebin iptal edildi',reason,'ACCOUNT',userId,`deletion-resolve:${userId}:${ctx.requestKey}`);
+  }
+  await audit(ctx,'admin.deletion.resolve',userId,{approve:p.approve,reason});
+  return{resolved:true,approved:p.approve};
  }
 };

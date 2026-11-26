@@ -149,7 +149,8 @@ actual fun rememberLocationRequester(requestPermission: Boolean, onResult: (Loca
                             Geocoder(context, Locale("tr", "TR")).getFromLocation(location.latitude, location.longitude, 1)?.firstOrNull()
                         } else null
                         if (generation == requestGeneration) callback(LocationOutcome.Located(DeviceLocation(location.latitude, location.longitude,
-                            canonicalRegionCity(address?.adminArea ?: address?.locality ?: address?.subAdminArea), address?.subAdminArea ?: address?.locality ?: address?.subLocality ?: "Merkez",
+                            canonicalRegionCity(address?.adminArea ?: address?.locality ?: address?.subAdminArea),
+                            canonicalRegionDistrict(address?.subAdminArea ?: address?.locality ?: address?.subLocality) ?: "Merkez",
                             capturedAt = System.currentTimeMillis() - ((android.os.SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1000000L).coerceAtLeast(0))))
                     }
                 }
@@ -259,8 +260,10 @@ private const val REGION_LON_KEY = "region_lon"
 actual fun loadPersistedRegionSelection(): PersistedRegionSelection? {
     val context = runCatching { AndroidBackendRuntime.context }.getOrNull() ?: return null
     val prefs = context.getSharedPreferences(DEVICE_PREFS_NAME, android.content.Context.MODE_PRIVATE)
-    val city = prefs.getString(REGION_CITY_KEY, null)?.trim()?.takeIf { it.isNotBlank() } ?: return null
-    val district = prefs.getString(REGION_DISTRICT_KEY, null)?.trim()?.takeIf { it.isNotBlank() } ?: "Merkez"
+    val rawCity = prefs.getString(REGION_CITY_KEY, null)?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    val city = canonicalRegionCity(rawCity) ?: rawCity
+    val rawDistrict = prefs.getString(REGION_DISTRICT_KEY, null)?.trim()?.takeIf { it.isNotBlank() } ?: "Merkez"
+    val district = canonicalRegionDistrict(rawDistrict) ?: rawDistrict
     val isGps = prefs.getBoolean(REGION_IS_GPS_KEY, false)
     val manualNonGps = prefs.getBoolean(REGION_MANUAL_NON_GPS_KEY, false)
     val hasCoords = prefs.getBoolean(REGION_HAS_COORDS_KEY, false)
@@ -278,9 +281,11 @@ actual fun loadPersistedRegionSelection(): PersistedRegionSelection? {
 
 actual fun savePersistedRegionSelection(selection: PersistedRegionSelection) {
     val context = runCatching { AndroidBackendRuntime.context }.getOrNull() ?: return
+    val cleanCity = canonicalRegionCity(selection.city) ?: selection.city.trim()
+    val cleanDistrict = canonicalRegionDistrict(selection.district) ?: selection.district.trim().ifBlank { "Merkez" }
     val editor = context.getSharedPreferences(DEVICE_PREFS_NAME, android.content.Context.MODE_PRIVATE).edit()
-        .putString(REGION_CITY_KEY, selection.city)
-        .putString(REGION_DISTRICT_KEY, selection.district)
+        .putString(REGION_CITY_KEY, cleanCity)
+        .putString(REGION_DISTRICT_KEY, cleanDistrict)
         .putBoolean(REGION_IS_GPS_KEY, selection.isGps)
         .putBoolean(REGION_MANUAL_NON_GPS_KEY, selection.manualNonGps)
     if (selection.latitude != null && selection.longitude != null && validMapCoordinate(selection.latitude, selection.longitude)) {

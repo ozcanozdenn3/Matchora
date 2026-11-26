@@ -19,9 +19,10 @@ actual suspend fun performNativeGoogleSignIn(): NativeAuthResult? {
     val activity = AndroidBackendRuntime.currentActivity ?: return null
     val credentialManager = CredentialManager.create(activity)
 
+    val serverClientId = BackendBuildConfig.GOOGLE_WEB_CLIENT_ID.ifBlank { GOOGLE_SERVER_CLIENT_ID }
     val googleIdOption = GetGoogleIdOption.Builder()
         .setFilterByAuthorizedAccounts(false)
-        .setServerClientId(GOOGLE_SERVER_CLIENT_ID)
+        .setServerClientId(serverClientId)
         .setAutoSelectEnabled(false)
         .build()
 
@@ -44,8 +45,8 @@ actual suspend fun performNativeGoogleSignIn(): NativeAuthResult? {
         }
     } catch (cancel: GetCredentialCancellationException) {
         throw BackendFailure("AUTH_CANCELLED", "Google ile giriş iptal edildi.")
-    } catch (e: GetCredentialException) {
-        throw BackendFailure("GOOGLE_AUTH_FAILED", e.message ?: "Google ile giriş tamamlanamadı.")
+    } catch (_: GetCredentialException) {
+        null
     } catch (e: Exception) {
         throw BackendFailure("GOOGLE_AUTH_FAILED", e.message ?: "Google ile giriş tamamlanamadı.")
     }

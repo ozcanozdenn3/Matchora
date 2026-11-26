@@ -11,7 +11,10 @@ export async function legalConfiguration(ctx){
    deletion:{url:ctx.config.deletionUrl??null,version:null},
    support:{email:ctx.config.supportEmail??null}
  };
- for(const d of await ctx.db.all('SELECT * FROM legal_documents WHERE active=1 ORDER BY published_at,version'))docs[d.kind]={url:d.url,version:d.version};
+ for(const d of await ctx.db.all('SELECT * FROM legal_documents WHERE active=1 ORDER BY published_at,version')){
+  docs[d.kind]={url:d.url,version:d.version};
+  if(d.kind==='terms'){docs.terms_ios={url:d.url,version:d.version};docs.terms_android={url:d.url,version:d.version};}
+ }
  return{documents:docs,requiresAcceptance:ctx.config.production,configured:!!(docs.privacy.url&&docs.privacy.version&&docs.terms.url&&docs.terms.version)};
 }
 export const legalHandlers={

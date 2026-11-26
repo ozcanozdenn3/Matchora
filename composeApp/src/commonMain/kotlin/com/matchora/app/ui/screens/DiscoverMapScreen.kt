@@ -99,9 +99,8 @@ fun DiscoverMapScreen(
             )
             val matchSport = selectedSport == null || ev.sport == selectedSport
             val matchAi = activeAiFilterLabel == null || when (activeAiFilterLabel) {
-                "FOOTBALL_TONIGHT" -> ev.sport == Sport.FOOTBALL && ev.matchesDayFilter("Bugün")
-                "WEEKEND_RACKET" -> (ev.sport == Sport.TENNIS || ev.sport == Sport.PADEL) &&
-                    (ev.matchesDayFilter("Cumartesi") || ev.matchesDayFilter("Pazar"))
+                "FOOTBALL_TONIGHT" -> ev.matchesDayFilter("Bugün")
+                "WEEKEND_RACKET" -> ev.matchesDayFilter("Cumartesi") || ev.matchesDayFilter("Pazar")
                 "URGENT_FILL" -> ev.emergency && ev.freeSpots > 0
                 "TEAM_MATCH" -> ev.isTeamEvent
                 else -> true
@@ -111,7 +110,7 @@ fun DiscoverMapScreen(
                 ev.venue.contains(searchQuery, ignoreCase = true) ||
                 ev.area.contains(searchQuery, ignoreCase = true) ||
                 ev.sport.label.contains(searchQuery, ignoreCase = true)
-            val matchCity = com.matchora.app.state.matchesTurkishPlace(ev.city, currentCity)
+            val matchCity = ev.networkScope == EventNetworkScope.TRAVEL || com.matchora.app.state.matchesTurkishPlace(ev.city, currentCity)
             isDiscoverable && matchSport && matchAi && matchQuery && matchCity
         }
     }
@@ -181,8 +180,8 @@ fun DiscoverMapScreen(
                 latitude = mapCenter.first,
                 longitude = mapCenter.second,
                 zoomMeters = if (selectedEvent == null && selectedRegionLocation != null) 3800.0
-                    else if (selectedEvent == null && liveRegionCenter == null && currentCity != "İstanbul") 35000.0
-                    else if (selectedEvent == null && (currentDistrict.isBlank() || currentDistrict == "Merkez")) 60000.0 else 3800.0,
+                    else if (selectedEvent == null && liveRegionCenter == null && !com.matchora.app.state.matchesTurkishPlace(currentCity, "İstanbul")) 24000.0
+                    else if (selectedEvent == null && (currentDistrict.isBlank() || com.matchora.app.state.matchesTurkishPlace(currentDistrict, "Merkez"))) 24000.0 else 3800.0,
                 pins = mapPinDataList,
                 selectedPinId = selectedEventId,
                 onPinSelected = { pinId ->

@@ -145,7 +145,7 @@ export const operationHandlers = {
     let recipients = 0;
     for (const user of users) {
       if (json(user.notifications).marketing !== true) continue;
-      if (city && json(user.payload).city.toLocaleLowerCase('tr') !== city.toLocaleLowerCase('tr')) continue;
+      if (city && canonicalTurkishCity(json(user.payload).city ?? '') !== canonicalTurkishCity(city)) continue;
       await notify(ctx, user.user_id, 'marketing', title, body, 'PASSPORT', '', `announcement:${ctx.requestKey}:${user.user_id}`);
       recipients++;
     }

@@ -151,3 +151,38 @@ test('admin.content.remove cleans reported event and team and resolves open repo
   assert.equal((await f.service.adminInbox(f.admin)).reports.length, 0);
 });
 
+test('admin.deletion.resolve executes or cancels pending deletion requests and legal terms propagate', async t => {
+  const f = await fixture(t);
+  await f.grant(f.host);
+  await f.grant(f.guest);
+
+  await f.cmd(f.guest, 'account.delete', {});
+  await f.cmd(f.admin, 'admin.deletion.resolve', { userId: f.guest.id, approve: false, reason: 'Kullanıcı talebi iptal edildi' });
+  assert.equal((await f.store.get('SELECT status FROM deletion_requests WHERE user_id=?', [f.guest.id])).status, 'cancelled');
+
+  await f.cmd(f.host, 'account.delete', {});
+  await f.cmd(f.admin, 'admin.deletion.resolve', { userId: f.host.id, approve: true, reason: 'Acil silme onaylandı' });
+  assert.equal((await f.store.get('SELECT status FROM deletion_requests WHERE user_id=?', [f.host.id])).status, 'completed');
+  assert.equal((await f.store.get('SELECT status FROM users WHERE id=?', [f.host.id])).status, 'deleted');
+
+  await f.cmd(f.admin, 'admin.legal.publish', { kind: 'terms', version: '2026.9', url: 'https://example.com/terms-2026-9' });
+  const cfg = await f.service.configuration();
+  assert.equal(cfg.documents.terms.version, '2026.9');
+  assert.equal(cfg.documents.terms_ios.url, 'https://example.com/terms-2026-9');
+  assert.equal(cfg.documents.terms_android.url, 'https://example.com/terms-2026-9');
+});
+
+test('ensureProductionRuntimeSchema is repeatable in PostgreSQL', async t => {
+  const { PGlite } = await import('@electric-sql/pglite');
+  const { readFile } = await import('node:fs/promises');
+  const { ensureProductionRuntimeSchema } = await import('../src/store.mjs');
+  const pg = new PGlite();
+  t.after(() => pg.close());
+  await pg.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
+  await pg.exec(await readFile(new URL('../supabase/01_schema.sql', import.meta.url), 'utf8'));
+  await ensureProductionRuntimeSchema({ exec: sql => pg.exec(sql) }, { publicUrl: 'https://rqtppytkoetwnjyfxulw.supabase.co/functions/v1/matchora-api' });
+  await ensureProductionRuntimeSchema({ exec: sql => pg.exec(sql) }, { publicUrl: 'https://rqtppytkoetwnjyfxulw.supabase.co/functions/v1/matchora-api' });
+  assert.equal((await pg.query('SELECT version FROM public.schema_migrations WHERE version=15')).rows[0].version, 15);
+  assert.equal((await pg.query('SELECT count(*)::int AS n FROM public.feature_flags')).rows[0].n, 5);
+});
+

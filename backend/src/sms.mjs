@@ -1,5 +1,5 @@
 import { ensure } from './errors.mjs';
-export const smsConfigured=config=>!!(config.smsUrl&&config.smsToken||config.twilioAccountSid&&config.twilioAuthToken&&(config.twilioFrom||config.twilioMessagingServiceSid));
+export const smsConfigured=config=>!!(config.smsUrl&&config.smsToken||/^AC[a-fA-F0-9]{32}$/.test(config.twilioAccountSid??'')&&config.twilioAuthToken&&(config.twilioFrom||config.twilioMessagingServiceSid));
 export async function sendOtpSms(config,to,code,requestId,request=fetch){
  let response;
  try{

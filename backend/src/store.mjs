@@ -151,3 +151,50 @@ export async function migrate(store) {
   await store.exec(await readFile(new URL('../migrations/012_discovery_history.sql', import.meta.url), 'utf8'));
   await store.exec(await readFile(new URL('../migrations/015_admin_system.sql', import.meta.url), 'utf8'));
 }
+
+export async function ensureProductionRuntimeSchema(store, config = {}) {
+  const healthUrl = `${(config.publicUrl || 'https://rqtppytkoetwnjyfxulw.supabase.co/functions/v1/matchora-api').replace(/\/$/, '')}/health`;
+  const parsed = new URL(healthUrl);
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
+    throw new Error('Invalid public health URL for runtime schema');
+  }
+  const safeHealthUrl = parsed.toString().replaceAll("'", "''");
+  const now = Date.now();
+  await store.exec(`
+    CREATE INDEX IF NOT EXISTS support_requests_open_queue ON support_requests(status, category, created_at);
+    CREATE INDEX IF NOT EXISTS reports_open_queue ON reports(status, created_at);
+    CREATE INDEX IF NOT EXISTS reports_target_status ON reports(target_type, target_id, status);
+    CREATE INDEX IF NOT EXISTS venue_applications_pending_queue ON venue_applications(status, created_at);
+    CREATE INDEX IF NOT EXISTS venue_reviews_pending_queue ON venue_reviews(status, created_at);
+    CREATE INDEX IF NOT EXISTS results_moderation_queue ON results(status, dispute_until, created_at);
+    CREATE INDEX IF NOT EXISTS deletion_requests_pending_queue ON deletion_requests(status, execute_after);
+    CREATE INDEX IF NOT EXISTS outbox_status_created ON outbox(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS users_role_status ON users(role, status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS audit_log_recent ON audit_log(created_at DESC);
+    CREATE INDEX IF NOT EXISTS memories_upload_lookup ON memories(upload_id);
+    CREATE INDEX IF NOT EXISTS messages_upload_lookup ON messages(upload_id);
+    INSERT INTO schema_migrations(version, applied_at) VALUES(15, ${now}) ON CONFLICT(version) DO NOTHING;
+    INSERT INTO feature_flags(name, enabled, updated_at) VALUES
+      ('billing', 1, ${now}),
+      ('chat', 1, ${now}),
+      ('memories', 1, ${now}),
+      ('tournaments', 1, ${now}),
+      ('venues', 1, ${now})
+    ON CONFLICT(name) DO NOTHING;
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron')
+         AND EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_net') THEN
+        PERFORM cron.unschedule('matchora-jobs-heartbeat')
+          WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'matchora-jobs-heartbeat');
+        PERFORM cron.schedule(
+          'matchora-jobs-heartbeat',
+          '* * * * *',
+          format('SELECT net.http_get(url := %L);', '${safeHealthUrl}')
+        );
+      END IF;
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END $$;
+  `);
+}

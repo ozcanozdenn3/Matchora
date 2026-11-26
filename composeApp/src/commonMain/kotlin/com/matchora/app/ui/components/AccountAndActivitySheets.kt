@@ -138,14 +138,6 @@ fun AccountSettingsSheet(privacy: PrivacyPrefs, onPrivacy: (PrivacyPrefs) -> Uni
             AppLinkButton(AppLink.DELETION)
             AppLinkButton(AppLink.SUPPORT)
         }
-        if (snapshot?.s("role") == "admin") {
-            MPremiumMenuRow(
-                text = "Operasyon merkezi",
-                subtitle = "Tesis başvuruları, destek ve moderasyon kayıtları",
-                icon = Icons.Rounded.AdminPanelSettings,
-                onClick = { showModeration = true }
-            )
-        }
         if (snapshot?.s("role") in listOf("admin", "venue_owner")) {
             MPremiumMenuRow(
                 text = "Tesis yönetimi",
