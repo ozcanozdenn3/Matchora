@@ -1375,7 +1375,11 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                     selectedTab = currentTab,
                     unreadChats = if (isLoggedIn) unreadChatThreadsCount else 0,
                     onSelectTab = { clickedTab ->
-                        if (currentTab == clickedTab) {
+                        if (clickedTab in setOf(2, 3)) {
+                            requireAccount {
+                                if (currentTab == clickedTab) scrollToTopTrigger++ else currentTab = clickedTab
+                            }
+                        } else if (currentTab == clickedTab) {
                             scrollToTopTrigger++
                         } else {
                             currentTab = clickedTab
@@ -1443,11 +1447,11 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
                             selectedMatch?.let { selectedDetailEvent = it }; showToast("Sohbete katılmak için maç kadrosuna katılmalısın", "ℹ️")
                         }
                      }},
-                    onOpenTeamChallenge = { competitionEntryTab = 2; currentTab = 2 },
-                    onOpenLeaderboard = { competitionEntryTab = 0; currentTab = 2 },
+                    onOpenTeamChallenge = { requireAccount { competitionEntryTab = 2; currentTab = 2 } },
+                    onOpenLeaderboard = { requireAccount { competitionEntryTab = 0; currentTab = 2 } },
                     onOpenWallet = { requireAccount { showWalletSheet = true  }},
                     onOpenProfile = { currentTab = 5 },
-                    onOpenCommunities = { currentTab = 3 }
+                    onOpenCommunities = { requireAccount { currentTab = 3 } }
                 )
                 1 -> DiscoverMapScreen(
                     paddingValues = paddingValues,
@@ -1885,6 +1889,7 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             if (authBackend.authenticated && (authWire?.b("legalAcceptanceRequired") == true || (authWire != null && authWire?.s("role") != "admin" && authWire?.let(::BackendSnapshot)?.profile == null))) {
                 showAuthSheet = true
             }
+            if (currentTab in setOf(2, 3)) currentTab = 0
             selectedDetailEvent = null; selectedDetailPlayers = emptyList(); activeChatThreadId = null
             tournamentTeamChoice = null; showPlayNowSheet = false; showWalletSheet = false
             showNotificationsSheet = false; showCityLocationSheet = false
@@ -2561,7 +2566,11 @@ private fun MainAppShell(backend: BackendRepository, authBackend: BackendReposit
             selectedTab = currentTab,
             onDismiss = { showMenuSheet = false },
             onSelectTab = { tab ->
-                currentTab = tab
+                if (tab in setOf(2, 3)) {
+                    requireAccount { currentTab = tab }
+                } else {
+                    currentTab = tab
+                }
             }
         )
     }

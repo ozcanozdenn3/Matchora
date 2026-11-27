@@ -132,7 +132,7 @@ value = if (expanded) query else city, onValueChange = { query = it },
                 ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false; query = "" }, modifier = Modifier.heightIn(max = 320.dp)) {
                     com.matchora.app.state.turkeyCities.filter { com.matchora.app.state.canonicalTurkishKey(it).contains(com.matchora.app.state.canonicalTurkishKey(query)) }.forEach { name ->
                         DropdownMenuItem(text = { Text(name) }, onClick = { city = name; district = "Merkez"; gpsSelected = false; expanded = false; query = "" },
-                            trailingIcon = { if (city == name) Icon(Icons.Rounded.Check, null, tint = MColors.BrandDeep) })
+                            trailingIcon = { if (city == name) Icon(Icons.Rounded.Check, null, tint = MColors.Brand) })
                     }
                 }
             }

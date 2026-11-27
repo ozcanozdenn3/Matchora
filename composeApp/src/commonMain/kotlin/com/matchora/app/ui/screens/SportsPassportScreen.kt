@@ -410,257 +410,257 @@ fun SportsPassportScreen(
                 item {
                     PassportHighlightsCard(onOpenAuth = onOpenAuth)
                 }
-            }
-
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(onClick = { if (!isLoggedIn) onOpenAuth() else onOpenActivity() }, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Rounded.CalendarMonth, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("Oyun takvimim", fontSize = 12.sp) }
-                    OutlinedButton(onClick = { if (!isLoggedIn) onOpenAuth() else onOpenSettings() }, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Rounded.Tune, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("Hesap ayarları", fontSize = 12.sp, maxLines = 1) }
+            } else {
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(onClick = onOpenActivity, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Rounded.CalendarMonth, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("Oyun takvimim", fontSize = 12.sp) }
+                        OutlinedButton(onClick = onOpenSettings, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Rounded.Tune, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("Hesap ayarları", fontSize = 12.sp, maxLines = 1) }
+                    }
                 }
-            }
 
-            item {
-                PassportSectionCard(
-                    title = "Rozetler",
-                    detail = "$earnedBadges / ${badges.size} kazanıldı"
-                ) {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(horizontal = 3.dp, vertical = 4.dp)
+                item {
+                    PassportSectionCard(
+                        title = "Rozetler",
+                        detail = "$earnedBadges / ${badges.size} kazanıldı"
                     ) {
-                        items(badges.size) { index ->
-                            val badge = badges[index]
-                            Surface(
-                                onClick = { if (!isLoggedIn) onOpenAuth() else selectedBadgeForDetail = badge },
-                                shape = RoundedCornerShape(15.dp),
-                                color = Color.White,
-                                shadowElevation = 1.dp,
-                                border = BorderStroke(
-                                    width = 1.dp,
-                                    color = if (badge.earned) MColors.Brand.copy(alpha = 0.28f) else Color(0xFFE2E8F0)
-                                ),
-                                modifier = Modifier.width(86.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFFAFBFD))))
-                                        .padding(vertical = 10.dp, horizontal = 6.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(horizontal = 3.dp, vertical = 4.dp)
+                        ) {
+                            items(badges.size) { index ->
+                                val badge = badges[index]
+                                Surface(
+                                    onClick = { selectedBadgeForDetail = badge },
+                                    shape = RoundedCornerShape(15.dp),
+                                    color = Color.White,
+                                    shadowElevation = 1.dp,
+                                    border = BorderStroke(
+                                        width = 1.dp,
+                                        color = if (badge.earned) MColors.Brand.copy(alpha = 0.28f) else Color(0xFFE2E8F0)
+                                    ),
+                                    modifier = Modifier.width(86.dp)
                                 ) {
-                                    Box(
+                                    Column(
                                         modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(CircleShape)
-                                            .background(if (badge.earned) Color(0xFFFFF7ED) else Color(0xFFF8FAFC))
-                                            .border(
-                                                1.dp,
-                                                if (badge.earned) MColors.Brand.copy(alpha = 0.45f) else MColors.Line,
-                                                CircleShape
-                                            ),
-                                        contentAlignment = Alignment.Center
+                                            .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFFAFBFD))))
+                                            .padding(vertical = 10.dp, horizontal = 6.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
-                                        Text(badge.emoji, fontSize = 18.sp, color = if (badge.earned) Color.Unspecified else MColors.Ink400)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(38.dp)
+                                                .clip(CircleShape)
+                                                .background(if (badge.earned) Color(0xFFFFF7ED) else Color(0xFFF8FAFC))
+                                                .border(
+                                                    1.dp,
+                                                    if (badge.earned) MColors.Brand.copy(alpha = 0.45f) else MColors.Line,
+                                                    CircleShape
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(badge.emoji, fontSize = 18.sp, color = if (badge.earned) Color.Unspecified else MColors.Ink400)
+                                        }
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(
+                                            badge.title,
+                                            fontSize = 11.5.sp,
+                                            lineHeight = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MColors.Ink800,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            minLines = 2
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            text = if (badge.earned) "Kazanıldı" else "%${(badge.progress.coerceIn(0f, 1f) * 100).toInt()}",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (badge.earned) MColors.Mint else MColors.Ink500
+                                        )
                                     }
-                                    Spacer(Modifier.height(6.dp))
-                                    Text(
-                                        badge.title,
-                                        fontSize = 11.5.sp,
-                                        lineHeight = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MColors.Ink800,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                        minLines = 2
-                                    )
-                                    Spacer(Modifier.height(2.dp))
-                                    Text(
-                                        text = if (badge.earned) "Kazanıldı" else "%${(badge.progress.coerceIn(0f, 1f) * 100).toInt()}",
-                                        fontSize = 10.5.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (badge.earned) MColors.Mint else MColors.Ink500
-                                    )
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            item {
-                PassportSectionCard(title = "Güvenilirlik geçmişi", detail = "%${effectiveUser.reliability}") {
-                    PersonalHistoryButton("reliability", "Tüm güvenilirlik geçmişi")
-                    Surface(
-                        onClick = { if (!isLoggedIn) onOpenAuth() else showReliabilityDetail = !showReliabilityDetail },
-                        shape = RoundedCornerShape(13.dp),
-                        color = Color.White,
-                        shadowElevation = 5.dp,
-                        border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 3.dp, vertical = 2.dp)
-                            .shadow(
-                                elevation = 7.dp,
-                                shape = RoundedCornerShape(13.dp),
-                                ambientColor = Color(0x2E0B1220),
-                                spotColor = Color(0x3E0B1220)
-                            )
-                    ) {
-                        Row(
+                item {
+                    PassportSectionCard(title = "Güvenilirlik geçmişi", detail = "%${effectiveUser.reliability}") {
+                        PersonalHistoryButton("reliability", "Tüm güvenilirlik geçmişi")
+                        Surface(
+                            onClick = { showReliabilityDetail = !showReliabilityDetail },
+                            shape = RoundedCornerShape(13.dp),
+                            color = Color.White,
+                            shadowElevation = 5.dp,
+                            border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(horizontal = 3.dp, vertical = 2.dp)
+                                .shadow(
+                                    elevation = 7.dp,
+                                    shape = RoundedCornerShape(13.dp),
+                                    ambientColor = Color(0x2E0B1220),
+                                    spotColor = Color(0x3E0B1220)
+                                )
                         ) {
-                            Text("Son hareketler", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = MColors.Ink800)
-                            Icon(
-                                if (showReliabilityDetail) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
-                                null,
-                                tint = MColors.Ink500,
-                                modifier = Modifier.size(18.dp)
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Son hareketler", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = MColors.Ink800)
+                                Icon(
+                                    if (showReliabilityDetail) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                                    null,
+                                    tint = MColors.Ink500,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        AnimatedVisibility(visible = showReliabilityDetail) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 9.dp)) {
+                                passportDisplay.reliabilityRecords.forEach { record ->
+                                    Surface(
+                                        shape = RoundedCornerShape(13.dp),
+                                        color = Color.White,
+                                        shadowElevation = 5.dp,
+                                        border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 3.dp, vertical = 1.dp)
+                                            .shadow(
+                                                elevation = 7.dp,
+                                                shape = RoundedCornerShape(13.dp),
+                                                ambientColor = Color(0x2C0B1220),
+                                                spotColor = Color(0x3C0B1220)
+                                            )
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Text(record.title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
+                                                Text("${record.time} · ${record.note}", fontSize = 11.5.sp, color = MColors.Ink500)
+                                            }
+                                            val deltaLabel = when {
+                                                record.delta > 0 -> "+${record.delta}"
+                                                else -> record.delta.toString()
+                                            }
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = when {
+                                                    record.delta > 0 -> Color(0xFFEAF8F1)
+                                                    record.delta < 0 -> Color(0xFFFFF0F0)
+                                                    else -> MColors.SurfaceMuted
+                                                }
+                                            ) {
+                                                Text(
+                                                    "$deltaLabel puan",
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = when {
+                                                        record.delta > 0 -> MColors.Mint
+                                                        record.delta < 0 -> MColors.Rose
+                                                        else -> MColors.Ink500
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                    AnimatedVisibility(visible = showReliabilityDetail) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 9.dp)) {
-                            passportDisplay.reliabilityRecords.forEach { record ->
+                }
+
+                item {
+                    PassportSectionCard(title = "Son maçlar", detail = "${history.size} kayıt") {
+                        PersonalHistoryButton("matches", "Tüm maç geçmişi")
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (history.isEmpty()) Text("İlk doğrulanmış maçından sonra sportif geçmişin burada oluşur.", color = MColors.Ink500, style = MaterialTheme.typography.bodySmall)
+                            history.take(if (showAllMatches) Int.MAX_VALUE else 3).forEach { match ->
                                 Surface(
-                                    shape = RoundedCornerShape(13.dp),
+                                    shape = RoundedCornerShape(15.dp),
                                     color = Color.White,
-                                    shadowElevation = 5.dp,
+                                    shadowElevation = 6.dp,
                                     border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 3.dp, vertical = 1.dp)
+                                        .padding(horizontal = 3.dp, vertical = 2.dp)
                                         .shadow(
-                                            elevation = 7.dp,
-                                            shape = RoundedCornerShape(13.dp),
-                                            ambientColor = Color(0x2C0B1220),
-                                            spotColor = Color(0x3C0B1220)
+                                            elevation = 9.dp,
+                                            shape = RoundedCornerShape(15.dp),
+                                            ambientColor = Color(0x320B1220),
+                                            spotColor = Color(0x460B1220)
                                         )
                                 ) {
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 9.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                            .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFFAFBFD))))
+                                            .padding(horizontal = 11.dp, vertical = 9.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text(record.title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MColors.Ink900)
-                                            Text("${record.time} · ${record.note}", fontSize = 11.5.sp, color = MColors.Ink500)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .shadow(3.dp, RoundedCornerShape(10.dp), ambientColor = Color(0x200B1220), spotColor = Color(0x2E0B1220))
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(Color(0xFFF8FAFC))
+                                                .border(0.8.dp, Color(0xFFE4E9F2), RoundedCornerShape(10.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(match.sport.emoji, fontSize = 17.sp)
                                         }
-                                        val deltaLabel = when {
-                                            record.delta > 0 -> "+${record.delta}"
-                                            else -> record.delta.toString()
+                                        Spacer(Modifier.width(10.dp))
+                                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(
+                                                match.title,
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MColors.Ink900,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text("${match.date} · ${match.result}", fontSize = 11.5.sp, color = MColors.Ink500, maxLines = 1)
                                         }
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
-                                            color = when {
-                                                record.delta > 0 -> Color(0xFFEAF8F1)
-                                                record.delta < 0 -> Color(0xFFFFF0F0)
-                                                else -> MColors.SurfaceMuted
-                                            }
+                                            color = if (match.ratingDelta > 0) Color(0xFFEAF8F1) else if (match.ratingDelta < 0) Color(0xFFFFF0F0) else MColors.SurfaceMuted,
+                                            border = BorderStroke(
+                                                0.7.dp,
+                                                if (match.ratingDelta > 0) MColors.Mint.copy(alpha = 0.25f) else if (match.ratingDelta < 0) MColors.Rose.copy(alpha = 0.25f) else MColors.Line
+                                            )
                                         ) {
                                             Text(
-                                                "$deltaLabel puan",
+                                                if (match.ratingDelta > 0) "+${match.ratingDelta}" else match.ratingDelta.toString(),
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                fontSize = 11.5.sp,
+                                                fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = when {
-                                                    record.delta > 0 -> MColors.Mint
-                                                    record.delta < 0 -> MColors.Rose
-                                                    else -> MColors.Ink500
-                                                }
+                                                color = if (match.ratingDelta > 0) MColors.Mint else if (match.ratingDelta < 0) MColors.Rose else MColors.Ink500
                                             )
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                }
-            }
-
-            item {
-                PassportSectionCard(title = "Son maçlar", detail = "${history.size} kayıt") {
-                    PersonalHistoryButton("matches", "Tüm maç geçmişi")
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (history.isEmpty()) Text("İlk doğrulanmış maçından sonra sportif geçmişin burada oluşur.", color = MColors.Ink500, style = MaterialTheme.typography.bodySmall)
-                        history.take(if (showAllMatches) Int.MAX_VALUE else 3).forEach { match ->
-                            Surface(
-                                shape = RoundedCornerShape(15.dp),
-                                color = Color.White,
-                                shadowElevation = 6.dp,
-                                border = BorderStroke(1.dp, Color(0xFFE4E9F2)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 3.dp, vertical = 2.dp)
-                                    .shadow(
-                                        elevation = 9.dp,
-                                        shape = RoundedCornerShape(15.dp),
-                                        ambientColor = Color(0x320B1220),
-                                        spotColor = Color(0x460B1220)
-                                    )
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFFAFBFD))))
-                                        .padding(horizontal = 11.dp, vertical = 9.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .shadow(3.dp, RoundedCornerShape(10.dp), ambientColor = Color(0x200B1220), spotColor = Color(0x2E0B1220))
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(Color(0xFFF8FAFC))
-                                            .border(0.8.dp, Color(0xFFE4E9F2), RoundedCornerShape(10.dp)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(match.sport.emoji, fontSize = 17.sp)
-                                    }
-                                    Spacer(Modifier.width(10.dp))
-                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text(
-                                            match.title,
-                                            fontSize = 12.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MColors.Ink900,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text("${match.date} · ${match.result}", fontSize = 11.5.sp, color = MColors.Ink500, maxLines = 1)
-                                    }
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = if (match.ratingDelta > 0) Color(0xFFEAF8F1) else if (match.ratingDelta < 0) Color(0xFFFFF0F0) else MColors.SurfaceMuted,
-                                        border = BorderStroke(
-                                            0.7.dp,
-                                            if (match.ratingDelta > 0) MColors.Mint.copy(alpha = 0.25f) else if (match.ratingDelta < 0) MColors.Rose.copy(alpha = 0.25f) else MColors.Line
-                                        )
-                                    ) {
-                                        Text(
-                                            if (match.ratingDelta > 0) "+${match.ratingDelta}" else match.ratingDelta.toString(),
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (match.ratingDelta > 0) MColors.Mint else if (match.ratingDelta < 0) MColors.Rose else MColors.Ink500
-                                        )
-                                    }
-                                }
-                            }
+                        if (history.size > 3) {
+                            Spacer(Modifier.height(10.dp))
+                            ExpandPassportRows(
+                                expanded = showAllMatches,
+                                label = if (showAllMatches) "Daha az göster" else "Diğer ${history.size - 3} maçı göster",
+                                onClick = { showAllMatches = !showAllMatches }
+                            )
                         }
-                    }
-                    if (history.size > 3) {
-                        Spacer(Modifier.height(10.dp))
-                        ExpandPassportRows(
-                            expanded = showAllMatches,
-                            label = if (showAllMatches) "Daha az göster" else "Diğer ${history.size - 3} maçı göster",
-                            onClick = { showAllMatches = !showAllMatches }
-                        )
                     }
                 }
             }
@@ -1307,73 +1307,200 @@ private fun GuestPassportTrait(icon: ImageVector, label: String) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PassportHighlightsCard(onOpenAuth: () -> Unit) {
-    val gold = Color(0xFFE5C89E)
+    val goldBright = Color(0xFFF0D7B0)
+    val gold = Color(0xFFE1C49D)
+    val goldMid = Color(0xFFE1BE87)
+    val bronze = Color(0xFF96704D)
+
     Surface(
-        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
-        color = Color(0xFF101C29), shadowElevation = 5.dp,
-        border = BorderStroke(1.dp, Brush.linearGradient(listOf(gold.copy(alpha = .6f), Color(0xFF344858), gold.copy(alpha = .18f))))
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
+        color = Color(0xFF0E171F),
+        shadowElevation = 10.dp,
+        border = BorderStroke(
+            1.2.dp,
+            Brush.linearGradient(
+                listOf(
+                    gold.copy(alpha = 0.68f),
+                    bronze.copy(alpha = 0.42f),
+                    Color(0xFF394A56),
+                    goldBright.copy(alpha = 0.36f)
+                )
+            )
+        )
     ) {
-        Box(Modifier.background(Brush.linearGradient(listOf(Color(0xFF233746), Color(0xFF101C29), Color(0xFF14212C))))) {
+        Box(
+            Modifier.background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF293D46), Color(0xFF16232D), Color(0xFF0E171F))
+                )
+            )
+        ) {
             Canvas(Modifier.matchParentSize()) {
-                val center = Offset(size.width * 1.02f, 18.dp.toPx())
-                listOf(62.dp, 94.dp, 126.dp).forEach { radius ->
-                    drawCircle(gold.copy(alpha = .055f), radius.toPx(), center, style = Stroke(1.dp.toPx()))
+                val center = Offset(size.width * 1.02f, 20.dp.toPx())
+                drawCircle(goldBright.copy(alpha = 0.035f), 112.dp.toPx(), center)
+                listOf(64.dp, 98.dp, 134.dp).forEach { radius ->
+                    drawCircle(gold.copy(alpha = 0.065f), radius.toPx(), center, style = Stroke(1.dp.toPx()))
                 }
             }
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(28.dp).background(gold.copy(alpha = .12f), RoundedCornerShape(9.dp)), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(15.dp), tint = gold)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text("MATCHORA AYRICALIKLARI", Modifier.weight(1f), fontSize = 10.sp, letterSpacing = 1.sp,
-                        fontWeight = FontWeight.Bold, color = gold)
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("Oyununu bul.\nİzini bırak.", fontSize = 29.sp, lineHeight = 32.sp, letterSpacing = (-.7).sp,
-                        fontWeight = FontWeight.Bold, color = Color.White)
-                    Text("Maçtan takıma, gelişiminden rekabete.\nSpor hayatın tek bir yerde.", fontSize = 12.sp,
-                        lineHeight = 18.sp, color = Color(0xFFB5C5CF))
-                }
-                Surface(shape = RoundedCornerShape(17.dp), color = Color.White.copy(alpha = .055f),
-                    border = BorderStroke(.8.dp, gold.copy(alpha = .19f))) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                            Box(Modifier.size(40.dp).background(Brush.linearGradient(listOf(Color(0xFFE9D0AB), Color(0xFFB38D61))), RoundedCornerShape(13.dp)),
-                                contentAlignment = Alignment.Center) {
-                                Icon(Icons.Rounded.Radar, null, Modifier.size(22.dp), tint = Color(0xFF172531))
-                            }
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Doğru oyuncu. Doğru maç.", fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                Text("Sana uyan oyunu keşfet, eksik kadronu tamamla.", fontSize = 11.5.sp, lineHeight = 16.sp, color = Color(0xFFC3CFD7))
-                            }
-                        }
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf("Seviyene göre", "Mevkine göre", "Yakınında").forEach { label ->
-                                Surface(shape = RoundedCornerShape(7.dp), color = Color(0xFF152532), border = BorderStroke(.6.dp, Color.White.copy(alpha = .08f))) {
-                                    Text(label, Modifier.padding(horizontal = 8.dp, vertical = 5.dp), fontSize = 10.sp, color = gold, fontWeight = FontWeight.Medium)
-                                }
-                            }
-                        }
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = Color.Transparent,
+                    border = BorderStroke(
+                        0.9.dp,
+                        Brush.linearGradient(listOf(gold.copy(alpha = 0.65f), bronze.copy(alpha = 0.38f)))
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .background(Brush.linearGradient(listOf(Color(0xFF3D332B), Color(0xFF242B33))))
+                            .padding(horizontal = 11.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(14.dp), tint = goldBright)
+                        Text(
+                            "MATCHORA DİJİTAL SPOR AĞI",
+                            fontSize = 10.5.sp,
+                            letterSpacing = 0.9.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = gold
+                        )
                     }
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    PassportPrivilegeRow(Icons.Rounded.Insights, "Performansın pasaportunda.",
-                        "Branş MMR’ı, sıralamalar, doğrulanmış maçlar ve fair play geçmişin.")
-                    HorizontalDivider(color = Color.White.copy(alpha = .08f))
-                    PassportPrivilegeRow(Icons.Rounded.EmojiEvents, "Takımını kur. Rekabeti büyüt.",
-                        "Meydan okumalar, turnuvalar ve fikstürlerle oyunu birlikte sürdür.")
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Oyununu bul.\nİzini bırak.",
+                        fontSize = 30.sp,
+                        lineHeight = 34.sp,
+                        letterSpacing = (-0.7).sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(44.dp)
+                            .height(2.5.dp)
+                            .background(Brush.horizontalGradient(listOf(goldBright, bronze)), RoundedCornerShape(999.dp))
+                    )
+                    Text(
+                        "Aradığın maç, dengeli rakip ve hazır saha tek ekranda.",
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFD6DFE6)
+                    )
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Rounded.Explore, null, Modifier.size(13.dp), tint = gold.copy(alpha = .8f))
-                        Text("Sahada · kampüste · şirkette · seyahatte", fontSize = 10.5.sp, lineHeight = 15.sp, color = Color(0xFF9EB2C0))
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PassportSpotlightTile(
+                            icon = Icons.Rounded.SportsSoccer,
+                            goldBright = goldBright,
+                            goldMid = goldMid,
+                            gold = gold,
+                            bronze = bronze,
+                            title = "63 Spor Branşı",
+                            subtitle = "Futboldan tenise tüm oyunlar",
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        )
+                        PassportSpotlightTile(
+                            icon = Icons.Rounded.MyLocation,
+                            goldBright = goldBright,
+                            goldMid = goldMid,
+                            gold = gold,
+                            bronze = bronze,
+                            title = "Canlı GPS Radar",
+                            subtitle = "Yakınındaki açık maçlar",
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        )
                     }
-                    MButton("Sporcu pasaportunu oluştur", onOpenAuth, Modifier.fillMaxWidth(), height = 46.dp,
-                        icon = Icons.AutoMirrored.Rounded.ArrowForward)
+                    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PassportSpotlightTile(
+                            icon = Icons.Rounded.Tune,
+                            goldBright = goldBright,
+                            goldMid = goldMid,
+                            gold = gold,
+                            bronze = bronze,
+                            title = "Seviye & Mevki",
+                            subtitle = "Dengeli ve adil eşleşme",
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        )
+                        PassportSpotlightTile(
+                            icon = Icons.Rounded.FlashOn,
+                            goldBright = goldBright,
+                            goldMid = goldMid,
+                            gold = gold,
+                            bronze = bronze,
+                            title = "Hızlı Kadro",
+                            subtitle = "Eksik oyuncuyu anında bul",
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        )
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PassportFeatureCard(
+                        icon = Icons.Rounded.VerifiedUser,
+                        goldBright = goldBright,
+                        gold = gold,
+                        bronze = bronze,
+                        badge = "CANLI PUAN",
+                        title = "Resmi MMR Puanı & Güvenilirlik",
+                        description = "Her maçta branş puanın ve güvenilirlik oranın güncellenir; sahaya kiminle çıktığını bilirsin."
+                    )
+                    PassportFeatureCard(
+                        icon = Icons.Rounded.EmojiEvents,
+                        goldBright = goldBright,
+                        gold = gold,
+                        bronze = bronze,
+                        badge = "LİG & KUPA",
+                        title = "Kulüp Kur, Meydan Oku, Şampiyon Ol",
+                        description = "Kendi takımını kur, rakip kulüplere meydan oku ve şehir turnuvalarında kupaya yürü."
+                    )
+                    PassportFeatureCard(
+                        icon = Icons.Rounded.Stadium,
+                        goldBright = goldBright,
+                        gold = gold,
+                        bronze = bronze,
+                        badge = "TESİS & SOHBET",
+                        title = "Hazır Saha, Kort & Maç Odası",
+                        description = "Onaylı tesislerden boş saati kap, maç odasında taktiği kur ve saha anılarını vitrinde paylaş."
+                    )
+                }
+
+                Surface(
+                    onClick = onOpenAuth,
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.Transparent,
+                    shadowElevation = 6.dp,
+                    border = BorderStroke(1.dp, Color(0xFFFFB28A).copy(alpha = 0.45f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp)
+                            .background(MGradients.Brand)
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Sporcu pasaportunu oluştur",
+                            fontSize = 15.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = Color.White, modifier = Modifier.size(19.dp))
+                    }
                 }
             }
         }
@@ -1381,14 +1508,139 @@ private fun PassportHighlightsCard(onOpenAuth: () -> Unit) {
 }
 
 @Composable
-private fun PassportPrivilegeRow(icon: ImageVector, title: String, description: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.Top) {
-        Box(Modifier.size(31.dp).background(Color(0xFFE5C89E).copy(alpha = .09f), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
-            Icon(icon, null, Modifier.size(17.dp), tint = Color(0xFFE5C89E))
+private fun PassportSpotlightTile(
+    icon: ImageVector,
+    goldBright: Color,
+    goldMid: Color,
+    gold: Color,
+    bronze: Color,
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        color = Color(0xFF192631),
+        border = BorderStroke(
+            1.dp,
+            Brush.linearGradient(
+                listOf(
+                    gold.copy(alpha = 0.54f),
+                    bronze.copy(alpha = 0.28f),
+                    Color(0xFF2F3F4B)
+                )
+            )
+        ),
+        shadowElevation = 6.dp
+    ) {
+        Box(
+            Modifier.background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF2B3B47), Color(0xFF1B2732), Color(0xFF16212A))
+                )
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .background(
+                            Brush.linearGradient(listOf(goldBright, goldMid, bronze)),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .border(
+                            1.dp,
+                            Color(0xFFF6E6C9).copy(alpha = 0.55f),
+                            RoundedCornerShape(12.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, null, modifier = Modifier.size(19.dp), tint = Color(0xFF16212A))
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(title, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(subtitle, fontSize = 11.5.sp, lineHeight = 15.5.sp, color = Color(0xFFCBD5DF))
+                }
+            }
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, fontSize = 12.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFF4F6F8))
-            Text(description, fontSize = 11.5.sp, lineHeight = 17.sp, color = Color(0xFFACBDC9))
+    }
+}
+
+@Composable
+private fun PassportFeatureCard(
+    icon: ImageVector,
+    goldBright: Color,
+    gold: Color,
+    bronze: Color,
+    badge: String,
+    title: String,
+    description: String
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = Color(0xFF17232D),
+        border = BorderStroke(
+            1.dp,
+            Brush.linearGradient(
+                listOf(
+                    gold.copy(alpha = 0.44f),
+                    bronze.copy(alpha = 0.22f),
+                    Color(0xFF2B3B47)
+                )
+            )
+        ),
+        shadowElevation = 4.dp
+    ) {
+        Box(
+            Modifier.background(
+                Brush.linearGradient(listOf(Color(0xFF253440), Color(0xFF18242E)))
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(15.dp),
+                horizontalArrangement = Arrangement.spacedBy(13.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .background(
+                            Brush.linearGradient(listOf(Color(0xFF42362B), Color(0xFF272426))),
+                            RoundedCornerShape(13.dp)
+                        )
+                        .border(
+                            1.dp,
+                            Brush.linearGradient(listOf(goldBright.copy(alpha = 0.65f), bronze.copy(alpha = 0.35f))),
+                            RoundedCornerShape(13.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, null, modifier = Modifier.size(20.dp), tint = goldBright)
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFF362D25),
+                        border = BorderStroke(0.8.dp, bronze.copy(alpha = 0.55f))
+                    ) {
+                        Text(
+                            badge,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
+                            fontSize = 9.5.sp,
+                            letterSpacing = 0.8.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = gold
+                        )
+                    }
+                    Text(title, fontSize = 14.5.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(description, fontSize = 12.5.sp, lineHeight = 18.sp, color = Color(0xFFD3DEE6))
+                }
+            }
         }
     }
 }

@@ -89,7 +89,7 @@ onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPar
                         if (kotlin.math.abs(it.latitude - mapCenter.latitude) > 0.000001 || kotlin.math.abs(it.longitude - mapCenter.longitude) > 0.000001) pointChosen = true
                     }
                 } }
-                Icon(Icons.Rounded.LocationOn, "Seçilen buluşma noktası", tint = MColors.BrandDeep,
+                Icon(Icons.Rounded.LocationOn, "Seçilen buluşma noktası", tint = MColors.Brand,
                     modifier = Modifier.align(Alignment.Center).offset(y = (-18).dp).size(38.dp))
             }
             MPremiumTextField(

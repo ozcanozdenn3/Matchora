@@ -33,9 +33,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -504,6 +506,11 @@ fun MButton(
         else -> MColors.Ink900
     }
     val borderCol = if (!isPrimary && !isDestructive && enabled) MColors.Line else Color.Transparent
+    val backgroundBrush = if (isPrimary && enabled && !isDestructive) {
+        MGradients.Brand
+    } else {
+        Brush.linearGradient(listOf(bg, bg))
+    }
 
     Box(
         modifier = modifier.pressMotion(interaction)
@@ -516,7 +523,7 @@ fun MButton(
                 spotColor = if (isPrimary) MColors.Brand.copy(alpha = 0.35f) else Color.Transparent
             )
             .clip(RoundedCornerShape(14.dp))
-            .background(Brush.linearGradient(listOf(if (isPrimary && enabled && !isDestructive) Color(0xFFD84D19) else bg, bg)))
+            .background(backgroundBrush)
             .border(1.dp, borderCol, RoundedCornerShape(14.dp))
             .clickable(interactionSource = interaction, indication = ripple(), enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
@@ -795,7 +802,7 @@ fun ExploreMenuSheet(
         tonalElevation = 0.dp,
         scrimColor = Color(0xFF0B1220).copy(alpha = .48f),
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFFF6F8FB),
+        containerColor = Color(0xFFF6F7FA),
         dragHandle = { MPremiumSheetHandle() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
@@ -813,144 +820,242 @@ fun ExploreMenuSheet(
                 onDismiss = onDismiss
             )
 
-            Surface(
-                shape = RoundedCornerShape(24.dp),
-                color = Color.White,
-                shadowElevation = 4.dp,
-                border = BorderStroke(1.dp, Color(0xFFE6EBF2)),
-                modifier = Modifier.fillMaxWidth()
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column(
+                ExploreMenuCard(
+                    tab = 2,
+                    selected = selectedTab == 2,
+                    badge = "REKABET & LİG",
+                    title = "Yarış",
+                    description = "Sıralamalar, turnuvalar ve takımlar",
+                    icon = Icons.Rounded.EmojiEvents,
+                    tags = listOf("MMR Sıralaması", "Turnuvalar", "Kulüp Ligi"),
+                    onClick = {
+                        onDismiss()
+                        onSelectTab(2)
+                    }
+                )
+                ExploreMenuCard(
+                    tab = 3,
+                    selected = selectedTab == 3,
+                    badge = "KULÜP & TESİS",
+                    title = "Ağ",
+                    description = "Topluluklar, kulüpler ve tesisler",
+                    icon = Icons.Rounded.Groups,
+                    tags = listOf("Spor Tesisleri", "Topluluklar", "Kort & Saha"),
+                    onClick = {
+                        onDismiss()
+                        onSelectTab(3)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExploreMenuCard(
+    tab: Int,
+    selected: Boolean,
+    badge: String,
+    title: String,
+    description: String,
+    icon: ImageVector,
+    tags: List<String>,
+    onClick: () -> Unit
+) {
+    val goldWarm = Color(0xFFD5B488)
+    val goldSoft = Color(0xFFE5DDD0)
+    val goldRim = Color(0xFFC8A273)
+    val bronze = Color(0xFF96704D)
+    val bronzeDark = Color(0xFF7A5838)
+
+    val borderBrush = Brush.linearGradient(
+        if (selected) {
+            listOf(goldWarm, bronze.copy(alpha = 0.72f), Color(0xFFF0D7B0), goldRim)
+        } else {
+            listOf(goldWarm.copy(alpha = 0.85f), bronze.copy(alpha = 0.42f), goldSoft, goldRim.copy(alpha = 0.75f))
+        }
+    )
+
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(22.dp),
+        color = Color.White,
+        shadowElevation = if (selected) 9.dp else 7.dp,
+        border = BorderStroke(if (selected) 1.5.dp else 1.1.dp, borderBrush),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.linearGradient(listOf(Color.White, Color(0xFFFDFAF5))))
+                .drawWithCache {
+                    val center = Offset(size.width * 0.96f, 18.dp.toPx())
+                    onDrawBehind {
+                        listOf(42.dp, 64.dp, 86.dp).forEach { radius ->
+                            drawCircle(
+                                color = goldRim.copy(alpha = if (tab == 2) 0.09f else 0.075f),
+                                radius = radius.toPx(),
+                                center = center,
+                                style = Stroke(1.dp.toPx())
+                            )
+                        }
+                    }
+                }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(13.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .shadow(3.dp, RoundedCornerShape(15.dp))
+                            .clip(RoundedCornerShape(15.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(Color(0xFFC89D66), bronze, Color(0xFF6A4B2F))
+                                )
+                            )
+                            .border(1.1.dp, Color(0xFFF3DEC0), RoundedCornerShape(15.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(7.dp),
+                                color = Color(0xFFF7F0E4),
+                                border = BorderStroke(0.9.dp, Color(0xFFDDC5A2))
+                            ) {
+                                Text(
+                                    text = badge,
+                                    fontSize = 9.5.sp,
+                                    letterSpacing = 0.6.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = bronzeDark,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
+                                )
+                            }
+                            if (selected) {
+                                Surface(
+                                    shape = RoundedCornerShape(7.dp),
+                                    color = bronzeDark
+                                ) {
+                                    Text(
+                                        text = "AÇIK",
+                                        fontSize = 9.sp,
+                                        letterSpacing = 0.5.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = title,
+                            fontSize = 16.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MColors.Ink900,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = description,
+                            fontSize = 12.5.sp,
+                            lineHeight = 17.sp,
+                            color = Color(0xFF475569),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(11.dp),
+                        color = Color(0xFFF8F2E8),
+                        border = BorderStroke(1.dp, Color(0xFFD8C09A)),
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Rounded.ChevronRight,
+                                contentDescription = null,
+                                tint = bronzeDark,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    }
+                }
+
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .height(0.8.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(goldWarm.copy(alpha = 0.48f), Color(0xFFEAE2D6), Color.Transparent)
+                            )
+                        )
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    listOf(
-                        Triple(2, "Yarış", "Sıralamalar, turnuvalar ve takımlar"),
-                        Triple(3, "Ağ", "Topluluklar, kulüpler ve tesisler")
-                    ).forEach { (tab, title, description) ->
-                        val isSel = selectedTab == tab
-                        val icon = when (tab) {
-                            2 -> Icons.Rounded.EmojiEvents
-                            3 -> Icons.Rounded.Groups
-                            else -> Icons.Rounded.Badge
-                        }
-                        val tags = when (tab) {
-                            2 -> listOf("MMR Sıralaması", "Turnuvalar", "Kulüp Ligi")
-                            else -> listOf("Spor Tesisleri", "Topluluklar", "Kort & Saha")
-                        }
+                    tags.forEach { tag ->
                         Surface(
-                            onClick = {
-                                onDismiss()
-                                onSelectTab(tab)
-                            },
-                            shape = RoundedCornerShape(18.dp),
-                            color = Color.White,
-                            shadowElevation = 2.dp,
-                            border = BorderStroke(
-                                width = if (isSel) 1.5.dp else 1.dp,
-                                color = if (isSel) MColors.Brand.copy(alpha = 0.55f) else Color(0xFFE2E8F0)
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 2.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFFAF6F0),
+                            border = BorderStroke(0.9.dp, Color(0xFFE4D5BF))
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(13.dp),
-                                        color = if (isSel) MColors.BrandTint else Color(0xFFF8FAFC),
-                                        border = BorderStroke(1.dp, if (isSel) MColors.Brand.copy(alpha = 0.25f) else Color(0xFFE2E8F0)),
-                                        modifier = Modifier.size(42.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = icon,
-                                                contentDescription = null,
-                                                tint = MColors.BrandDeep,
-                                                modifier = Modifier.size(21.dp)
-                                            )
-                                        }
-                                    }
-
-                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Text(
-                                                text = title,
-                                                fontSize = 15.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MColors.Ink900
-                                            )
-                                            if (isSel) {
-                                                Surface(
-                                                    shape = RoundedCornerShape(7.dp),
-                                                    color = MColors.BrandTint,
-                                                    border = BorderStroke(1.dp, MColors.Brand.copy(alpha = 0.25f))
-                                                ) {
-                                                    Text(
-                                                        text = "Açık",
-                                                        fontSize = 9.5.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MColors.BrandDeep,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Text(
-                                            text = description,
-                                            fontSize = 12.sp,
-                                            color = MColors.Ink500
-                                        )
-                                    }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = if (isSel) MColors.BrandTint else Color(0xFFF8FAFC),
-                                        border = BorderStroke(1.dp, if (isSel) MColors.Brand.copy(alpha = 0.2f) else Color(0xFFE2E8F0)),
-                                        modifier = Modifier.size(30.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.ChevronRight,
-                                                contentDescription = null,
-                                                tint = if (isSel) MColors.BrandDeep else MColors.Ink500,
-                                                modifier = Modifier.size(17.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    tags.forEach { tag ->
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = Color(0xFFF8FAFC),
-                                            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-                                        ) {
-                                            Text(
-                                                text = tag,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MColors.Ink700,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                            )
-                                        }
-                                    }
-                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(4.5.dp)
+                                        .clip(CircleShape)
+                                        .background(bronze)
+                                )
+                                Text(
+                                    text = tag,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF334155),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     }
